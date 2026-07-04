@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>短视频泰语学习播放器</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app" id="app">
+
+        <!-- ====== 阶段一：选择视频 ====== -->
+        <div class="phase-select" id="phaseSelect">
+            <header class="header">
+                <h1>短视频泰语学习播放器</h1>
+            </header>
+            <div class="video-list-panel" id="videoListPanel">
+                <div class="provider-select">
+                    <label>语音识别引擎：</label>
+                    <select id="transcribeProvider">
+                        <option value="combined">智能校准 (Groq+Azure)</option>
+                        <option value="groq">Groq Whisper</option>
+                        <option value="azure">Azure Speech</option>
+                    </select>
+                </div>
+                <!-- 网络视频下载 -->
+                <div class="url-download-panel">
+                    <div class="url-input-row">
+                        <input type="text" id="videoUrlInput" placeholder="粘贴 TikTok / YouTube 链接...">
+                        <button id="btnDownloadUrl" class="btn-play">下载</button>
+                    </div>
+                    <div class="url-status" id="urlStatus"></div>
+                </div>
+                <p class="video-list-hint">本地视频：</p>
+                <div id="videoList" class="video-list"></div>
+            </div>
+        </div>
+
+        <!-- ====== 阶段二：加载 + 播放（共用视频画面） ====== -->
+        <div class="phase-play" id="phasePlay" style="display:none;">
+
+            <!-- 视频播放器 -->
+            <div class="video-container" id="videoContainer">
+                <video id="videoPlayer" playsinline>
+                    <source src="" type="video/mp4">
+                </video>
+
+                <!-- 加载进度遮罩（叠在视频首帧上） -->
+                <div class="loading-overlay" id="loadingOverlay" style="display:none;">
+                    <div class="loading-box">
+                        <div class="step" id="step1">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">加载视频文件...</span>
+                        </div>
+                        <div class="step" id="step2">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">语音识别与断句...</span>
+                        </div>
+                        <div class="step" id="step3">
+                            <span class="step-icon">⏳</span>
+                            <span class="step-text">翻译字幕...</span>
+                        </div>
+                        <div class="loading-tip" id="loadingTip"></div>
+                    </div>
+                </div>
+
+                <!-- 导出进度遮罩 -->
+                <div class="loading-overlay" id="exportOverlay" style="display:none;">
+                    <div class="loading-box">
+                        <div class="export-title">正在导出带字幕的视频...</div>
+                        <div class="progress-bar-wrap">
+                            <div class="progress-bar" id="exportProgressBar" style="width:0%"></div>
+                        </div>
+                        <div class="export-pct" id="exportPct">0%</div>
+                    </div>
+                </div>
+
+                <!-- 暂停指示器 -->
+                <div class="pause-indicator" id="pauseIndicator">⏸</div>
+
+                <!-- 字幕覆盖层 -->
+                <div class="subtitle-overlay" id="subtitleOverlay">
+                    <div class="subtitle-original" id="subtitleOriginal"></div>
+                    <div class="subtitle-translation" id="subtitleTranslation"></div>
+                </div>
+            </div>
+
+            <!-- 播放控制 -->
+            <div class="controls" id="controlsBar">
+                <button id="btnBack" title="返回选择">↩</button>
+                <span class="separator">|</span>
+                <button id="btnPrev" title="上一句">⏮</button>
+                <button id="btnPause" title="暂停/播放">⏸</button>
+                <button id="btnRepeat" title="重复当前句">🔄</button>
+                <button id="btnNext" title="下一句">⏭</button>
+                <span class="separator">|</span>
+                <label>重复</label>
+                <select id="repeatCount">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                </select>
+                <label>遍</label>
+                <span class="separator">|</span>
+                <label>速度</label>
+                <select id="playbackRate">
+                    <option value="0.5">0.5x</option>
+                    <option value="0.75">0.75x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                </select>
+                <span class="separator hide-mobile">|</span>
+                <label class="hide-mobile"><input type="checkbox" id="chkOriginal" checked> 原文</label>
+                <label class="hide-mobile"><input type="checkbox" id="chkTranslation" checked> 中文</label>
+                <span class="separator hide-mobile">|</span>
+                <button id="btnList" title="句子列表" class="hide-mobile">📋</button>
+                <button id="btnFollowRead" title="跟读当前句">跟读</button>
+                <button id="btnExport" title="导出">导出</button>
+                <button id="btnFullscreen" title="全屏">⛶</button>
+                <span id="timeDisplay" class="time-display">0:00 / 0:00</span>
+                <span id="repeatInfo" class="repeat-info"></span>
+            </div>
+
+            <!-- 句子列表抽屉 -->
+            <div class="sentence-drawer" id="sentenceDrawer" style="display:none;">
+                <div class="sentence-panel-header">
+                    <h2>句子列表</h2>
+                    <div>
+                        <button id="btnTranslate" disabled>重新翻译</button>
+                        <button id="btnCloseDrawer">✕</button>
+                    </div>
+                </div>
+                <div id="sentenceList" class="sentence-list"></div>
+            </div>
+
+            <!-- 导出设置弹窗 -->
+            <div class="modal-overlay" id="exportModal" style="display:none;">
+                <div class="modal-box">
+                    <h3>导出设置</h3>
+                    <div class="modal-field">
+                        <label>导出内容：</label>
+                        <select id="exportType">
+                            <option value="all">带字幕视频 + SRT 字幕文件</option>
+                            <option value="srt">仅 SRT 字幕文件</option>
+                        </select>
+                    </div>
+                    <div class="modal-field">
+                        <label>导出目录：</label>
+                        <div class="dir-input-row">
+                            <input type="text" id="exportDir" placeholder="/Users/apple/Desktop">
+                            <button type="button" id="btnBrowseDir" class="btn-browse">浏览</button>
+                        </div>
+                    </div>
+                    <div class="dir-browser" id="dirBrowser" style="display:none;">
+                        <div class="dir-browser-header">
+                            <button id="btnDirUp" title="上级目录">⬆</button>
+                            <span class="dir-current" id="dirCurrent"></span>
+                        </div>
+                        <div class="dir-list" id="dirList"></div>
+                        <div class="dir-browser-actions">
+                            <button id="btnDirSelect" class="btn-primary">选择此目录</button>
+                            <button id="btnDirCancel">取消</button>
+                        </div>
+                    </div>
+                    <div class="modal-field">
+                        <label>文件名前缀：</label>
+                        <input type="text" id="exportPrefix" placeholder="留空则使用视频原名">
+                    </div>
+                    <div class="modal-hint" id="exportHint">
+                        将导出 3 个文件：带字幕视频(.mp4)、泰语字幕(.srt)、中文字幕(.srt)
+                    </div>
+                    <div class="modal-actions">
+                        <button id="btnExportCancel">取消</button>
+                        <button id="btnExportConfirm" class="btn-primary">开始导出</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 跟读面板 -->
+            <div class="follow-read-panel" id="followReadPanel" style="display:none;">
+                <div class="fr-header">
+                    <h3>跟读练习</h3>
+                    <button id="btnFrClose">✕</button>
+                </div>
+                <div class="fr-reference" id="frReference"></div>
+                <div class="fr-translation" id="frTranslation"></div>
+                <div class="fr-controls">
+                    <button id="btnFrPlayOriginal" title="播放原句">原句</button>
+                    <button id="btnFrRecord" class="btn-record" title="开始录音">开始录音</button>
+                    <button id="btnFrPlayback" title="回放录音" disabled>回放</button>
+                    <button id="btnFrScore" class="btn-primary" title="AI 评分" disabled>评分</button>
+                </div>
+                <div class="fr-timer" id="frTimer"></div>
+                <div class="fr-result" id="frResult" style="display:none;">
+                    <div class="fr-scores">
+                        <div class="fr-score-main">
+                            <span class="fr-score-num" id="frScoreNum">0</span>
+                            <span class="fr-score-label">总分</span>
+                        </div>
+                        <div class="fr-score-details">
+                            <div>准确度 <span id="frAccuracy">0</span></div>
+                            <div>流利度 <span id="frFluency">0</span></div>
+                            <div>完整度 <span id="frCompleteness">0</span></div>
+                        </div>
+                    </div>
+                    <div class="fr-words" id="frWords"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="player.js"></script>
+</body>
+</html>

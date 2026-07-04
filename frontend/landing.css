@@ -1,0 +1,711 @@
+/* ==========================================
+   ThaiFlow Landing Page — Apple Design Language
+   ========================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+        "Helvetica Neue", "PingFang SC", sans-serif;
+    background: #000;
+    color: #f5f5f7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+}
+
+/* ==========================================
+   导航
+   ========================================== */
+.nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+.nav-inner {
+    max-width: 1024px;
+    margin: 0 auto;
+    padding: 0 22px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.nav-logo {
+    font-size: 21px;
+    font-weight: 700;
+    color: #f5f5f7;
+    text-decoration: none;
+    letter-spacing: -0.02em;
+}
+
+.nav-cta {
+    font-size: 13px;
+    color: #fff;
+    background: #0071e3;
+    padding: 6px 16px;
+    border-radius: 980px;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.nav-cta:hover {
+    background: #0077ed;
+}
+
+/* ==========================================
+   通用
+   ========================================== */
+.section-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 22px;
+}
+
+.section-title {
+    font-size: 48px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.section-desc {
+    font-size: 21px;
+    color: #86868b;
+    text-align: center;
+    margin-bottom: 64px;
+    font-weight: 400;
+}
+
+.gradient-text {
+    background: linear-gradient(135deg, #e94560, #ff6b9d, #c44dff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* 滚动动画 */
+.feature-card,
+.step-item,
+.highlight-row,
+.cta {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.feature-card.visible,
+.step-item.visible,
+.highlight-row.visible,
+.cta.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.feature-card:nth-child(2) { transition-delay: 0.1s; }
+.feature-card:nth-child(3) { transition-delay: 0.2s; }
+.step-item:nth-child(2) { transition-delay: 0.15s; }
+.step-item:nth-child(3) { transition-delay: 0.3s; }
+
+/* ==========================================
+   按钮
+   ========================================== */
+.btn-primary {
+    display: inline-block;
+    font-size: 17px;
+    font-weight: 500;
+    color: #fff;
+    background: #0071e3;
+    padding: 12px 28px;
+    border-radius: 980px;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.btn-primary:hover {
+    background: #0077ed;
+}
+
+.btn-primary.btn-large {
+    font-size: 19px;
+    padding: 16px 36px;
+}
+
+.btn-secondary {
+    display: inline-block;
+    font-size: 17px;
+    font-weight: 500;
+    color: #2997ff;
+    text-decoration: none;
+    padding: 12px 28px;
+    transition: color 0.2s;
+}
+
+.btn-secondary:hover {
+    color: #6cb7ff;
+}
+
+/* ==========================================
+   Hero
+   ========================================== */
+.hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 22px 80px;
+    gap: 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.hero-content {
+    flex: 1;
+    max-width: 560px;
+}
+
+.hero-title {
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+    margin-bottom: 24px;
+}
+
+.hero-line {
+    display: block;
+}
+
+.hero-subtitle {
+    font-size: 21px;
+    line-height: 1.5;
+    color: #86868b;
+    margin-bottom: 36px;
+    font-weight: 400;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+/* 手机模型 */
+.hero-visual {
+    flex-shrink: 0;
+}
+
+.phone-mockup {
+    width: 280px;
+    height: 560px;
+    background: #1d1d1f;
+    border-radius: 40px;
+    padding: 12px;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 40px 80px rgba(0, 0, 0, 0.5);
+    position: relative;
+}
+
+.phone-screen {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 30px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.mock-video {
+    flex: 1;
+    background:
+        linear-gradient(135deg, rgba(233, 69, 96, 0.15), rgba(196, 77, 255, 0.1)),
+        linear-gradient(180deg, #0d0d1a, #16213e);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mock-subtitle {
+    padding: 16px 20px;
+    text-align: center;
+}
+
+.mock-thai {
+    font-size: 16px;
+    color: #ffd700;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.mock-cn {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.mock-score {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 20px 30px;
+    border-radius: 20px;
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.mock-score-num {
+    font-size: 48px;
+    font-weight: 700;
+    color: #30d158;
+    line-height: 1;
+}
+
+.mock-score-label {
+    font-size: 13px;
+    color: #86868b;
+    margin-top: 4px;
+}
+
+/* ==========================================
+   功能卡片
+   ========================================== */
+.features {
+    padding: 120px 0;
+    background: #000;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.feature-card {
+    background: #1d1d1f;
+    border-radius: 20px;
+    padding: 40px 32px;
+    transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.feature-icon {
+    width: 48px;
+    height: 48px;
+    color: #e94560;
+    margin-bottom: 20px;
+}
+
+.feature-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.feature-card h3 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    letter-spacing: -0.02em;
+}
+
+.feature-card p {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #86868b;
+}
+
+/* ==========================================
+   使用流程
+   ========================================== */
+.how-it-works {
+    padding: 120px 0;
+    background: #000;
+}
+
+.steps {
+    max-width: 640px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    padding: 32px;
+    background: #1d1d1f;
+    border-radius: 20px;
+}
+
+.step-num {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #e94560, #c44dff);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.step-content h3 {
+    font-size: 21px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: -0.02em;
+}
+
+.step-content p {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #86868b;
+}
+
+/* ==========================================
+   功能亮点
+   ========================================== */
+.highlights {
+    padding: 120px 0;
+    background: #000;
+}
+
+.highlight-row {
+    display: flex;
+    align-items: center;
+    gap: 80px;
+    margin-bottom: 120px;
+}
+
+.highlight-row:last-child {
+    margin-bottom: 0;
+}
+
+.highlight-row.reverse {
+    flex-direction: row-reverse;
+}
+
+.highlight-text {
+    flex: 1;
+}
+
+.highlight-text h2 {
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+}
+
+.highlight-text p {
+    font-size: 17px;
+    line-height: 1.6;
+    color: #86868b;
+}
+
+.highlight-visual {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 0.5px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 360px;
+}
+
+/* 双引擎卡片 */
+.engine-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.engine-tag {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 980px;
+}
+
+.engine-tag.groq {
+    background: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+    border: 0.5px solid rgba(255, 149, 0, 0.3);
+}
+
+.engine-tag.azure {
+    background: rgba(0, 113, 227, 0.15);
+    color: #0071e3;
+    border: 0.5px solid rgba(0, 113, 227, 0.3);
+}
+
+.engine-tag.combined {
+    background: rgba(48, 209, 88, 0.15);
+    color: #30d158;
+    border: 0.5px solid rgba(48, 209, 88, 0.3);
+}
+
+.engine-desc {
+    font-size: 14px;
+    color: #86868b;
+}
+
+.engine-plus {
+    text-align: center;
+    font-size: 18px;
+    color: #48484a;
+    margin: 8px 0;
+}
+
+.engine-result {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 0.5px solid rgba(255, 255, 255, 0.06);
+}
+
+.engine-arrow {
+    color: #48484a;
+    font-size: 16px;
+}
+
+/* 三遍学习法卡片 */
+.pass-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 0.5px solid rgba(255, 255, 255, 0.04);
+    transition: all 0.3s;
+}
+
+.pass-item:last-child {
+    margin-bottom: 0;
+}
+
+.pass-item.active {
+    background: rgba(233, 69, 96, 0.08);
+    border-color: rgba(233, 69, 96, 0.2);
+}
+
+.pass-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #2c2c2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.pass-item.active .pass-num {
+    background: linear-gradient(135deg, #e94560, #c44dff);
+}
+
+.pass-label {
+    font-size: 15px;
+    font-weight: 600;
+    width: 40px;
+    flex-shrink: 0;
+}
+
+.pass-desc {
+    font-size: 14px;
+    color: #86868b;
+    line-height: 1.4;
+}
+
+.pass-desc small {
+    color: #fff;
+    font-size: 12px;
+}
+
+/* ==========================================
+   CTA
+   ========================================== */
+.cta {
+    padding: 120px 0;
+    text-align: center;
+    background: #000;
+}
+
+.cta-title {
+    font-size: 56px;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    margin-bottom: 16px;
+}
+
+.cta-desc {
+    font-size: 21px;
+    color: #86868b;
+    margin-bottom: 32px;
+}
+
+/* ==========================================
+   Footer
+   ========================================== */
+.footer {
+    padding: 20px 0;
+    border-top: 0.5px solid rgba(255, 255, 255, 0.06);
+    background: #000;
+}
+
+.footer-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.footer-logo {
+    font-size: 15px;
+    font-weight: 700;
+    color: #f5f5f7;
+}
+
+.footer-copy {
+    font-size: 13px;
+    color: #48484a;
+}
+
+/* ==========================================
+   响应式
+   ========================================== */
+@media (max-width: 1024px) {
+    .hero {
+        flex-direction: column;
+        text-align: center;
+        padding-top: 120px;
+        gap: 48px;
+    }
+
+    .hero-actions {
+        justify-content: center;
+    }
+
+    .highlight-row,
+    .highlight-row.reverse {
+        flex-direction: column;
+        gap: 40px;
+        text-align: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .hero-title {
+        font-size: 44px;
+    }
+
+    .hero-subtitle {
+        font-size: 17px;
+    }
+
+    .section-title {
+        font-size: 36px;
+    }
+
+    .section-desc {
+        font-size: 17px;
+        margin-bottom: 40px;
+    }
+
+    .feature-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .feature-card {
+        padding: 28px 24px;
+    }
+
+    .phone-mockup {
+        width: 240px;
+        height: 480px;
+    }
+
+    .highlight-text h2 {
+        font-size: 32px;
+    }
+
+    .cta-title {
+        font-size: 36px;
+    }
+
+    .features,
+    .how-it-works,
+    .highlights,
+    .cta {
+        padding: 80px 0;
+    }
+
+    .highlight-row {
+        margin-bottom: 80px;
+    }
+
+    .step-item {
+        padding: 24px;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-title {
+        font-size: 36px;
+    }
+
+    .section-title {
+        font-size: 28px;
+    }
+
+    .hero-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .cta-title {
+        font-size: 28px;
+    }
+}

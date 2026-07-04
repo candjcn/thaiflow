@@ -1,0 +1,7 @@
+flask==3.1.1
+flask-cors==5.0.1
+openai==1.82.0
+requests==2.32.3
+python-dotenv==1.1.0
+azure-cognitiveservices-speech==1.50.0
+gunicorn==23.0.0

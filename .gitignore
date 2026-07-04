@@ -1,0 +1,7 @@
+videos/
+exports/
+backend/tmp/
+backend/.env
+__pycache__/
+*.pyc
+.DS_Store

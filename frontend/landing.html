@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThaiFlow — 用短视频学泰语</title>
+    <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+
+<!-- 导航 -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="/" class="nav-logo">ThaiFlow</a>
+        <a href="/app" class="nav-cta">开始学习</a>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="hero-content">
+        <h1 class="hero-title">
+            <span class="hero-line">刷着短视频</span>
+            <span class="hero-line gradient-text">学会泰语</span>
+        </h1>
+        <p class="hero-subtitle">
+            粘贴一条 TikTok 链接，AI 自动识别每一句台词。<br>
+            逐句重复、跟读打分，像母语者一样说泰语。
+        </p>
+        <div class="hero-actions">
+            <a href="/app" class="btn-primary">免费体验</a>
+            <a href="#how-it-works" class="btn-secondary">了解更多</a>
+        </div>
+    </div>
+    <div class="hero-visual">
+        <div class="phone-mockup">
+            <div class="phone-screen">
+                <div class="mock-video"></div>
+                <div class="mock-subtitle">
+                    <div class="mock-thai">สวัสดีครับ ยินดีที่ได้รู้จัก</div>
+                    <div class="mock-cn">你好，很高兴认识你</div>
+                </div>
+                <div class="mock-score">
+                    <span class="mock-score-num">92</span>
+                    <span class="mock-score-label">发音评分</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 核心卖点 -->
+<section class="features" id="features">
+    <div class="section-inner">
+        <h2 class="section-title">为什么选择 ThaiFlow</h2>
+        <p class="section-desc">三个简单步骤，将任何短视频变成你的泰语课堂</p>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2"/><polygon points="20,16 34,24 20,32" fill="currentColor"/></svg>
+                </div>
+                <h3>粘贴即学</h3>
+                <p>粘贴 TikTok、YouTube 链接，AI 自动识别泰语语音并翻译成中文，生成双语字幕。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 48 48" fill="none"><path d="M14 24h20M24 14v20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2"/><path d="M16 18c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </div>
+                <h3>逐句精听</h3>
+                <p>每句自动重复三遍：第一遍盲听、第二遍看原文、第三遍看翻译。渐进式理解，印象更深。</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 48 48" fill="none"><rect x="14" y="22" width="20" height="14" rx="3" stroke="currentColor" stroke-width="2"/><path d="M20 22v-4a4 4 0 018 0v4" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="30" r="2" fill="currentColor"/></svg>
+                </div>
+                <h3>AI 评分</h3>
+                <p>跟读后 AI 实时评估你的发音，精确到每个音节。准确度、流利度、完整度一目了然。</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 使用流程 -->
+<section class="how-it-works" id="how-it-works">
+    <div class="section-inner">
+        <h2 class="section-title">三步开始学习</h2>
+
+        <div class="steps">
+            <div class="step-item">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                    <h3>粘贴链接</h3>
+                    <p>将 TikTok 或 YouTube 短视频链接粘贴到输入框，点击下载。</p>
+                </div>
+            </div>
+
+            <div class="step-item">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                    <h3>自动识别</h3>
+                    <p>AI 自动识别语音、断句、翻译，生成精准的双语字幕。全程无需手动操作。</p>
+                </div>
+            </div>
+
+            <div class="step-item">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                    <h3>跟读练习</h3>
+                    <p>逐句播放、重复跟读、AI 打分。每天 15 分钟，泰语脱口而出。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 功能亮点 -->
+<section class="highlights">
+    <div class="section-inner">
+        <div class="highlight-row">
+            <div class="highlight-text">
+                <h2>智能校准<br><span class="gradient-text">双引擎识别</span></h2>
+                <p>同时调用 Groq Whisper 和 Azure Speech 两个引擎。Whisper 负责精准断句，Azure 负责准确识别。两者结合，字幕准确率远超单一引擎。</p>
+            </div>
+            <div class="highlight-visual">
+                <div class="glass-card">
+                    <div class="engine-row">
+                        <span class="engine-tag groq">Groq Whisper</span>
+                        <span class="engine-desc">断句 + 时间戳</span>
+                    </div>
+                    <div class="engine-plus">+</div>
+                    <div class="engine-row">
+                        <span class="engine-tag azure">Azure Speech</span>
+                        <span class="engine-desc">精准识别文本</span>
+                    </div>
+                    <div class="engine-result">
+                        <span class="engine-arrow">↓</span>
+                        <span class="engine-tag combined">智能校准结果</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="highlight-row reverse">
+            <div class="highlight-text">
+                <h2>三遍学习法<br><span class="gradient-text">科学记忆</span></h2>
+                <p>每句自动播放三遍，字幕渐进显示。第一遍锻炼听力，第二遍对照原文，第三遍理解含义。符合语言学习的"可理解性输入"原则。</p>
+            </div>
+            <div class="highlight-visual">
+                <div class="glass-card">
+                    <div class="pass-item">
+                        <span class="pass-num">1</span>
+                        <span class="pass-label">盲听</span>
+                        <span class="pass-desc">纯听力训练</span>
+                    </div>
+                    <div class="pass-item">
+                        <span class="pass-num">2</span>
+                        <span class="pass-label">原文</span>
+                        <span class="pass-desc">สวัสดีครับ</span>
+                    </div>
+                    <div class="pass-item active">
+                        <span class="pass-num">3</span>
+                        <span class="pass-label">双语</span>
+                        <span class="pass-desc">สวัสดีครับ<br><small>你好</small></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+    <div class="section-inner">
+        <h2 class="cta-title">开始你的泰语之旅</h2>
+        <p class="cta-desc">完全免费，无需注册，打开即用。</p>
+        <a href="/app" class="btn-primary btn-large">立即体验</a>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+    <div class="footer-inner">
+        <span class="footer-logo">ThaiFlow</span>
+        <span class="footer-copy">用短视频学泰语</span>
+    </div>
+</footer>
+
+<!-- 滚动动画 -->
+<script>
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+        }
+    });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.feature-card, .step-item, .highlight-row, .cta').forEach(el => {
+    observer.observe(el);
+});
+</script>
+
+</body>
+</html>
