@@ -110,7 +110,7 @@ btnFollowRead.addEventListener("click", openFollowRead);
 document.getElementById("btnSaveLocal").addEventListener("click", saveToLocal);
 btnDownloadUrl.addEventListener("click", downloadFromUrl);
 fileUpload.addEventListener("change", uploadVideo);
-document.getElementById("fileUploadSub").addEventListener("change", onSubtitleFileSelected);
+document.getElementById("localFiles").addEventListener("change", openLocalFiles);
 btnFrClose.addEventListener("click", closeFollowRead);
 btnFrPlayOriginal.addEventListener("click", playOriginalSentence);
 btnFrRecord.addEventListener("click", toggleRecording);
@@ -511,18 +511,136 @@ function saveToLocal() {
     setTimeout(() => subLink.click(), 500);
 }
 
-// ========== 上传本地视频 ==========
-let pendingSubtitleFile = null;
+// ========== 打开本地文件（直接播放，不上传） ==========
+async function openLocalFiles() {
+    const input = document.getElementById("localFiles");
+    const files = Array.from(input.files);
+    if (files.length === 0) return;
 
-function onSubtitleFileSelected() {
-    const subInput = document.getElementById("fileUploadSub");
-    if (subInput.files[0]) {
-        pendingSubtitleFile = subInput.files[0];
-        uploadStatus.textContent = "已选择字幕：" + pendingSubtitleFile.name;
-        uploadStatus.className = "upload-status success";
+    let videoFile = null;
+    let subtitleFile = null;
+
+    for (const f of files) {
+        if (f.type.startsWith("video/") || f.name.toLowerCase().endsWith(".mp4")) {
+            videoFile = f;
+        } else if (f.name.toLowerCase().endsWith(".json")) {
+            subtitleFile = f;
+        }
     }
+
+    if (!videoFile) {
+        alert("请选择一个视频文件");
+        return;
+    }
+
+    // 切换到播放界面
+    currentVideoName = videoFile.name;
+    isLoading = true;
+    phaseSelect.style.display = "none";
+    phasePlay.style.display = "flex";
+
+    // 用本地 URL 播放视频（不上传）
+    const videoUrl = URL.createObjectURL(videoFile);
+    video.src = videoUrl;
+    video.load();
+
+    loadingOverlay.style.display = "flex";
+    setStep("step1", "active");
+    setTip("正在加载本地视频...");
+    await waitForVideo();
+    setStep("step1", "done");
+
+    if (subtitleFile) {
+        // 有字幕文件，直接解析
+        setStep("step2", "done");
+        setStep("step3", "active");
+        setTip("正在读取字幕文件...");
+
+        try {
+            const text = await subtitleFile.text();
+            const data = JSON.parse(text);
+            segments = data.segments || [];
+            language = data.language || "";
+            setStep("step3", "done");
+            setTip("就绪！");
+        } catch (e) {
+            setStep("step3", "error");
+            setTip("字幕文件解析失败: " + e.message);
+            return;
+        }
+
+        await delay(400);
+        finishLoading();
+    } else {
+        // 没有字幕文件，需要上传到服务器识别
+        setTip("没有字幕文件，正在上传到服务器识别...");
+
+        const formData = new FormData();
+        formData.append("video", videoFile);
+        try {
+            const res = await fetch("/api/upload-video", { method: "POST", body: formData });
+            const data = await res.json();
+            if (data.error) {
+                setStep("step2", "error");
+                setTip("上传失败: " + data.error);
+                return;
+            }
+            currentVideoName = data.name;
+            // 用服务器的视频地址替换本地 URL（确保后续跟读等功能正常）
+            video.src = `/videos/${encodeURIComponent(data.name)}`;
+            video.load();
+            await waitForVideo();
+        } catch (e) {
+            setStep("step2", "error");
+            setTip("上传失败: " + e.message);
+            return;
+        }
+
+        // 继续走识别翻译流程
+        const provider = transcribeProvider.value;
+        setStep("step2", "active");
+        setTip("正在语音识别...");
+        try {
+            const segTarget = segmentTarget.value || null;
+            const res = await fetch("/api/transcribe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ video: currentVideoName, provider, segment_target: segTarget }),
+            });
+            const data = await res.json();
+            if (data.error) { setStep("step2", "error"); setTip("识别失败: " + data.error); return; }
+            segments = data.segments || [];
+            language = data.language || "";
+            setStep("step2", "done");
+        } catch (e) { setStep("step2", "error"); setTip("识别失败: " + e.message); return; }
+
+        setStep("step3", "active");
+        setTip("正在翻译...");
+        const langMap = { th: "泰语", Thai: "泰语", en: "英语", English: "英语" };
+        const sourceLang = langMap[language] || "泰语";
+        try {
+            const res = await fetch("/api/translate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ segments: segments.map(s => ({ index: s.index, text: s.text })), source_lang: sourceLang }),
+            });
+            const data = await res.json();
+            if (!data.error) {
+                (data.translations || []).forEach(t => { if (segments[t.index]) segments[t.index].translation = t.translation; });
+            }
+            setStep("step3", "done");
+            setTip("全部就绪！");
+        } catch (e) { setStep("step3", "error"); setTip("翻译失败: " + e.message); }
+
+        await saveSubtitle();
+        await delay(500);
+        finishLoading();
+    }
+
+    input.value = "";
 }
 
+// ========== 上传视频到服务器识别 ==========
 async function uploadVideo() {
     const file = fileUpload.files[0];
     if (!file) return;
@@ -532,10 +650,6 @@ async function uploadVideo() {
 
     const formData = new FormData();
     formData.append("video", file);
-    // 如果有配套字幕文件，一起上传
-    if (pendingSubtitleFile) {
-        formData.append("subtitle", pendingSubtitleFile);
-    }
 
     try {
         const res = await fetch("/api/upload-video", {
@@ -555,15 +669,7 @@ async function uploadVideo() {
 
         await loadVideoList();
         fileUpload.value = "";
-        pendingSubtitleFile = null;
-        document.getElementById("fileUploadSub").value = "";
-
-        // 有字幕就直接播放，没字幕则识别翻译
-        if (data.has_subtitle) {
-            loadSaved(data.name);
-        } else {
-            startLoading(data.name);
-        }
+        startLoading(data.name);
     } catch (e) {
         uploadStatus.textContent = "上传失败: " + e.message;
         uploadStatus.className = "upload-status error";

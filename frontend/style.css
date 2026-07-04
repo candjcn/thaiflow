@@ -152,6 +152,36 @@ html, body {
     color: #4caf50;
 }
 
+/* 本地播放入口 */
+.local-play-section {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.btn-local-play {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    background: #e94560;
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-local-play:hover {
+    background: #c73a52;
+}
+
+.local-play-hint {
+    font-size: 12px;
+    color: #666;
+    margin-top: 8px;
+}
+
 /* 我的视频区域 */
 .my-videos-section {
     margin-bottom: 20px;

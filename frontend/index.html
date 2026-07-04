@@ -15,9 +15,16 @@
                 <h1>短视频泰语学习播放器</h1>
             </header>
             <div class="video-list-panel" id="videoListPanel">
-                <!-- 我的视频列表（最显眼的位置） -->
+                <!-- 打开本地文件（已有字幕的视频直接播放） -->
+                <div class="local-play-section">
+                    <label class="btn-local-play" for="localFiles">打开本地视频（已有字幕）</label>
+                    <input type="file" id="localFiles" multiple accept="video/*,.json" style="display:none;">
+                    <p class="local-play-hint">选择同名的视频文件和字幕文件，直接播放，无需上传</p>
+                </div>
+
+                <!-- 服务器上的视频列表 -->
                 <div class="my-videos-section" id="myVideosSection">
-                    <h2 class="section-heading">我的视频</h2>
+                    <h2 class="section-heading">服务器视频</h2>
                     <div id="videoList" class="video-list"></div>
                 </div>
 
@@ -34,15 +41,11 @@
                             </div>
                             <div class="url-status" id="urlStatus"></div>
                         </div>
-                        <!-- 本地上传 -->
+                        <!-- 本地上传（需要识别翻译） -->
                         <div class="upload-panel">
-                            <p class="add-label">从设备上传</p>
-                            <div class="upload-buttons">
-                                <label class="btn-upload" for="fileUpload">选择视频文件</label>
-                                <input type="file" id="fileUpload" accept="video/mp4,video/*" style="display:none;">
-                                <label class="btn-upload btn-upload-sub" for="fileUploadSub">选择字幕文件（可选）</label>
-                                <input type="file" id="fileUploadSub" accept=".json" style="display:none;">
-                            </div>
+                            <p class="add-label">上传到服务器识别翻译</p>
+                            <label class="btn-upload" for="fileUpload">选择视频文件</label>
+                            <input type="file" id="fileUpload" accept="video/mp4,video/*" style="display:none;">
                             <div class="upload-status" id="uploadStatus"></div>
                         </div>
                         <!-- 识别设置 -->
