@@ -10,10 +10,57 @@ def transcribe_video(video_path, provider="groq"):
     provider: "groq" | "azure" | "combined"
     """
     if provider == "azure":
-        return transcribe_azure(video_path)
-    if provider == "combined":
-        return transcribe_combined(video_path)
-    return transcribe_groq(video_path)
+        result = transcribe_azure(video_path)
+    elif provider == "combined":
+        result = transcribe_combined(video_path)
+    else:
+        result = transcribe_groq(video_path)
+
+    result["segments"] = fix_timestamps(result["segments"])
+    return result
+
+
+def fix_timestamps(segments):
+    """
+    修复时间戳异常：
+    1. end <= start → 根据文本长度估算合理的 end
+    2. 时长太短（文字多但时间极短）→ 扩展 end
+    3. 与下一句重叠 → 截断到下一句的 start
+    4. 重新编号
+    """
+    if not segments:
+        return segments
+
+    fixed = []
+    for seg in segments:
+        seg = dict(seg)
+        start = seg["start"]
+        end = seg["end"]
+        text_len = len(seg.get("text", ""))
+
+        # 根据文本长度估算最短时长（泰语大约每秒 5-8 个字符）
+        min_duration = max(1.0, text_len / 6.0)
+
+        if end <= start:
+            # 结束时间在开始时间之前，用估算时长修复
+            seg["end"] = round(start + min_duration, 2)
+        elif (end - start) < min_duration * 0.3:
+            # 时长过短（不到估算值的 30%），扩展
+            seg["end"] = round(start + min_duration, 2)
+
+        fixed.append(seg)
+
+    # 确保不与下一句重叠
+    for i in range(len(fixed) - 1):
+        if fixed[i]["end"] > fixed[i + 1]["start"]:
+            fixed[i]["end"] = fixed[i + 1]["start"]
+
+    # 确保时间顺序：按 start 排序，重新编号
+    fixed.sort(key=lambda s: s["start"])
+    for i, seg in enumerate(fixed):
+        seg["index"] = i
+
+    return fixed
 
 
 # ========== Groq Whisper ==========
