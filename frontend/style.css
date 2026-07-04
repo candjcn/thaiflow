@@ -50,6 +50,7 @@ html, body {
     margin-bottom: 14px;
     font-size: 13px;
     color: #aaa;
+    flex-wrap: wrap;
 }
 
 .provider-select select {
@@ -883,6 +884,147 @@ label {
 .score-low { color: #e94560; }
 
 /* ==========================================
+   移动端控制栏
+   ========================================== */
+.mobile-controls {
+    display: none;
+    flex-direction: column;
+    background: rgba(13, 13, 26, 0.98);
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    flex-shrink: 0;
+}
+
+/* 模式切换 */
+.mode-switch {
+    display: flex;
+    background: #16213e;
+    border-radius: 10px;
+    padding: 3px;
+    margin-bottom: 10px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 10px 0;
+    font-size: 15px;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.mode-btn.active {
+    background: #e94560;
+    color: #fff;
+}
+
+/* 主控制按钮 */
+.mobile-main-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.mc-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: #16213e;
+    color: #e0e0e0;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mc-btn:active {
+    background: #1a1a4e;
+}
+
+.mc-btn-play {
+    width: 56px;
+    height: 56px;
+    font-size: 24px;
+    background: #e94560;
+}
+
+.mc-btn-play:active {
+    background: #c73a52;
+}
+
+.mc-btn-follow {
+    font-size: 14px;
+    font-weight: 600;
+    width: auto;
+    padding: 0 16px;
+    border-radius: 24px;
+}
+
+/* 速度按钮 + 底部信息 */
+.mobile-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.speed-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.speed-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+    border: 1px solid #1a1a4e;
+    border-radius: 6px;
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.speed-btn.active {
+    border-color: #e94560;
+    color: #e94560;
+}
+
+.mobile-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.m-repeat-info {
+    font-size: 12px;
+    color: #888;
+}
+
+.mc-btn-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: none;
+    background: #16213e;
+    color: #e0e0e0;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ==========================================
    响应式
    ========================================== */
 .hide-mobile { }
@@ -900,9 +1042,13 @@ label {
         font-size: 13px;
     }
 
+    /* 隐藏桌面控件，显示移动端控件 */
     .controls {
-        gap: 4px;
-        padding: 6px 8px;
+        display: none !important;
+    }
+
+    .mobile-controls {
+        display: flex !important;
     }
 
     .hide-mobile {

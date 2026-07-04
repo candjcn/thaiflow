@@ -109,9 +109,9 @@
                 <span class="separator">|</span>
                 <label>重复</label>
                 <select id="repeatCount">
-                    <option value="1">1</option>
+                    <option value="1" selected>1</option>
                     <option value="2">2</option>
-                    <option value="3" selected>3</option>
+                    <option value="3">3</option>
                     <option value="5">5</option>
                     <option value="10">10</option>
                 </select>
@@ -135,6 +135,37 @@
                 <button id="btnFullscreen" title="全屏">⛶</button>
                 <span id="timeDisplay" class="time-display">0:00 / 0:00</span>
                 <span id="repeatInfo" class="repeat-info"></span>
+            </div>
+
+            <!-- 移动端控制栏 -->
+            <div class="mobile-controls" id="mobileControls">
+                <!-- 模式切换 -->
+                <div class="mode-switch">
+                    <button class="mode-btn active" id="btnModePlay" data-mode="play">连播</button>
+                    <button class="mode-btn" id="btnModeStudy" data-mode="study">精听</button>
+                </div>
+                <!-- 主控制按钮 -->
+                <div class="mobile-main-controls">
+                    <button class="mc-btn" id="mBtnPrev" title="上一句">⏮</button>
+                    <button class="mc-btn mc-btn-play" id="mBtnPause" title="播放/暂停">⏸</button>
+                    <button class="mc-btn" id="mBtnNext" title="下一句">⏭</button>
+                    <button class="mc-btn" id="mBtnRepeat" title="重复">🔄</button>
+                    <button class="mc-btn mc-btn-follow" id="mBtnFollowRead" title="跟读">跟读</button>
+                </div>
+                <!-- 速度 + 信息 -->
+                <div class="mobile-bottom-row">
+                    <div class="speed-buttons">
+                        <button class="speed-btn" data-speed="0.75">0.75x</button>
+                        <button class="speed-btn active" data-speed="1">1x</button>
+                        <button class="speed-btn" data-speed="1.25">1.25x</button>
+                        <button class="speed-btn" data-speed="1.5">1.5x</button>
+                    </div>
+                    <div class="mobile-info">
+                        <span id="mRepeatInfo" class="m-repeat-info"></span>
+                        <button class="mc-btn-small" id="mBtnList" title="句子列表">📋</button>
+                        <button class="mc-btn-small" id="mBtnBack" title="返回">↩</button>
+                    </div>
+                </div>
             </div>
 
             <!-- 句子列表抽屉 -->

@@ -125,16 +125,90 @@ playbackRateSelect.addEventListener("change", () => {
 chkOriginal.addEventListener("change", updateSubtitleVisibility);
 chkTranslation.addEventListener("change", updateSubtitleVisibility);
 
+// ========== 移动端控件 ==========
+const mobileControls = document.getElementById("mobileControls");
+const btnModePlay = document.getElementById("btnModePlay");
+const btnModeStudy = document.getElementById("btnModeStudy");
+const mBtnPrev = document.getElementById("mBtnPrev");
+const mBtnPause = document.getElementById("mBtnPause");
+const mBtnNext = document.getElementById("mBtnNext");
+const mBtnRepeat = document.getElementById("mBtnRepeat");
+const mBtnFollowRead = document.getElementById("mBtnFollowRead");
+const mBtnList = document.getElementById("mBtnList");
+const mBtnBack = document.getElementById("mBtnBack");
+const mRepeatInfo = document.getElementById("mRepeatInfo");
+
+mBtnPrev.addEventListener("click", prevSentence);
+mBtnNext.addEventListener("click", nextSentence);
+mBtnPause.addEventListener("click", togglePause);
+mBtnRepeat.addEventListener("click", repeatCurrent);
+mBtnFollowRead.addEventListener("click", openFollowRead);
+mBtnList.addEventListener("click", toggleDrawer);
+mBtnBack.addEventListener("click", backToSelect);
+
+// 模式切换：连播 / 精听
+btnModePlay.addEventListener("click", () => switchMode("play"));
+btnModeStudy.addEventListener("click", () => switchMode("study"));
+
+function switchMode(mode) {
+    if (mode === "play") {
+        repeatCountSelect.value = "1";
+        btnModePlay.classList.add("active");
+        btnModeStudy.classList.remove("active");
+    } else {
+        repeatCountSelect.value = "3";
+        btnModeStudy.classList.add("active");
+        btnModePlay.classList.remove("active");
+    }
+    // 重新开始当前句
+    if (currentIndex >= 0) {
+        jumpToSentence(currentIndex);
+        video.play();
+    }
+}
+
+// 速度快捷按钮
+document.querySelectorAll(".speed-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+        const speed = parseFloat(btn.dataset.speed);
+        video.playbackRate = speed;
+        playbackRateSelect.value = String(speed);
+        document.querySelectorAll(".speed-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+    });
+});
+
+// 同步移动端暂停按钮
+video.addEventListener("play", () => { mBtnPause.textContent = "⏸"; });
+video.addEventListener("pause", () => { if (!isLoading) mBtnPause.textContent = "▶"; });
+
+// 滑动手势：左右滑动切换句子
+let touchStartX = 0;
+let touchStartY = 0;
+videoContainer.addEventListener("touchstart", (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+videoContainer.addEventListener("touchend", (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    // 水平滑动距离 > 50px 且大于垂直滑动
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        if (dx > 0) prevSentence();
+        else nextSentence();
+    }
+});
+
 video.addEventListener("timeupdate", () => {
     onTimeUpdate();
     updateTimeDisplay();
 });
 
-// 点击视频区域暂停/播放
+// 点击视频区域暂停/播放（仅桌面端）
 videoContainer.addEventListener("click", (e) => {
-    // 不在加载中，不是点击控件区域
     if (isLoading) return;
     if (e.target.closest(".subtitle-overlay")) return;
+    if (window.innerWidth <= 768) return; // 移动端用按钮控制
     togglePause();
 });
 
@@ -1009,7 +1083,10 @@ function updateRepeatInfo(maxRepeat) {
     const modeLabels = { none: "盲听", original: "原文", both: "双语" };
     const mode = getSubtitleMode();
     const label = modeLabels[mode];
-    repeatInfo.textContent = `${currentIndex + 1}/${segments.length} | ${repeatCount + 1}/${maxRepeat} ${label}`;
+    const info = `${currentIndex + 1}/${segments.length} | ${repeatCount + 1}/${maxRepeat} ${label}`;
+    repeatInfo.textContent = info;
+    // 同步移动端
+    if (mRepeatInfo) mRepeatInfo.textContent = info;
 }
 
 function delay(ms) {
