@@ -107,8 +107,10 @@ btnDirSelect.addEventListener("click", () => {
 });
 btnDirCancel.addEventListener("click", () => { dirBrowser.style.display = "none"; });
 btnFollowRead.addEventListener("click", openFollowRead);
+document.getElementById("btnSaveLocal").addEventListener("click", saveToLocal);
 btnDownloadUrl.addEventListener("click", downloadFromUrl);
 fileUpload.addEventListener("change", uploadVideo);
+document.getElementById("fileUploadSub").addEventListener("change", onSubtitleFileSelected);
 btnFrClose.addEventListener("click", closeFollowRead);
 btnFrPlayOriginal.addEventListener("click", playOriginalSentence);
 btnFrRecord.addEventListener("click", toggleRecording);
@@ -145,6 +147,7 @@ mBtnRepeat.addEventListener("click", repeatCurrent);
 mBtnFollowRead.addEventListener("click", openFollowRead);
 mBtnList.addEventListener("click", toggleDrawer);
 mBtnBack.addEventListener("click", backToSelect);
+document.getElementById("mBtnSave").addEventListener("click", saveToLocal);
 
 // 模式切换：连播 / 精听
 btnModePlay.addEventListener("click", () => switchMode("play"));
@@ -487,7 +490,39 @@ videoUrlInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") downloadFromUrl();
 });
 
+// ========== 保存到本地 ==========
+function saveToLocal() {
+    if (!currentVideoName || segments.length === 0) return;
+
+    // 下载视频文件
+    const videoLink = document.createElement("a");
+    videoLink.href = `/videos/${encodeURIComponent(currentVideoName)}`;
+    videoLink.download = currentVideoName;
+    videoLink.click();
+
+    // 下载字幕 JSON 文件
+    const subtitleData = JSON.stringify({ segments, language }, null, 2);
+    const blob = new Blob([subtitleData], { type: "application/json" });
+    const subLink = document.createElement("a");
+    subLink.href = URL.createObjectURL(blob);
+    const baseName = currentVideoName.replace(/\.[^.]+$/, "");
+    subLink.download = baseName + ".json";
+    // 延迟一点触发第二个下载，避免被浏览器拦截
+    setTimeout(() => subLink.click(), 500);
+}
+
 // ========== 上传本地视频 ==========
+let pendingSubtitleFile = null;
+
+function onSubtitleFileSelected() {
+    const subInput = document.getElementById("fileUploadSub");
+    if (subInput.files[0]) {
+        pendingSubtitleFile = subInput.files[0];
+        uploadStatus.textContent = "已选择字幕：" + pendingSubtitleFile.name;
+        uploadStatus.className = "upload-status success";
+    }
+}
+
 async function uploadVideo() {
     const file = fileUpload.files[0];
     if (!file) return;
@@ -497,6 +532,10 @@ async function uploadVideo() {
 
     const formData = new FormData();
     formData.append("video", file);
+    // 如果有配套字幕文件，一起上传
+    if (pendingSubtitleFile) {
+        formData.append("subtitle", pendingSubtitleFile);
+    }
 
     try {
         const res = await fetch("/api/upload-video", {
@@ -516,7 +555,15 @@ async function uploadVideo() {
 
         await loadVideoList();
         fileUpload.value = "";
-        startLoading(data.name);
+        pendingSubtitleFile = null;
+        document.getElementById("fileUploadSub").value = "";
+
+        // 有字幕就直接播放，没字幕则识别翻译
+        if (data.has_subtitle) {
+            loadSaved(data.name);
+        } else {
+            startLoading(data.name);
+        }
     } catch (e) {
         uploadStatus.textContent = "上传失败: " + e.message;
         uploadStatus.className = "upload-status error";

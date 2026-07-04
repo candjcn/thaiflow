@@ -78,7 +78,7 @@ def browse_dir():
 
 @app.route("/api/upload-video", methods=["POST"])
 def api_upload_video():
-    """上传本地视频文件到 videos 目录"""
+    """上传本地视频文件到 videos 目录，可附带字幕 JSON"""
     if "video" not in request.files:
         return jsonify({"error": "缺少视频文件"}), 400
 
@@ -95,7 +95,20 @@ def api_upload_video():
     save_path = os.path.join(VIDEOS_DIR, safe_name)
     video_file.save(save_path)
 
-    return jsonify({"name": safe_name, "message": "上传成功"})
+    # 如果附带字幕文件，也保存
+    has_subtitle = False
+    if "subtitle" in request.files:
+        sub_file = request.files["subtitle"]
+        if sub_file.filename:
+            sub_path = subtitle_path(safe_name)
+            sub_file.save(sub_path)
+            has_subtitle = True
+
+    return jsonify({
+        "name": safe_name,
+        "has_subtitle": has_subtitle,
+        "message": "上传成功" + ("（含字幕）" if has_subtitle else ""),
+    })
 
 
 @app.route("/api/download-video", methods=["POST"])

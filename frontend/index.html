@@ -37,8 +37,12 @@
                         <!-- 本地上传 -->
                         <div class="upload-panel">
                             <p class="add-label">从设备上传</p>
-                            <label class="btn-upload" for="fileUpload">选择本地视频文件</label>
-                            <input type="file" id="fileUpload" accept="video/mp4,video/*" style="display:none;">
+                            <div class="upload-buttons">
+                                <label class="btn-upload" for="fileUpload">选择视频文件</label>
+                                <input type="file" id="fileUpload" accept="video/mp4,video/*" style="display:none;">
+                                <label class="btn-upload btn-upload-sub" for="fileUploadSub">选择字幕文件（可选）</label>
+                                <input type="file" id="fileUploadSub" accept=".json" style="display:none;">
+                            </div>
                             <div class="upload-status" id="uploadStatus"></div>
                         </div>
                         <!-- 识别设置 -->
@@ -144,6 +148,7 @@
                 <span class="separator hide-mobile">|</span>
                 <button id="btnList" title="句子列表" class="hide-mobile">📋</button>
                 <button id="btnFollowRead" title="跟读当前句">跟读</button>
+                <button id="btnSaveLocal" title="保存到本地">保存</button>
                 <button id="btnExport" title="导出">导出</button>
                 <button id="btnFullscreen" title="全屏">⛶</button>
                 <span id="timeDisplay" class="time-display">0:00 / 0:00</span>
@@ -175,6 +180,7 @@
                     </div>
                     <div class="mobile-info">
                         <span id="mRepeatInfo" class="m-repeat-info"></span>
+                        <button class="mc-btn-small" id="mBtnSave" title="保存到本地">💾</button>
                         <button class="mc-btn-small" id="mBtnList" title="句子列表">📋</button>
                         <button class="mc-btn-small" id="mBtnBack" title="返回">↩</button>
                     </div>
