@@ -68,6 +68,8 @@ const frWords = document.getElementById("frWords");
 const videoUrlInput = document.getElementById("videoUrlInput");
 const btnDownloadUrl = document.getElementById("btnDownloadUrl");
 const urlStatus = document.getElementById("urlStatus");
+const fileUpload = document.getElementById("fileUpload");
+const uploadStatus = document.getElementById("uploadStatus");
 const btnBrowseDir = document.getElementById("btnBrowseDir");
 const dirBrowser = document.getElementById("dirBrowser");
 const dirCurrent = document.getElementById("dirCurrent");
@@ -106,6 +108,7 @@ btnDirSelect.addEventListener("click", () => {
 btnDirCancel.addEventListener("click", () => { dirBrowser.style.display = "none"; });
 btnFollowRead.addEventListener("click", openFollowRead);
 btnDownloadUrl.addEventListener("click", downloadFromUrl);
+fileUpload.addEventListener("change", uploadVideo);
 btnFrClose.addEventListener("click", closeFollowRead);
 btnFrPlayOriginal.addEventListener("click", playOriginalSentence);
 btnFrRecord.addEventListener("click", toggleRecording);
@@ -371,6 +374,42 @@ async function downloadFromUrl() {
 videoUrlInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") downloadFromUrl();
 });
+
+// ========== 上传本地视频 ==========
+async function uploadVideo() {
+    const file = fileUpload.files[0];
+    if (!file) return;
+
+    uploadStatus.textContent = "正在上传...";
+    uploadStatus.className = "upload-status";
+
+    const formData = new FormData();
+    formData.append("video", file);
+
+    try {
+        const res = await fetch("/api/upload-video", {
+            method: "POST",
+            body: formData,
+        });
+        const data = await res.json();
+
+        if (data.error) {
+            uploadStatus.textContent = "上传失败: " + data.error;
+            uploadStatus.className = "upload-status error";
+            return;
+        }
+
+        uploadStatus.textContent = "上传成功：" + data.name;
+        uploadStatus.className = "upload-status success";
+
+        await loadVideoList();
+        fileUpload.value = "";
+        startLoading(data.name);
+    } catch (e) {
+        uploadStatus.textContent = "上传失败: " + e.message;
+        uploadStatus.className = "upload-status error";
+    }
+}
 
 // ========== 显示播放界面并加载视频首帧 ==========
 function showPlayerWithVideo(videoName) {

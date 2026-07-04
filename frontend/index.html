@@ -38,7 +38,13 @@
                     </div>
                     <div class="url-status" id="urlStatus"></div>
                 </div>
-                <p class="video-list-hint">本地视频：</p>
+                <!-- 本地上传 -->
+                <div class="upload-panel">
+                    <label class="btn-upload" for="fileUpload">选择本地视频上传</label>
+                    <input type="file" id="fileUpload" accept="video/mp4,video/*" style="display:none;">
+                    <div class="upload-status" id="uploadStatus"></div>
+                </div>
+                <p class="video-list-hint">已有视频：</p>
                 <div id="videoList" class="video-list"></div>
             </div>
         </div>

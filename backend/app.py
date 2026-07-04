@@ -76,6 +76,28 @@ def browse_dir():
     })
 
 
+@app.route("/api/upload-video", methods=["POST"])
+def api_upload_video():
+    """上传本地视频文件到 videos 目录"""
+    if "video" not in request.files:
+        return jsonify({"error": "缺少视频文件"}), 400
+
+    video_file = request.files["video"]
+    if not video_file.filename:
+        return jsonify({"error": "文件名为空"}), 400
+
+    # 清理文件名
+    safe_name = re.sub(r'[\\/:*?"<>|]', '_', video_file.filename)[:80]
+    if not safe_name.lower().endswith(".mp4"):
+        safe_name += ".mp4"
+
+    os.makedirs(VIDEOS_DIR, exist_ok=True)
+    save_path = os.path.join(VIDEOS_DIR, safe_name)
+    video_file.save(save_path)
+
+    return jsonify({"name": safe_name, "message": "上传成功"})
+
+
 @app.route("/api/download-video", methods=["POST"])
 def api_download_video():
     """从 URL 下载视频到 videos 目录，通过 SSE 推送进度"""
