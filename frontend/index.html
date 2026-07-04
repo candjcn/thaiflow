@@ -15,37 +15,50 @@
                 <h1>短视频泰语学习播放器</h1>
             </header>
             <div class="video-list-panel" id="videoListPanel">
-                <div class="provider-select">
-                    <label>语音识别引擎：</label>
-                    <select id="transcribeProvider">
-                        <option value="combined">智能校准 (Groq+Azure)</option>
-                        <option value="groq">Groq Whisper</option>
-                        <option value="azure">Azure Speech</option>
-                    </select>
-                    <label style="margin-left:12px;">断句长度：</label>
-                    <select id="segmentTarget">
-                        <option value="">自动</option>
-                        <option value="15">短句 (~15字)</option>
-                        <option value="30">中等 (~30字)</option>
-                        <option value="50">长句 (~50字)</option>
-                    </select>
+                <!-- 我的视频列表（最显眼的位置） -->
+                <div class="my-videos-section" id="myVideosSection">
+                    <h2 class="section-heading">我的视频</h2>
+                    <div id="videoList" class="video-list"></div>
                 </div>
-                <!-- 网络视频下载 -->
-                <div class="url-download-panel">
-                    <div class="url-input-row">
-                        <input type="text" id="videoUrlInput" placeholder="粘贴 TikTok / YouTube 链接...">
-                        <button id="btnDownloadUrl" class="btn-play">下载</button>
+
+                <!-- 添加视频（折叠区域） -->
+                <div class="add-video-section">
+                    <button class="add-video-toggle" id="btnAddVideo">+ 添加新视频</button>
+                    <div class="add-video-content" id="addVideoContent" style="display:none;">
+                        <!-- 网络视频下载 -->
+                        <div class="url-download-panel">
+                            <p class="add-label">从链接下载</p>
+                            <div class="url-input-row">
+                                <input type="text" id="videoUrlInput" placeholder="粘贴 TikTok / YouTube 链接...">
+                                <button id="btnDownloadUrl" class="btn-play">下载</button>
+                            </div>
+                            <div class="url-status" id="urlStatus"></div>
+                        </div>
+                        <!-- 本地上传 -->
+                        <div class="upload-panel">
+                            <p class="add-label">从设备上传</p>
+                            <label class="btn-upload" for="fileUpload">选择本地视频文件</label>
+                            <input type="file" id="fileUpload" accept="video/mp4,video/*" style="display:none;">
+                            <div class="upload-status" id="uploadStatus"></div>
+                        </div>
+                        <!-- 识别设置 -->
+                        <div class="provider-select">
+                            <label>识别引擎：</label>
+                            <select id="transcribeProvider">
+                                <option value="combined">智能校准 (Groq+Azure)</option>
+                                <option value="groq">Groq Whisper</option>
+                                <option value="azure">Azure Speech</option>
+                            </select>
+                            <label>断句：</label>
+                            <select id="segmentTarget">
+                                <option value="">自动</option>
+                                <option value="15">短句</option>
+                                <option value="30">中等</option>
+                                <option value="50">长句</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="url-status" id="urlStatus"></div>
                 </div>
-                <!-- 本地上传 -->
-                <div class="upload-panel">
-                    <label class="btn-upload" for="fileUpload">选择本地视频上传</label>
-                    <input type="file" id="fileUpload" accept="video/mp4,video/*" style="display:none;">
-                    <div class="upload-status" id="uploadStatus"></div>
-                </div>
-                <p class="video-list-hint">已有视频：</p>
-                <div id="videoList" class="video-list"></div>
             </div>
         </div>
 

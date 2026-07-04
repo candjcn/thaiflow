@@ -322,38 +322,76 @@ function setTip(text) {
 }
 
 // ========== 视频列表 ==========
+const myVideosSection = document.getElementById("myVideosSection");
+const btnAddVideo = document.getElementById("btnAddVideo");
+const addVideoContent = document.getElementById("addVideoContent");
+
+btnAddVideo.addEventListener("click", () => {
+    const isOpen = addVideoContent.style.display !== "none";
+    addVideoContent.style.display = isOpen ? "none" : "block";
+    btnAddVideo.textContent = isOpen ? "+ 添加新视频" : "− 收起";
+});
+
 async function loadVideoList() {
     try {
         const res = await fetch("/api/videos");
         const data = await res.json();
         videoListEl.innerHTML = "";
+
         if (data.videos.length === 0) {
-            videoListEl.innerHTML = '<p class="placeholder">videos 目录下没有 MP4 文件</p>';
+            myVideosSection.style.display = "none";
+            // 没有视频时自动展开添加区域
+            addVideoContent.style.display = "block";
+            btnAddVideo.textContent = "− 收起";
             return;
         }
-        data.videos.forEach((v) => {
-            const item = document.createElement("div");
-            item.className = "video-item";
 
-            const name = document.createElement("span");
+        myVideosSection.style.display = "block";
+
+        // 已识别的视频排在前面
+        const sorted = [...data.videos].sort((a, b) => {
+            if (a.has_subtitle && !b.has_subtitle) return -1;
+            if (!a.has_subtitle && b.has_subtitle) return 1;
+            return 0;
+        });
+
+        sorted.forEach((v) => {
+            const item = document.createElement("div");
+            item.className = "video-item" + (v.has_subtitle ? " ready" : "");
+
+            const info = document.createElement("div");
+            info.className = "video-info";
+
+            const name = document.createElement("div");
             name.className = "video-name";
-            name.textContent = v.name;
+            // 去掉 .mp4 后缀显示
+            name.textContent = v.name.replace(/\.mp4$/i, "");
+
+            const status = document.createElement("div");
+            status.className = "video-status";
+            status.textContent = v.has_subtitle ? "已识别 · 点击播放" : "未识别";
+
+            info.appendChild(name);
+            info.appendChild(status);
 
             const actions = document.createElement("div");
             actions.className = "video-actions";
 
             if (v.has_subtitle) {
-                const btnPlay = document.createElement("button");
-                btnPlay.textContent = "播放学习";
-                btnPlay.className = "btn-play";
-                btnPlay.addEventListener("click", () => loadSaved(v.name));
+                // 整个卡片可点击播放
+                item.addEventListener("click", (e) => {
+                    if (e.target.tagName === "BUTTON") return;
+                    loadSaved(v.name);
+                });
+                item.style.cursor = "pointer";
 
                 const btnRedo = document.createElement("button");
                 btnRedo.textContent = "重新识别";
                 btnRedo.className = "btn-redo";
-                btnRedo.addEventListener("click", () => startLoading(v.name));
-
-                actions.appendChild(btnPlay);
+                btnRedo.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    startLoading(v.name);
+                });
                 actions.appendChild(btnRedo);
             } else {
                 const btnNew = document.createElement("button");
@@ -363,7 +401,7 @@ async function loadVideoList() {
                 actions.appendChild(btnNew);
             }
 
-            item.appendChild(name);
+            item.appendChild(info);
             item.appendChild(actions);
             videoListEl.appendChild(item);
         });
