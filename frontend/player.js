@@ -903,6 +903,10 @@ function getSubtitleMode() {
 function updateSubtitle(seg) {
     subtitleOriginal.textContent = seg.text || "";
     subtitleTranslation.textContent = seg.translation || "";
+    // 调试：确认翻译数据
+    if (!seg.translation) {
+        console.warn("字幕缺少翻译:", seg.index, seg.text);
+    }
     updateSubtitleVisibility();
 }
 
@@ -917,11 +921,11 @@ function updateSubtitleVisibility() {
         subtitleOriginal.style.display = "none";
         subtitleTranslation.style.display = "none";
     } else if (mode === "original") {
-        subtitleOriginal.style.display = "";
+        subtitleOriginal.style.display = "inline-block";
         subtitleTranslation.style.display = "none";
     } else {
-        subtitleOriginal.style.display = "";
-        subtitleTranslation.style.display = "";
+        subtitleOriginal.style.display = "inline-block";
+        subtitleTranslation.style.display = "inline-block";
     }
     // 同步勾选框状态作为视觉反馈
     chkOriginal.checked = (mode !== "none");
