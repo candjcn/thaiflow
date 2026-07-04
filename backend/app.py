@@ -234,9 +234,13 @@ def api_transcribe():
         return jsonify({"error": "视频文件不存在"}), 404
 
     provider = data.get("provider", "groq")
+    segment_target = data.get("segment_target")
+    if segment_target:
+        segment_target = int(segment_target)
 
     try:
-        result = transcribe_video(video_path, provider=provider)
+        result = transcribe_video(video_path, provider=provider,
+                                  segment_target=segment_target)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

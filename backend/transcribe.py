@@ -4,10 +4,11 @@ import threading
 from openai import OpenAI
 
 
-def transcribe_video(video_path, provider="groq"):
+def transcribe_video(video_path, provider="groq", segment_target=None):
     """
     对视频进行语音识别和断句。
     provider: "groq" | "azure" | "combined"
+    segment_target: 目标句子长度（字符数），None 表示不调整
     """
     if provider == "azure":
         result = transcribe_azure(video_path)
@@ -17,6 +18,10 @@ def transcribe_video(video_path, provider="groq"):
         result = transcribe_groq(video_path)
 
     result["segments"] = fix_timestamps(result["segments"])
+
+    if segment_target:
+        result["segments"] = normalize_segments(result["segments"], segment_target)
+
     return result
 
 
@@ -61,6 +66,90 @@ def fix_timestamps(segments):
         seg["index"] = i
 
     return fixed
+
+
+def normalize_segments(segments, target_len):
+    """
+    归一化句子长度：合并过短的句子，拆分过长的句子。
+    target_len: 目标字符数（如 15=短句, 30=中等, 50=长句）
+    """
+    if not segments or target_len <= 0:
+        return segments
+
+    min_len = max(5, target_len // 3)
+    max_len = target_len * 2
+
+    # 第一步：合并过短的句子
+    merged = []
+    for seg in segments:
+        if merged and len(merged[-1]["text"]) < min_len:
+            # 当前句太短，与下一句合并
+            prev = merged[-1]
+            prev["text"] = prev["text"] + " " + seg["text"]
+            prev["end"] = seg["end"]
+        elif merged and len(seg["text"]) < min_len:
+            # 下一句太短，合并到前一句
+            prev = merged[-1]
+            prev["text"] = prev["text"] + " " + seg["text"]
+            prev["end"] = seg["end"]
+        else:
+            merged.append(dict(seg))
+
+    # 第二步：拆分过长的句子
+    result = []
+    for seg in merged:
+        text = seg["text"]
+        if len(text) <= max_len:
+            result.append(seg)
+            continue
+
+        # 按空格或泰语常见断点拆分
+        duration = seg["end"] - seg["start"]
+        chars_per_sec = len(text) / duration if duration > 0 else 10
+
+        chunks = _split_text(text, target_len)
+        chunk_start = seg["start"]
+        for chunk in chunks:
+            chunk_dur = len(chunk) / chars_per_sec
+            result.append({
+                "text": chunk,
+                "start": round(chunk_start, 2),
+                "end": round(chunk_start + chunk_dur, 2),
+            })
+            chunk_start += chunk_dur
+
+    # 重新编号
+    for i, seg in enumerate(result):
+        seg["index"] = i
+
+    return result
+
+
+def _split_text(text, target_len):
+    """将长文本按目标长度拆分，尽量在空格处断开"""
+    chunks = []
+    while len(text) > target_len * 1.5:
+        # 在 target_len 附近找空格
+        split_pos = target_len
+        # 向后找空格
+        space_after = text.find(" ", target_len)
+        # 向前找空格
+        space_before = text.rfind(" ", 0, target_len)
+
+        if space_after != -1 and space_after < target_len * 1.5:
+            split_pos = space_after + 1
+        elif space_before > target_len * 0.5:
+            split_pos = space_before + 1
+        else:
+            split_pos = target_len
+
+        chunks.append(text[:split_pos].strip())
+        text = text[split_pos:].strip()
+
+    if text:
+        chunks.append(text)
+
+    return chunks
 
 
 # ========== Groq Whisper ==========
@@ -194,11 +283,10 @@ def transcribe_azure(video_path):
             os.remove(wav_path)
 
 
-def get_azure_full_text(video_path):
-    """调用 Azure Speech 获取完整识别文本（拼接所有片段）"""
+def get_azure_result(video_path):
+    """调用 Azure Speech，返回完整的 segments 列表和语言"""
     result = transcribe_azure(video_path)
-    full_text = "".join(seg["text"] for seg in result["segments"])
-    return full_text, result.get("language", "unknown")
+    return result["segments"], result.get("language", "unknown")
 
 
 # ========== 智能校准：Groq 断句 + Azure 文本 ==========
@@ -342,16 +430,56 @@ def align_and_calibrate(groq_segments, azure_full_text):
     return calibrated
 
 
+def fill_gaps_with_azure(groq_segments, azure_segments, gap_threshold=1.0):
+    """
+    检测 Groq 句子之间的大间隔，用 Azure 的识别结果填充被遗漏的语音。
+    gap_threshold: 间隔超过这个秒数就尝试填补
+    """
+    if not azure_segments or not groq_segments:
+        return groq_segments
+
+    merged = list(groq_segments)
+    inserts = []
+
+    for i in range(len(merged) - 1):
+        gap_start = merged[i]["end"]
+        gap_end = merged[i + 1]["start"]
+        gap = gap_end - gap_start
+
+        if gap < gap_threshold:
+            continue
+
+        # 在这个间隔里找 Azure 识别到的句子
+        for az_seg in azure_segments:
+            # Azure 句子的主体落在间隔内
+            az_mid = (az_seg["start"] + az_seg["end"]) / 2
+            if gap_start - 0.5 <= az_mid <= gap_end + 0.5:
+                inserts.append({
+                    "text": az_seg["text"],
+                    "start": max(az_seg["start"], gap_start),
+                    "end": min(az_seg["end"], gap_end),
+                })
+
+    if inserts:
+        merged.extend(inserts)
+        merged.sort(key=lambda s: s["start"])
+        for i, seg in enumerate(merged):
+            seg["index"] = i
+
+    return merged
+
+
 def transcribe_combined(video_path):
     """
-    智能校准模式：Groq 断句 + Azure 文本校准。
+    智能校准模式：Groq 断句 + Azure 文本校准 + 间隔填补。
     1. Groq Whisper 识别 → 带时间戳的断句
-    2. Azure Speech 识别 → 准确的完整文本
+    2. Azure Speech 识别 → 准确的文本 + 带时间戳的片段
     3. LCS 对齐 → 用 Azure 文本替换 Groq 每句的文字
+    4. 间隔填补 → 检测 Groq 句子间的大间隔，用 Azure 片段填充
     """
     # 并行调用 Groq 和 Azure
     groq_result = [None]
-    azure_text = [None]
+    azure_segments = [None]
     azure_lang = [None]
     errors = []
 
@@ -363,8 +491,8 @@ def transcribe_combined(video_path):
 
     def run_azure():
         try:
-            text, lang = get_azure_full_text(video_path)
-            azure_text[0] = text
+            segs, lang = get_azure_result(video_path)
+            azure_segments[0] = segs
             azure_lang[0] = lang
         except Exception as e:
             errors.append(f"Azure 识别失败: {e}")
@@ -381,11 +509,20 @@ def transcribe_combined(video_path):
 
     result = groq_result[0]
 
-    # 如果 Azure 也成功了，执行校准
-    if azure_text[0]:
+    # 如果 Azure 也成功了，执行校准 + 间隔填补
+    if azure_segments[0]:
+        azure_full_text = "".join(seg["text"] for seg in azure_segments[0])
+
+        # 文本校准
         result["segments"] = align_and_calibrate(
-            result["segments"], azure_text[0]
+            result["segments"], azure_full_text
         )
+
+        # 间隔填补
+        result["segments"] = fill_gaps_with_azure(
+            result["segments"], azure_segments[0]
+        )
+
         # 优先使用 Azure 检测的语言
         if azure_lang[0] and azure_lang[0] != "unknown":
             result["language"] = azure_lang[0]

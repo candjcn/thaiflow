@@ -37,6 +37,7 @@ const subtitleTranslation = document.getElementById("subtitleTranslation");
 const repeatInfo = document.getElementById("repeatInfo");
 const subtitleOverlay = document.getElementById("subtitleOverlay");
 const transcribeProvider = document.getElementById("transcribeProvider");
+const segmentTarget = document.getElementById("segmentTarget");
 const exportOverlay = document.getElementById("exportOverlay");
 const exportProgressBar = document.getElementById("exportProgressBar");
 const exportPct = document.getElementById("exportPct");
@@ -444,10 +445,11 @@ async function startLoading(videoName) {
     setStep("step2", "active");
     setTip(`正在调用 ${providerLabel} 语音识别，将音频自动断句...`);
     try {
+        const segTarget = segmentTarget.value || null;
         const res = await fetch("/api/transcribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ video: videoName, provider }),
+            body: JSON.stringify({ video: videoName, provider, segment_target: segTarget }),
         });
         const data = await res.json();
         if (data.error) {
