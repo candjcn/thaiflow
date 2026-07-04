@@ -535,7 +535,6 @@ async function openLocalFiles() {
 
     // 切换到播放界面
     currentVideoName = videoFile.name;
-    isLoading = true;
     phaseSelect.style.display = "none";
     phasePlay.style.display = "flex";
 
@@ -544,36 +543,28 @@ async function openLocalFiles() {
     video.src = videoUrl;
     video.load();
 
-    loadingOverlay.style.display = "flex";
-    setStep("step1", "active");
-    setTip("正在加载本地视频...");
-    await waitForVideo();
-    setStep("step1", "done");
-
     if (subtitleFile) {
-        // 有字幕文件，直接解析
-        setStep("step2", "done");
-        setStep("step3", "active");
-        setTip("正在读取字幕文件...");
+        // 有字幕文件，直接解析，不显示加载遮罩
+        isLoading = true;
+        await waitForVideo();
 
         try {
             const text = await subtitleFile.text();
             const data = JSON.parse(text);
             segments = data.segments || [];
             language = data.language || "";
-            setStep("step3", "done");
-            setTip("就绪！");
         } catch (e) {
-            setStep("step3", "error");
-            setTip("字幕文件解析失败: " + e.message);
+            alert("字幕文件解析失败: " + e.message);
             return;
         }
 
-        await delay(400);
         finishLoading();
     } else {
-        // 没有字幕文件，需要上传到服务器识别
-        setTip("没有字幕文件，正在上传到服务器识别...");
+        // 没有字幕文件，需要上传到服务器识别，显示加载遮罩
+        isLoading = true;
+        loadingOverlay.style.display = "flex";
+        setStep("step1", "active");
+        setTip("正在上传视频到服务器...");
 
         const formData = new FormData();
         formData.append("video", videoFile);
