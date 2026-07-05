@@ -100,6 +100,7 @@ const btnFrPlayback = document.getElementById("btnFrPlayback");
 const btnFrScore = document.getElementById("btnFrScore");
 const frTimer = document.getElementById("frTimer");
 const frWaveform = document.getElementById("frWaveform");
+const frOverlay = document.getElementById("frOverlay");
 const frResult = document.getElementById("frResult");
 const frScoreNum = document.getElementById("frScoreNum");
 const frAccuracy = document.getElementById("frAccuracy");
@@ -1646,6 +1647,7 @@ function updateFollowReadContent() {
     frReference.textContent = seg.text || "";
     frTranslation.textContent = seg.translation || "";
     frResult.style.display = "none";
+    frOverlay.classList.remove("active");
     frTimer.textContent = "";
     btnFrPlayback.disabled = true;
     btnFrScore.disabled = true;
@@ -1662,6 +1664,7 @@ function closeFollowRead() {
         frAudioPlayer = null;
     }
     followReadPanel.style.display = "none";
+    frOverlay.classList.remove("active");
     mobileControls.classList.remove("follow-mode");
     // 同步移动端模式 tab 回到默认模式
     if (btnModeFollow && btnModeFollow.classList.contains("active")) {
@@ -1716,6 +1719,7 @@ function updateFollowReadContentQuiet() {
     frReference.textContent = seg.text || "";
     frTranslation.textContent = seg.translation || "";
     frResult.style.display = "none";
+    frOverlay.classList.remove("active");
     frTimer.textContent = "";
 }
 
@@ -1790,6 +1794,7 @@ async function startRecording() {
         btnFrRecord.classList.add("recording");
         btnFrPlayback.classList.remove("btn-playback-active");
         frResult.style.display = "none";
+    frOverlay.classList.remove("active");
 
         // 显示波形
         frWaveform.classList.add("active");
@@ -1913,9 +1918,57 @@ function playbackRecording() {
     if (frAudioPlayer) frAudioPlayer.pause();
     frAudioPlayer = new Audio(URL.createObjectURL(frRecordedBlob));
     btnFrPlayback.classList.add("btn-playback-active");
+
+    // 回放时显示波形 + 进度
+    frWaveform.classList.add("active");
+    const pbCtx = frWaveform.getContext("2d");
+    // 用 Web Audio API 解码录音来绘制回放波形
+    const pbAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (pbAudioCtx.state === "suspended") pbAudioCtx.resume();
+    const pbSource = pbAudioCtx.createMediaElementSource(frAudioPlayer);
+    const pbAnalyser = pbAudioCtx.createAnalyser();
+    pbAnalyser.fftSize = 512;
+    pbSource.connect(pbAnalyser);
+    pbAnalyser.connect(pbAudioCtx.destination);
+    const pbTimeDomain = new Uint8Array(pbAnalyser.fftSize);
+
+    let pbAnimId = null;
+    function drawPlaybackWave() {
+        pbAnimId = requestAnimationFrame(drawPlaybackWave);
+        pbAnalyser.getByteTimeDomainData(pbTimeDomain);
+        const w = frWaveform.width = frWaveform.clientWidth * (window.devicePixelRatio || 1);
+        const h = frWaveform.height = frWaveform.clientHeight * (window.devicePixelRatio || 1);
+        pbCtx.clearRect(0, 0, w, h);
+        pbCtx.lineWidth = 2;
+        pbCtx.strokeStyle = "#2196f3";
+        pbCtx.beginPath();
+        const sliceWidth = w / pbTimeDomain.length;
+        let x = 0;
+        for (let i = 0; i < pbTimeDomain.length; i++) {
+            const v = pbTimeDomain[i] / 128.0;
+            const y = (v * h) / 2;
+            if (i === 0) pbCtx.moveTo(x, y);
+            else pbCtx.lineTo(x, y);
+            x += sliceWidth;
+        }
+        pbCtx.stroke();
+
+        // 进度时间
+        if (frAudioPlayer && frAudioPlayer.duration) {
+            const cur = frAudioPlayer.currentTime.toFixed(1);
+            const dur = frAudioPlayer.duration.toFixed(1);
+            frTimer.textContent = `▶ ${cur}s / ${dur}s`;
+        }
+    }
+    drawPlaybackWave();
+
     frAudioPlayer.play();
     frAudioPlayer.onended = () => {
+        cancelAnimationFrame(pbAnimId);
+        pbAudioCtx.close().catch(() => {});
         btnFrPlayback.classList.remove("btn-playback-active");
+        frWaveform.classList.remove("active");
+        frTimer.textContent = t("status.playbackDone");
     };
 }
 
@@ -1981,6 +2034,7 @@ async function submitForScoring() {
 
 function displayScoreResult(data) {
     frResult.style.display = "block";
+    frOverlay.classList.add("active");
 
     // 总分
     const score = Math.round(data.overall_score || 0);

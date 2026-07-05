@@ -291,35 +291,44 @@
                 </div>
             </div>
 
+            <!-- 跟读面板：视频遮罩层（评分时半透明） -->
+            <div class="fr-overlay" id="frOverlay"></div>
+
             <!-- 跟读面板 -->
             <div class="follow-read-panel" id="followReadPanel" style="display:none;">
-                <div class="fr-header">
-                    <h3 data-i18n="follow.title">跟读练习</h3>
-                    <button id="btnFrClose">✕</button>
-                </div>
-                <div class="fr-reference" id="frReference"></div>
-                <div class="fr-translation" id="frTranslation"></div>
-                <div class="fr-controls">
-                    <button id="btnFrPlayOriginal" data-i18n-title="follow.playOriginal" data-i18n="follow.playOriginal" title="播放原句">原句</button>
-                    <button id="btnFrRecord" class="btn-record" data-i18n-title="follow.record" data-i18n="follow.record" title="开始录音">开始录音</button>
-                    <button id="btnFrPlayback" data-i18n-title="follow.playback" data-i18n="follow.playback" title="回放录音" disabled>回放</button>
-                    <button id="btnFrScore" class="btn-primary" data-i18n-title="follow.score" data-i18n="follow.score" title="AI 评分" disabled>评分</button>
-                </div>
-                <canvas class="fr-waveform" id="frWaveform" height="40"></canvas>
-                <div class="fr-timer" id="frTimer"></div>
-                <div class="fr-result" id="frResult" style="display:none;">
-                    <div class="fr-scores">
-                        <div class="fr-score-main">
-                            <span class="fr-score-num" id="frScoreNum">0</span>
-                            <span class="fr-score-label" data-i18n="follow.total">总分</span>
+                <!-- 上方扩展区：波形、进度、评分结果（向上增长，不影响按钮位置） -->
+                <div class="fr-expand" id="frExpand">
+                    <div class="fr-result" id="frResult" style="display:none;">
+                        <div class="fr-scores">
+                            <div class="fr-score-main">
+                                <span class="fr-score-num" id="frScoreNum">0</span>
+                                <span class="fr-score-label" data-i18n="follow.total">总分</span>
+                            </div>
+                            <div class="fr-score-details">
+                                <div><span data-i18n="follow.accuracy">准确度</span> <span id="frAccuracy">0</span></div>
+                                <div><span data-i18n="follow.fluency">流利度</span> <span id="frFluency">0</span></div>
+                                <div><span data-i18n="follow.completeness">完整度</span> <span id="frCompleteness">0</span></div>
+                            </div>
                         </div>
-                        <div class="fr-score-details">
-                            <div><span data-i18n="follow.accuracy">准确度</span> <span id="frAccuracy">0</span></div>
-                            <div><span data-i18n="follow.fluency">流利度</span> <span id="frFluency">0</span></div>
-                            <div><span data-i18n="follow.completeness">完整度</span> <span id="frCompleteness">0</span></div>
-                        </div>
+                        <div class="fr-words" id="frWords"></div>
                     </div>
-                    <div class="fr-words" id="frWords"></div>
+                    <canvas class="fr-waveform" id="frWaveform" height="40"></canvas>
+                    <div class="fr-timer" id="frTimer"></div>
+                </div>
+                <!-- 固定区：标题、参考文本、按钮（永不移动） -->
+                <div class="fr-fixed">
+                    <div class="fr-header">
+                        <h3 data-i18n="follow.title">跟读练习</h3>
+                        <button id="btnFrClose">✕</button>
+                    </div>
+                    <div class="fr-reference" id="frReference"></div>
+                    <div class="fr-translation" id="frTranslation"></div>
+                    <div class="fr-controls">
+                        <button id="btnFrPlayOriginal" data-i18n-title="follow.playOriginal" data-i18n="follow.playOriginal" title="播放原句">原句</button>
+                        <button id="btnFrRecord" class="btn-record" data-i18n-title="follow.record" data-i18n="follow.record" title="开始录音">开始录音</button>
+                        <button id="btnFrPlayback" data-i18n-title="follow.playback" data-i18n="follow.playback" title="回放录音" disabled>回放</button>
+                        <button id="btnFrScore" class="btn-primary" data-i18n-title="follow.score" data-i18n="follow.score" title="AI 评分" disabled>评分</button>
+                    </div>
                 </div>
             </div>
         </div>

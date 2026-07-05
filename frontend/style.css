@@ -862,22 +862,54 @@ label {
 /* ==========================================
    跟读面板
    ========================================== */
+/* 视频遮罩层：评分时半透明 */
+.fr-overlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 140;
+    transition: opacity 0.3s;
+}
+
+.fr-overlay.active {
+    display: block;
+}
+
 .follow-read-panel {
     position: absolute;
     bottom: 46px;
     left: 0;
     right: 0;
-    background: rgba(13, 13, 26, 0.96);
     z-index: 150;
-    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+/* 固定区：标题 + 参考文本 + 按钮，永不移动 */
+.fr-fixed {
+    background: rgba(13, 13, 26, 0.96);
+    padding: 14px 20px 12px;
     border-top: 1px solid #1a1a3e;
+}
+
+/* 上方扩展区：波形、进度、评分，向上增长 */
+.fr-expand {
+    background: rgba(13, 13, 26, 0.94);
+    padding: 8px 20px 0;
+    max-height: 50vh;
+    overflow-y: auto;
 }
 
 .fr-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 .fr-header h3 {
@@ -896,14 +928,13 @@ label {
 .fr-translation {
     font-size: 13px;
     color: #888;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
 }
 
 .fr-controls {
     display: flex;
     gap: 10px;
     align-items: center;
-    margin-bottom: 8px;
 }
 
 .btn-record {
@@ -937,7 +968,7 @@ label {
 .fr-waveform {
     display: none;
     width: 100%;
-    height: 40px;
+    height: 44px;
     border-radius: 6px;
     background: rgba(233, 69, 96, 0.08);
     margin-bottom: 6px;
@@ -948,16 +979,16 @@ label {
 }
 
 .fr-timer {
-    font-size: 12px;
-    color: #888;
-    height: 16px;
-    margin-bottom: 8px;
+    font-size: 13px;
+    color: #aaa;
+    min-height: 18px;
 }
 
 /* 评分结果 */
 .fr-result {
-    border-top: 1px solid #1a1a3e;
-    padding-top: 12px;
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 .fr-scores {
@@ -1433,8 +1464,11 @@ label {
     }
 
     .follow-read-panel {
-        padding: 16px 18px;
         bottom: 48px; /* 不覆盖底部菜单栏 */
+    }
+
+    .fr-fixed {
+        padding: 14px 18px 12px;
     }
 
     .fr-header h3 {
@@ -1449,7 +1483,7 @@ label {
 
     .fr-translation {
         font-size: 16px;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
     }
 
     .fr-controls button {
