@@ -249,10 +249,15 @@ document.addEventListener("webkitfullscreenchange", () => {
     mBtnFullscreen.classList.toggle("is-fullscreen", isNativeFullscreen());
 });
 
-// Overlay controls: play/pause, prev, next
+/// Overlay controls: play/pause, prev, next
 mCenterPlayBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    togglePause();
+    // 跟读面板打开时，中央播放按钮同步影子跟读
+    if (followReadPanel.style.display !== "none") {
+        toggleShadowRead();
+    } else {
+        togglePause();
+    }
 });
 mOvPrev.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -480,8 +485,12 @@ videoContainer.addEventListener("click", (e) => {
     if (e.target.closest(".m-top-btn")) return;
     if (e.target.closest(".m-ov-btn")) return;
     if (window.innerWidth <= 768) {
-        // 移动端：点击视频直接暂停/播放
-        togglePause();
+        // 跟读面板打开时，点击视频同步影子跟读
+        if (followReadPanel.style.display !== "none") {
+            toggleShadowRead();
+        } else {
+            togglePause();
+        }
         showMobileOverlays();
         return;
     }
@@ -1710,6 +1719,9 @@ function startShadowRead() {
 
     // 开始播放当前句
     playShadowSentence();
+    // 同步中央播放按钮状态
+    syncOverlayPlayState();
+    showMobileOverlays();
 }
 
 function stopShadowRead() {
@@ -1717,6 +1729,9 @@ function stopShadowRead() {
     btnFrPlayOriginal.textContent = t("follow.playOriginal");
     btnFrPlayOriginal.classList.remove("shadow-active");
     video.pause();
+    // 同步中央播放按钮状态
+    syncOverlayPlayState();
+    showMobileOverlays();
 }
 
 function playShadowSentence() {
