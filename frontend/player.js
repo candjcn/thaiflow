@@ -380,9 +380,9 @@ function switchMode(mode) {
     }
 }
 
-// 移动端判断
+// 移动端/平板判断
 function isMobile() {
-    return window.innerWidth <= 768;
+    return window.innerWidth <= 1024 || "ontouchstart" in window;
 }
 
 // 进入播放界面时自动全屏（移动端）
@@ -490,7 +490,7 @@ videoContainer.addEventListener("click", (e) => {
     if (e.target.closest(".subtitle-overlay")) return;
     if (e.target.closest(".m-top-btn")) return;
     if (e.target.closest(".m-ov-btn")) return;
-    if (window.innerWidth <= 768) {
+    if (isMobile()) {
         // 跟读面板打开时，点击视频同步影子跟读
         if (followReadPanel.style.display !== "none") {
             toggleShadowRead();

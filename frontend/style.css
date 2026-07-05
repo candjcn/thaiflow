@@ -1420,7 +1420,7 @@ label {
    ========================================== */
 .hide-mobile { }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px), (pointer: coarse) {
     .header h1 {
         font-size: 18px;
     }
