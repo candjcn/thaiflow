@@ -1505,6 +1505,11 @@ label {
 }
 
 /* 全屏模式 */
+:fullscreen,
+:-webkit-full-screen {
+    background: #000;
+}
+
 :fullscreen .phase-play,
 :-webkit-full-screen .phase-play {
     height: 100%;
@@ -1513,5 +1518,21 @@ label {
 
 :fullscreen .mobile-controls,
 :-webkit-full-screen .mobile-controls {
+    display: flex !important;
     padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+
+:fullscreen .m-top-btn,
+:-webkit-full-screen .m-top-btn {
+    display: flex !important;
+}
+
+:fullscreen .m-top-status,
+:-webkit-full-screen .m-top-status {
+    display: block !important;
+}
+
+:fullscreen .m-overlay-controls.visible,
+:-webkit-full-screen .m-overlay-controls.visible {
+    display: flex !important;
 }
