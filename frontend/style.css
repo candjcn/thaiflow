@@ -1265,6 +1265,13 @@ label {
 
     .follow-read-panel {
         padding: 12px 14px;
+        bottom: 0;
+    }
+
+    /* 跟读模式下：隐藏模式栏和速度栏，只保留播放控制 */
+    .mobile-controls.follow-mode .m-mode-tabs,
+    .mobile-controls.follow-mode .m-toolbar {
+        display: none;
     }
 
     .fr-reference {

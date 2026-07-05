@@ -1416,6 +1416,7 @@ function openFollowRead() {
 
     video.pause();
     followReadPanel.style.display = "block";
+    mobileControls.classList.add("follow-mode");
     updateFollowReadContent();
 }
 
@@ -1450,6 +1451,7 @@ function closeFollowRead() {
         frAudioPlayer = null;
     }
     followReadPanel.style.display = "none";
+    mobileControls.classList.remove("follow-mode");
     // 同步移动端模式 tab 回到三遍复读
     if (btnModeFollow && btnModeFollow.classList.contains("active")) {
         switchMode("study");
