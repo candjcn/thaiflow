@@ -97,33 +97,48 @@ html, body {
 }
 
 /* 网络视频下载 */
-.url-download-panel {
-    margin-bottom: 16px;
+/* 主操作区：粘贴链接 */
+.hero-add-section {
+    margin-bottom: 24px;
 }
 
-.url-input-row {
+.hero-url-row {
     display: flex;
-    gap: 8px;
+    gap: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 2px solid #e94560;
+    background: #16213e;
 }
 
-.url-input-row input {
+.hero-url-input {
     flex: 1;
-    padding: 9px 12px;
-    font-size: 13px;
-    background: #16213e;
-    border: 1px solid #1a1a4e;
-    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 15px;
+    background: transparent;
+    border: none;
     color: #e0e0e0;
     outline: none;
 }
 
-.url-input-row input:focus {
-    border-color: #e94560;
+.hero-url-input::placeholder {
+    color: #777;
 }
 
-.url-input-row button {
+.hero-url-btn {
     flex-shrink: 0;
-    padding: 9px 18px;
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 700;
+    background: #e94560;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.hero-url-btn:hover {
+    background: #d13b54;
 }
 
 .url-status {
@@ -133,22 +148,35 @@ html, body {
     min-height: 16px;
 }
 
-.url-status.error {
+.url-status.error { color: #e94560; }
+.url-status.success { color: #4caf50; }
+
+.more-options-toggle {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 0;
+    font-size: 13px;
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.more-options-toggle:hover {
     color: #e94560;
 }
 
-.url-status.success {
-    color: #4caf50;
+.more-options-content {
+    margin-top: 12px;
+    padding: 16px;
+    background: rgba(22, 33, 62, 0.5);
+    border-radius: 10px;
+    border: 1px solid #1a1a4e;
 }
 
 .upload-panel {
     margin-bottom: 16px;
-}
-
-.upload-buttons {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
 }
 
 .btn-upload {
@@ -169,12 +197,6 @@ html, body {
     border-color: #e94560;
 }
 
-.btn-upload-sub {
-    color: #888;
-    font-size: 12px;
-    border-color: #222;
-}
-
 .upload-status {
     font-size: 12px;
     color: #888;
@@ -182,13 +204,8 @@ html, body {
     min-height: 16px;
 }
 
-.upload-status.error {
-    color: #e94560;
-}
-
-.upload-status.success {
-    color: #4caf50;
-}
+.upload-status.error { color: #e94560; }
+.upload-status.success { color: #4caf50; }
 
 /* 本地播放入口 */
 .local-play-section {
@@ -199,25 +216,20 @@ html, body {
 .btn-local-play {
     display: block;
     width: 100%;
-    padding: 16px;
-    font-size: 16px;
-    font-weight: 600;
-    background: #e94560;
-    border: none;
-    border-radius: 12px;
-    color: #fff;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.5);
     cursor: pointer;
-    transition: background 0.2s;
+    transition: border-color 0.2s, color 0.2s;
 }
 
 .btn-local-play:hover {
-    background: #c73a52;
-}
-
-.local-play-hint {
-    font-size: 12px;
-    color: #666;
-    margin-top: 8px;
+    border-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.8);
 }
 
 /* 我的视频区域 */
@@ -230,37 +242,6 @@ html, body {
     font-weight: 600;
     color: #e0e0e0;
     margin-bottom: 12px;
-}
-
-/* 添加视频区域 */
-.add-video-section {
-    margin-bottom: 16px;
-}
-
-.add-video-toggle {
-    width: 100%;
-    padding: 12px;
-    font-size: 14px;
-    font-weight: 500;
-    background: transparent;
-    border: 1px dashed #333;
-    border-radius: 10px;
-    color: #888;
-    cursor: pointer;
-    transition: border-color 0.2s, color 0.2s;
-}
-
-.add-video-toggle:hover {
-    border-color: #e94560;
-    color: #e94560;
-}
-
-.add-video-content {
-    margin-top: 12px;
-    padding: 16px;
-    background: rgba(22, 33, 62, 0.5);
-    border-radius: 10px;
-    border: 1px solid #1a1a4e;
 }
 
 .add-label {

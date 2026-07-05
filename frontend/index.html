@@ -22,28 +22,22 @@
                 </div>
             </header>
             <div class="video-list-panel" id="videoListPanel">
-                <!-- 添加视频（折叠区域） -->
-                <div class="add-video-section">
-
-                    <button class="add-video-toggle" id="btnAddVideo" data-i18n="app.add.toggle">+ 添加新视频</button>
-                    <div class="add-video-content" id="addVideoContent" style="display:none;">
-                        <!-- 网络视频下载 -->
-                        <div class="url-download-panel">
-                            <p class="add-label" data-i18n="app.add.url.label">从链接下载</p>
-                            <div class="url-input-row">
-                                <input type="text" id="videoUrlInput" data-i18n-placeholder="app.add.url.placeholder" placeholder="粘贴 TikTok / YouTube 链接...">
-                                <button id="btnDownloadUrl" class="btn-play" data-i18n="app.add.url.btn">下载</button>
-                            </div>
-                            <div class="url-status" id="urlStatus"></div>
-                        </div>
-                        <!-- 本地上传（需要识别翻译） -->
+                <!-- 主操作区：粘贴链接下载视频 -->
+                <div class="hero-add-section">
+                    <div class="hero-url-row">
+                        <input type="text" id="videoUrlInput" class="hero-url-input" data-i18n-placeholder="app.add.url.placeholder" placeholder="粘贴 TikTok / YouTube 链接...">
+                        <button id="btnDownloadUrl" class="hero-url-btn" data-i18n="app.add.url.btn">下载</button>
+                    </div>
+                    <div class="url-status" id="urlStatus"></div>
+                    <!-- 更多选项（上传/设置）折叠 -->
+                    <button class="more-options-toggle" id="btnAddVideo" data-i18n="app.add.more">更多方式...</button>
+                    <div class="more-options-content" id="addVideoContent" style="display:none;">
                         <div class="upload-panel">
                             <p class="add-label" data-i18n="app.add.upload.label">上传到服务器识别翻译</p>
                             <label class="btn-upload" for="fileUpload" data-i18n="app.add.upload.btn">选择视频文件</label>
                             <input type="file" id="fileUpload" accept="video/mp4,video/*" style="display:none;">
                             <div class="upload-status" id="uploadStatus"></div>
                         </div>
-                        <!-- 识别设置 -->
                         <div class="provider-select">
                             <label data-i18n="app.add.engine.label">识别引擎：</label>
                             <select id="transcribeProvider">
@@ -62,11 +56,10 @@
                     </div>
                 </div>
 
-                <!-- 打开本地文件（已有字幕的视频直接播放） -->
+                <!-- 打开本地文件 -->
                 <div class="local-play-section">
                     <label class="btn-local-play" for="localFiles" data-i18n="app.local.btn">打开本地视频（已有字幕）</label>
                     <input type="file" id="localFiles" multiple accept="video/*,.json" style="display:none;">
-                    <p class="local-play-hint" data-i18n="app.local.hint">选择同名的视频文件和字幕文件，直接播放，无需上传</p>
                 </div>
 
                 <!-- 服务器上的视频列表 -->
