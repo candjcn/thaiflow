@@ -66,24 +66,32 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
 
         result = recognizer.recognize_once_async().get()
 
+        print(f"[Pronounce] language={language}, ref_text={reference_text[:50]}")
+        print(f"[Pronounce] result.reason={result.reason}, text={result.text if hasattr(result, 'text') else 'N/A'}")
+
         if result.reason == speechsdk.ResultReason.RecognizedSpeech:
             pron_result = speechsdk.PronunciationAssessmentResult(result)
 
+            print(f"[Pronounce] scores: pron={pron_result.pronunciation_score}, "
+                  f"acc={pron_result.accuracy_score}, flu={pron_result.fluency_score}, "
+                  f"comp={pron_result.completeness_score}")
+
             # 提取每个词的评分
             words = []
-            for word in pron_result.words:
-                words.append({
-                    "word": word.word,
-                    "accuracy_score": word.accuracy_score,
-                    "error_type": word.error_type,
-                })
+            if pron_result.words:
+                for word in pron_result.words:
+                    words.append({
+                        "word": word.word,
+                        "accuracy_score": word.accuracy_score,
+                        "error_type": word.error_type,
+                    })
 
             return {
                 "recognized_text": result.text,
-                "overall_score": pron_result.pronunciation_score,
-                "accuracy_score": pron_result.accuracy_score,
-                "fluency_score": pron_result.fluency_score,
-                "completeness_score": pron_result.completeness_score,
+                "overall_score": pron_result.pronunciation_score or 0,
+                "accuracy_score": pron_result.accuracy_score or 0,
+                "fluency_score": pron_result.fluency_score or 0,
+                "completeness_score": pron_result.completeness_score or 0,
                 "words": words,
             }
 

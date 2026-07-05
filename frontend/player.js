@@ -1401,6 +1401,7 @@ function delay(ms) {
 let frMediaRecorder = null;
 let frRecordedChunks = [];
 let frRecordedBlob = null;
+let frRecordedExt = "webm";
 let frRecordingTimer = null;
 let frRecordingStart = 0;
 let frIsRecording = false;
@@ -1534,7 +1535,17 @@ async function startRecording() {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         frRecordedChunks = [];
         frHasSpoken = false;
-        frMediaRecorder = new MediaRecorder(stream);
+
+        // 选择浏览器支持的音频格式（iOS Safari 不支持 webm）
+        let mimeType = "audio/webm";
+        if (MediaRecorder.isTypeSupported("audio/webm")) {
+            mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+            mimeType = "audio/mp4";
+        } else if (MediaRecorder.isTypeSupported("audio/ogg")) {
+            mimeType = "audio/ogg";
+        }
+        frMediaRecorder = new MediaRecorder(stream, { mimeType });
 
         frMediaRecorder.ondataavailable = (e) => {
             if (e.data.size > 0) frRecordedChunks.push(e.data);
@@ -1544,7 +1555,9 @@ async function startRecording() {
             // 释放麦克风和音频分析
             stream.getTracks().forEach((tk) => tk.stop());
             stopSilenceDetection();
-            frRecordedBlob = new Blob(frRecordedChunks, { type: "audio/webm" });
+            frRecordedBlob = new Blob(frRecordedChunks, { type: mimeType });
+            // 保存实际格式的扩展名
+            frRecordedExt = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
             btnFrPlayback.disabled = false;
             btnFrScore.disabled = false;
             frIsRecording = false;
@@ -1663,7 +1676,7 @@ async function submitForScoring() {
     frTimer.textContent = t("status.scoring");
 
     const formData = new FormData();
-    formData.append("audio", frRecordedBlob, "recording.webm");
+    formData.append("audio", frRecordedBlob, "recording." + frRecordedExt);
     formData.append("reference_text", seg.text);
     // 语言映射（默认英语而非泰语，覆盖更多用户场景）
     const langMap = { th: "th-TH", en: "en-US", ja: "ja-JP", ko: "ko-KR", fr: "fr-FR", de: "de-DE", es: "es-ES", pt: "pt-BR", ru: "ru-RU", it: "it-IT" };

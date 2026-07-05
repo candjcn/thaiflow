@@ -414,9 +414,11 @@ def api_pronounce():
 
     os.makedirs(UPLOAD_TMP, exist_ok=True)
 
-    # 保存上传的音频
+    # 保存上传的音频（保留原始扩展名）
     audio_file = request.files["audio"]
-    audio_path = os.path.join(UPLOAD_TMP, "recording.webm")
+    original_name = audio_file.filename or "recording.webm"
+    ext = os.path.splitext(original_name)[1] or ".webm"
+    audio_path = os.path.join(UPLOAD_TMP, "recording" + ext)
     audio_file.save(audio_path)
 
     try:
