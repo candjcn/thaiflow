@@ -112,8 +112,15 @@
                 <!-- 暂停指示器 -->
                 <div class="pause-indicator" id="pauseIndicator">⏸</div>
 
-                <!-- 移动端退出全屏按钮 -->
-                <button class="m-exit-fullscreen" id="mBtnExitFullscreen">✕</button>
+                <!-- 移动端返回按钮（左上） -->
+                <button class="m-top-btn m-btn-back" id="mBtnBack">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg>
+                </button>
+                <!-- 移动端全屏按钮（右上） -->
+                <button class="m-top-btn m-btn-fullscreen" id="mBtnFullscreen">
+                    <svg class="fs-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                    <svg class="fs-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,14 10,14 10,20"/><polyline points="20,10 14,10 14,4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
 
                 <!-- 移动端顶部状态栏 -->
                 <div class="m-top-status" id="mTopStatus">
@@ -121,13 +128,30 @@
                     <div class="m-top-status-line" id="mTopStatusRepeat" data-i18n-template="mobile.repeat.status">第1/3遍</div>
                 </div>
 
-                <!-- 移动端中央播放按钮 -->
-                <div class="m-center-play" id="mCenterPlay">
-                    <div class="m-center-play-btn" id="mCenterPlayBtn">▶</div>
+                <!-- 移动端浮动控制层 -->
+                <div class="m-overlay-controls" id="mOverlayControls">
+                    <button class="m-ov-btn m-ov-prev" id="mOvPrev">
+                        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="30,12 18,24 30,36"/>
+                        </svg>
+                        <span class="m-ov-label" data-i18n="ctrl.prev">上一句</span>
+                    </button>
+                    <button class="m-ov-btn m-ov-play" id="mCenterPlayBtn">
+                        <svg class="m-ov-icon-play" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="16,10 38,24 16,38"/>
+                        </svg>
+                        <svg class="m-ov-icon-pause" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="17" y1="10" x2="17" y2="38"/>
+                            <line x1="31" y1="10" x2="31" y2="38"/>
+                        </svg>
+                    </button>
+                    <button class="m-ov-btn m-ov-next" id="mOvNext">
+                        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="18,12 30,24 18,36"/>
+                        </svg>
+                        <span class="m-ov-label" data-i18n="ctrl.next">下一句</span>
+                    </button>
                 </div>
-
-                <!-- 移动端滑动提示 -->
-                <div class="m-swipe-hint" id="mSwipeHint" data-i18n="mobile.swipe.hint">← 上一句 | 下一句 →</div>
 
                 <!-- 字幕覆盖层 -->
                 <div class="subtitle-overlay" id="subtitleOverlay">
@@ -188,7 +212,7 @@
                     <button class="m-slim-btn m-repeat-compact" id="mRepeatBtn" data-i18n-suffix="ctrl.repeat.unit">3遍</button>
                     <div class="m-mode-tabs-slim" id="mModeTabs">
                         <div class="m-mode-bg-slim" id="mModeBg"></div>
-                        <button class="m-mode-tab-slim active" id="btnModeStudy" data-mode="study" data-i18n="mobile.mode.study">三遍复读</button>
+                        <button class="m-mode-tab-slim" id="btnModeStudy" data-mode="study" data-i18n="mobile.mode.study">三遍复读</button>
                         <button class="m-mode-tab-slim" id="btnModeFollow" data-mode="follow" data-i18n="mobile.mode.follow">影子跟读</button>
                     </div>
                     <button class="m-slim-btn m-list-btn" id="mBtnList" data-i18n-title="ctrl.list" title="句子列表">☰</button>

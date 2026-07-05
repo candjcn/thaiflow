@@ -175,13 +175,15 @@ const mModeBg = document.getElementById("mModeBg");
 const mBtnPause = document.getElementById("mBtnPause");
 const mBtnList = document.getElementById("mBtnList");
 const mRepeatInfo = document.getElementById("mRepeatInfo");
-const mBtnExitFullscreen = document.getElementById("mBtnExitFullscreen");
+const mBtnBack = document.getElementById("mBtnBack");
+const mBtnFullscreen = document.getElementById("mBtnFullscreen");
 const mTopStatus = document.getElementById("mTopStatus");
 const mTopStatusSentence = document.getElementById("mTopStatusSentence");
 const mTopStatusRepeat = document.getElementById("mTopStatusRepeat");
-const mCenterPlay = document.getElementById("mCenterPlay");
+const mOverlayControls = document.getElementById("mOverlayControls");
 const mCenterPlayBtn = document.getElementById("mCenterPlayBtn");
-const mSwipeHint = document.getElementById("mSwipeHint");
+const mOvPrev = document.getElementById("mOvPrev");
+const mOvNext = document.getElementById("mOvNext");
 const mSpeedBtn = document.getElementById("mSpeedBtn");
 const mRepeatBtn = document.getElementById("mRepeatBtn");
 const mSpeedPicker = document.getElementById("mSpeedPicker");
@@ -189,18 +191,45 @@ const mRepeatPicker = document.getElementById("mRepeatPicker");
 
 mBtnList.addEventListener("click", toggleDrawer);
 
-// Exit fullscreen button
-mBtnExitFullscreen.addEventListener("click", () => {
-    if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-    }
+// 返回按钮
+mBtnBack.addEventListener("click", () => {
     backToSelect();
 });
 
-// Center play button
+// 全屏按钮
+mBtnFullscreen.addEventListener("click", () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document).catch(() => {});
+    } else {
+        const el = document.documentElement;
+        if (el.requestFullscreen) {
+            el.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+        } else if (el.webkitRequestFullscreen) {
+            el.webkitRequestFullscreen();
+        }
+    }
+});
+
+// 同步全屏按钮图标状态
+document.addEventListener("fullscreenchange", () => {
+    mBtnFullscreen.classList.toggle("is-fullscreen", !!document.fullscreenElement);
+});
+document.addEventListener("webkitfullscreenchange", () => {
+    mBtnFullscreen.classList.toggle("is-fullscreen", !!document.webkitFullscreenElement);
+});
+
+// Overlay controls: play/pause, prev, next
 mCenterPlayBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     togglePause();
+});
+mOvPrev.addEventListener("click", (e) => {
+    e.stopPropagation();
+    prevSentence();
+});
+mOvNext.addEventListener("click", (e) => {
+    e.stopPropagation();
+    nextSentence();
 });
 
 // Speed picker
@@ -261,13 +290,30 @@ document.addEventListener("click", (e) => {
     }
 });
 
-// 模式切换：三遍复读 / 影子跟读
-btnModeStudy.addEventListener("click", () => switchMode("study"));
-btnModeFollow.addEventListener("click", () => switchMode("follow"));
+// 模式切换：三遍复读 / 影子跟读（再次点击取消回到默认）
+btnModeStudy.addEventListener("click", () => {
+    switchMode(btnModeStudy.classList.contains("active") ? "normal" : "study");
+});
+btnModeFollow.addEventListener("click", () => {
+    switchMode(btnModeFollow.classList.contains("active") ? "normal" : "follow");
+});
 
 function switchMode(mode) {
     [btnModeStudy, btnModeFollow].forEach(b => b.classList.remove("active"));
-    if (mode === "study") {
+    mModeBg.dataset.pos = "";
+    if (mode === "normal") {
+        // 默认模式：从头到尾播放一遍，不重复
+        repeatCountSelect.value = "1";
+        mRepeatBtn.textContent = "1" + t("ctrl.repeat.unit");
+        mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(o => {
+            o.classList.toggle("active", o.dataset.repeat === "1");
+        });
+        // 关闭跟读面板
+        if (followReadPanel.style.display !== "none") {
+            followReadPanel.style.display = "none";
+        }
+        mobileControls.classList.remove("follow-mode");
+    } else if (mode === "study") {
         btnModeStudy.classList.add("active");
         mModeBg.dataset.pos = "0";
         repeatCountSelect.value = "3";
@@ -280,6 +326,7 @@ function switchMode(mode) {
         if (followReadPanel.style.display !== "none") {
             followReadPanel.style.display = "none";
         }
+        mobileControls.classList.remove("follow-mode");
         if (currentIndex >= 0) {
             jumpToSentence(currentIndex);
             video.play();
@@ -299,59 +346,54 @@ function isMobile() {
 // 进入播放界面时自动全屏（移动端）
 function tryMobileFullscreen() {
     if (!isMobile()) return;
-    // 使用 Fullscreen API
-    if (phasePlay.requestFullscreen) {
-        phasePlay.requestFullscreen().catch(() => {});
-    } else if (phasePlay.webkitRequestFullscreen) {
-        phasePlay.webkitRequestFullscreen();
+    const el = document.documentElement; // 全屏整个页面，确保覆盖浏览器 UI
+    if (el.requestFullscreen) {
+        el.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+    } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
     }
 }
 
-// Swipe hint + center play overlay logic for mobile
-let mSwipeHintShown = false;
-let mSwipeHintTimer = null;
-let mCenterPlayTimer = null;
+// 移动端浮动控制层逻辑
+let mOverlayTimer = null;
 let mOverlaysInitialized = false;
 
 function showMobileOverlays() {
     if (!isMobile()) return;
-    // Show center play button if paused
-    if (video.paused && !isLoading) {
-        mCenterPlay.classList.add("visible");
-        mCenterPlay.classList.remove("fading");
-        mCenterPlayBtn.textContent = "\u25B6";
-    }
-    // Show swipe hint only if not yet dismissed by swipe
-    if (!mSwipeHintShown) {
-        mSwipeHint.classList.add("visible");
-        mSwipeHint.classList.remove("fading");
-        clearTimeout(mSwipeHintTimer);
-        mSwipeHintTimer = setTimeout(() => {
-            mSwipeHint.classList.add("fading");
-            setTimeout(() => {
-                mSwipeHint.classList.remove("visible", "fading");
-            }, 500);
-        }, 3000);
-    }
-    // Auto-hide center play after 2 seconds of inactivity
-    resetCenterPlayTimer();
+    // 更新播放/暂停状态
+    syncOverlayPlayState();
+    // 显示控制层（带入场动画）
+    mOverlayControls.classList.remove("fading");
+    mOverlayControls.classList.add("visible");
+    // 播放中时 3 秒后自动隐藏
+    resetOverlayTimer();
 }
 
-function resetCenterPlayTimer() {
-    clearTimeout(mCenterPlayTimer);
-    mCenterPlayTimer = setTimeout(() => {
-        if (!video.paused) {
-            mCenterPlay.classList.add("fading");
+function syncOverlayPlayState() {
+    if (video.paused) {
+        mCenterPlayBtn.classList.add("paused");
+        mCenterPlayBtn.classList.remove("playing");
+    } else {
+        mCenterPlayBtn.classList.add("playing");
+        mCenterPlayBtn.classList.remove("paused");
+    }
+}
+
+function resetOverlayTimer() {
+    clearTimeout(mOverlayTimer);
+    if (!video.paused) {
+        mOverlayTimer = setTimeout(() => {
+            mOverlayControls.classList.add("fading");
             setTimeout(() => {
-                mCenterPlay.classList.remove("visible", "fading");
-            }, 500);
-        }
-    }, 2000);
+                mOverlayControls.classList.remove("visible", "fading");
+            }, 400);
+        }, 3000);
+    }
 }
 
 function hideMobileOverlays() {
-    mCenterPlay.classList.remove("visible", "fading");
-    clearTimeout(mCenterPlayTimer);
+    mOverlayControls.classList.remove("visible", "fading");
+    clearTimeout(mOverlayTimer);
 }
 
 function initMobileOverlays() {
@@ -360,22 +402,23 @@ function initMobileOverlays() {
     showMobileOverlays();
 }
 
-// 同步移动端暂停按钮 + center play overlay
+// 同步移动端状态
 video.addEventListener("play", () => {
     mBtnPause.textContent = "\u23F8";
     if (isMobile()) {
-        mCenterPlayBtn.textContent = "\u23F8";
-        resetCenterPlayTimer();
+        syncOverlayPlayState();
+        resetOverlayTimer();
     }
 });
 video.addEventListener("pause", () => {
     if (!isLoading) {
         mBtnPause.textContent = "\u25B6";
         if (isMobile()) {
-            mCenterPlayBtn.textContent = "\u25B6";
-            mCenterPlay.classList.add("visible");
-            mCenterPlay.classList.remove("fading");
-            clearTimeout(mCenterPlayTimer); // keep visible when paused
+            syncOverlayPlayState();
+            // 暂停时显示控制层且不自动隐藏
+            mOverlayControls.classList.add("visible");
+            mOverlayControls.classList.remove("fading");
+            clearTimeout(mOverlayTimer);
         }
     }
 });
@@ -394,14 +437,8 @@ videoContainer.addEventListener("touchend", (e) => {
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
         if (dx > 0) prevSentence();
         else nextSentence();
-        // Dismiss swipe hint on first swipe
-        if (!mSwipeHintShown) {
-            mSwipeHintShown = true;
-            mSwipeHint.classList.add("fading");
-            setTimeout(() => {
-                mSwipeHint.classList.remove("visible", "fading");
-            }, 500);
-        }
+        // Show overlay briefly after swipe
+        showMobileOverlays();
     }
 });
 
@@ -414,15 +451,12 @@ video.addEventListener("timeupdate", () => {
 videoContainer.addEventListener("click", (e) => {
     if (isLoading) return;
     if (e.target.closest(".subtitle-overlay")) return;
-    if (e.target.closest(".m-exit-fullscreen")) return;
-    if (e.target.closest(".m-center-play-btn")) return;
+    if (e.target.closest(".m-top-btn")) return;
+    if (e.target.closest(".m-ov-btn")) return;
     if (window.innerWidth <= 768) {
-        // Mobile: show overlays on tap, or toggle pause if overlays are visible
-        if (mCenterPlay.classList.contains("visible")) {
-            togglePause();
-        } else {
-            showMobileOverlays();
-        }
+        // 移动端：点击视频直接暂停/播放
+        togglePause();
+        showMobileOverlays();
         return;
     }
     togglePause();
@@ -516,7 +550,12 @@ function showPauseIcon(icon) {
 // ========== 全屏 ==========
 function toggleFullscreen() {
     if (!document.fullscreenElement) {
-        phasePlay.requestFullscreen().catch(() => {});
+        const el = document.documentElement;
+        if (el.requestFullscreen) {
+            el.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+        } else if (el.webkitRequestFullscreen) {
+            el.webkitRequestFullscreen();
+        }
     } else {
         document.exitFullscreen();
     }
@@ -1106,13 +1145,11 @@ function backToSelect() {
     phaseSelect.style.display = "flex";
     sentenceDrawer.style.display = "none";
     loadingOverlay.style.display = "none";
-    // 重置移动端模式到三遍复读
-    switchMode("study");
+    // 重置移动端模式到默认（播放一遍）
+    switchMode("normal");
     // Reset mobile overlays
     mOverlaysInitialized = false;
-    mSwipeHintShown = false;
-    mCenterPlay.classList.remove("visible", "fading");
-    mSwipeHint.classList.remove("visible", "fading");
+    hideMobileOverlays();
     loadVideoList();
 }
 
@@ -1624,9 +1661,9 @@ function closeFollowRead() {
     }
     followReadPanel.style.display = "none";
     mobileControls.classList.remove("follow-mode");
-    // 同步移动端模式 tab 回到三遍复读
+    // 同步移动端模式 tab 回到默认模式
     if (btnModeFollow && btnModeFollow.classList.contains("active")) {
-        switchMode("study");
+        switchMode("normal");
     }
 }
 
@@ -1706,6 +1743,10 @@ async function toggleRecording() {
 
 async function startRecording() {
     try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert("录音需要 HTTPS 连接。请使用 https:// 地址访问，或在电脑上用 localhost 测试。");
+            return;
+        }
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         frRecordedChunks = [];
         frHasSpoken = false;
