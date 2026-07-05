@@ -342,6 +342,7 @@ html, body {
     height: 100vh;
     height: 100dvh;
     background: #000;
+    position: relative;
 }
 
 /* 视频容器 */
@@ -726,8 +727,8 @@ video {
     position: absolute;
     top: 0;
     right: 0;
+    bottom: 46px; /* 锚定到播放器底部控制栏上方 */
     width: 380px;
-    height: calc(100vh - 46px);
     background: rgba(13, 13, 26, 0.95);
     z-index: 100;
     display: flex;
@@ -1627,6 +1628,11 @@ label {
     .sentence-drawer {
         width: 100%;
         border-left: none;
+        bottom: 48px; /* 移动端底部菜单栏高度 */
+    }
+
+    .sentence-list {
+        padding-bottom: 20px;
     }
 
     .repeat-info {
