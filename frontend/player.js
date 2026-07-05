@@ -1906,7 +1906,6 @@ function stopRecording() {
     setTimeout(() => {
         if (frRecordedBlob) playbackRecording();
     }, 300);
-    }
 }
 
 function playbackRecording() {
