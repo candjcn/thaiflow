@@ -1595,9 +1595,15 @@ function startSilenceDetection(stream) {
     source.connect(analyser);
 
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    const SPEECH_THRESHOLD = 30;   // 音量阈值：高于此视为"在说话"
     let silenceStart = null;
-    let speechStart = null;        // 用户开始说话的时间
+    let speechFrames = 0;          // 连续检测到语音的帧数
+    const MIN_SPEECH_FRAMES = 6;   // 至少连续 6 帧(300ms)才算真正开口
+    const MIN_RECORD_MS = 1500;    // 最短录音 1.5 秒，防止误触发
+
+    // 先采样 500ms 环境噪音，自动计算阈值
+    let calibrating = true;
+    let calibrateSamples = [];
+    const calibrateEnd = Date.now() + 500;
 
     frSilenceTimer = setInterval(() => {
         if (!frIsRecording) return;
@@ -1607,33 +1613,38 @@ function startSilenceDetection(stream) {
         for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
         const avg = sum / dataArray.length;
 
-        if (avg > SPEECH_THRESHOLD) {
-            frHasSpoken = true;
-            if (!speechStart) speechStart = Date.now();
+        // 校准阶段：采集环境噪音
+        if (calibrating) {
+            calibrateSamples.push(avg);
+            if (Date.now() >= calibrateEnd) {
+                calibrating = false;
+                const noiseAvg = calibrateSamples.reduce((a, b) => a + b, 0) / calibrateSamples.length;
+                // 阈值 = 环境噪音均值 × 2.5，至少 15
+                frSpeechThreshold = Math.max(noiseAvg * 2.5, 15);
+            }
+            return;
+        }
+
+        const recordedMs = Date.now() - frRecordingStart;
+
+        if (avg > frSpeechThreshold) {
+            speechFrames++;
+            if (speechFrames >= MIN_SPEECH_FRAMES) {
+                frHasSpoken = true;
+            }
             silenceStart = null;
-        } else if (frHasSpoken) {
+        } else if (frHasSpoken && recordedMs > MIN_RECORD_MS) {
+            // 用户确实说过话、且已录够最短时长，才开始静音计时
             if (!silenceStart) {
                 silenceStart = Date.now();
-            } else {
-                // 智能静音阈值：根据已说话时长动态调整
-                // 说话越久 → 句子越完整 → 允许的停顿越短
-                const spokenMs = speechStart ? (Date.now() - speechStart) : 0;
-                let silenceThreshold;
-                if (spokenMs < 1000) {
-                    silenceThreshold = 800;  // 刚开口，多等一下
-                } else if (spokenMs < 3000) {
-                    silenceThreshold = 600;  // 说了一两秒
-                } else {
-                    silenceThreshold = 500;  // 说了较长，0.5秒静音即停
-                }
-
-                if (Date.now() - silenceStart > silenceThreshold) {
-                    stopRecording(true);
-                }
+            } else if (Date.now() - silenceStart > 800) {
+                // 静音超过 0.8 秒，自动停止
+                stopRecording(true);
             }
         }
     }, 50);
 }
+let frSpeechThreshold = 30;
 
 function stopSilenceDetection() {
     if (frSilenceTimer) {
