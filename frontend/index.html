@@ -22,21 +22,9 @@
                 </div>
             </header>
             <div class="video-list-panel" id="videoListPanel">
-                <!-- 打开本地文件（已有字幕的视频直接播放） -->
-                <div class="local-play-section">
-                    <label class="btn-local-play" for="localFiles" data-i18n="app.local.btn">打开本地视频（已有字幕）</label>
-                    <input type="file" id="localFiles" multiple accept="video/*,.json" style="display:none;">
-                    <p class="local-play-hint" data-i18n="app.local.hint">选择同名的视频文件和字幕文件，直接播放，无需上传</p>
-                </div>
-
-                <!-- 服务器上的视频列表 -->
-                <div class="my-videos-section" id="myVideosSection">
-                    <h2 class="section-heading" data-i18n="app.server.title">服务器视频</h2>
-                    <div id="videoList" class="video-list"></div>
-                </div>
-
                 <!-- 添加视频（折叠区域） -->
                 <div class="add-video-section">
+
                     <button class="add-video-toggle" id="btnAddVideo" data-i18n="app.add.toggle">+ 添加新视频</button>
                     <div class="add-video-content" id="addVideoContent" style="display:none;">
                         <!-- 网络视频下载 -->
@@ -72,6 +60,19 @@
                             </select>
                         </div>
                     </div>
+                </div>
+
+                <!-- 打开本地文件（已有字幕的视频直接播放） -->
+                <div class="local-play-section">
+                    <label class="btn-local-play" for="localFiles" data-i18n="app.local.btn">打开本地视频（已有字幕）</label>
+                    <input type="file" id="localFiles" multiple accept="video/*,.json" style="display:none;">
+                    <p class="local-play-hint" data-i18n="app.local.hint">选择同名的视频文件和字幕文件，直接播放，无需上传</p>
+                </div>
+
+                <!-- 服务器上的视频列表 -->
+                <div class="my-videos-section" id="myVideosSection">
+                    <h2 class="section-heading" data-i18n="app.server.title">服务器视频</h2>
+                    <div id="videoList" class="video-list"></div>
                 </div>
             </div>
         </div>

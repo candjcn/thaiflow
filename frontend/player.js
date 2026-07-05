@@ -766,33 +766,39 @@ function showPlayerWithVideo(videoName) {
 
 // ========== 加载已保存的字幕 ==========
 async function loadSaved(videoName) {
-    showPlayerWithVideo(videoName);
+    currentVideoName = videoName;
+    isLoading = true;
 
-    setStep("step1", "active");
-    setTip(t("status.loadingVideo"));
+    // 切换到播放界面（不显示加载遮罩）
+    phaseSelect.style.display = "none";
+    loadingOverlay.style.display = "none";
+    phasePlay.style.display = "flex";
+    tryMobileFullscreen();
+
+    video.src = `/videos/${encodeURIComponent(videoName)}`;
+    video.load();
+
+    // 并行加载视频和字幕
+    const subtitlePromise = fetch(`/api/subtitle/${encodeURIComponent(videoName)}`)
+        .then(res => res.json());
 
     await waitForVideo();
-    setStep("step1", "done");
-
-    setStep("step2", "done");
-    setStep("step3", "active");
-    setTip(t("status.loadingSubtitle"));
 
     try {
-        const res = await fetch(`/api/subtitle/${encodeURIComponent(videoName)}`);
-        const data = await res.json();
+        const data = await subtitlePromise;
         segments = data.segments || [];
         language = data.language || "";
-        setStep("step3", "done");
-        setTip(t("status.subtitleReady"));
     } catch (e) {
-        setStep("step3", "error");
-        setTip(t("status.subtitleFail") + e.message);
+        alert(t("status.subtitleFail") + e.message);
         return;
     }
 
-    await delay(400);
-    finishLoading();
+    isLoading = false;
+    btnTranslate.disabled = false;
+    renderSentenceList();
+    sentenceMode = true;
+    jumpToSentence(0);
+    video.play();
 }
 
 // ========== 完整加载流程 ==========
