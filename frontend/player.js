@@ -1770,6 +1770,12 @@ function delay(ms) {
 }
 
 // ========== 跟读功能 ==========
+// 更新跟读按钮的文字标签（按钮内含 SVG 图标 + 文字）
+function setFrBtnLabel(btn, text) {
+    const label = btn.querySelector(".fr-btn-label");
+    if (label) label.textContent = text;
+}
+
 let frMediaRecorder = null;
 let frRecordedChunks = [];
 let frRecordedBlob = null;
@@ -1812,8 +1818,9 @@ function updateFollowReadContent() {
     frTimer.textContent = "";
     btnFrPlayback.disabled = true;
     btnFrScore.disabled = true;
-    btnFrRecord.textContent = t("follow.record");
-    btnFrRecord.classList.remove("recording");
+    btnFrPlayback.classList.remove("on");
+    setFrBtnLabel(btnFrRecord, t("follow.record"));
+    btnFrRecord.classList.remove("on");
     frRecordedBlob = null;
 }
 
@@ -1849,8 +1856,8 @@ function startShadowRead() {
     if (frAudioPlayer) { frAudioPlayer.pause(); frAudioPlayer = null; }
 
     frShadowMode = true;
-    btnFrPlayOriginal.textContent = t("follow.stopShadow");
-    btnFrPlayOriginal.classList.add("shadow-active");
+    setFrBtnLabel(btnFrPlayOriginal, t("follow.stopShadow"));
+    btnFrPlayOriginal.classList.add("on");
 
     // 开始播放当前句
     playShadowSentence();
@@ -1861,8 +1868,8 @@ function startShadowRead() {
 
 function stopShadowRead() {
     frShadowMode = false;
-    btnFrPlayOriginal.textContent = t("follow.playOriginal");
-    btnFrPlayOriginal.classList.remove("shadow-active");
+    setFrBtnLabel(btnFrPlayOriginal, t("follow.playOriginal"));
+    btnFrPlayOriginal.classList.remove("on");
     video.pause();
     // 同步中央播放按钮状态
     syncOverlayPlayState();
@@ -1943,25 +1950,36 @@ async function startRecording() {
             // 释放麦克风和音频分析
             stream.getTracks().forEach((tk) => tk.stop());
             stopSilenceDetection();
-            frRecordedBlob = new Blob(frRecordedChunks, { type: mimeType });
-            // 保存实际格式的扩展名
-            frRecordedExt = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
-            btnFrPlayback.disabled = false;
-            btnFrScore.disabled = false;
             frIsRecording = false;
             clearInterval(frRecordingTimer);
-            btnFrRecord.textContent = t("status.reRecord");
-            btnFrRecord.classList.remove("recording");
+            btnFrRecord.classList.remove("on");
+
+            if (frHasSpoken) {
+                // 有声音：保存录音，开放回放（评分等回放结束后开放）
+                frRecordedBlob = new Blob(frRecordedChunks, { type: mimeType });
+                frRecordedExt = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
+                btnFrPlayback.disabled = false;
+                setFrBtnLabel(btnFrRecord, t("status.reRecord"));
+            } else {
+                // 没检测到声音：不保存、不回放、不开放评分
+                frRecordedBlob = null;
+                btnFrPlayback.disabled = true;
+                btnFrScore.disabled = true;
+                setFrBtnLabel(btnFrRecord, t("follow.record"));
+                frTimer.textContent = t("status.noVoice");
+            }
         };
 
         frMediaRecorder.start();
         frIsRecording = true;
         frRecordingStart = Date.now();
-        btnFrRecord.textContent = t("status.stopRecord");
-        btnFrRecord.classList.add("recording");
-        btnFrPlayback.classList.remove("btn-playback-active");
+        setFrBtnLabel(btnFrRecord, t("status.stopRecord"));
+        btnFrRecord.classList.add("on");
+        btnFrPlayback.classList.remove("on");
+        btnFrPlayback.disabled = true;
+        btnFrScore.disabled = true;
         frResult.style.display = "none";
-    frOverlay.classList.remove("active");
+        frOverlay.classList.remove("active");
 
         // 显示波形
         frWaveform.classList.add("active");
@@ -2072,6 +2090,9 @@ function stopRecording() {
     if (frMediaRecorder && frMediaRecorder.state !== "inactive") {
         frMediaRecorder.stop();
     }
+    // 没检测到声音时不自动回放（onstop 里会显示提示）
+    if (!frHasSpoken) return;
+
     frTimer.textContent = t("status.recordDone");
 
     // 录音结束后自动回放（延迟等 blob 生成完）
@@ -2084,7 +2105,7 @@ function playbackRecording() {
     if (!frRecordedBlob) return;
     if (frAudioPlayer) frAudioPlayer.pause();
     frAudioPlayer = new Audio(URL.createObjectURL(frRecordedBlob));
-    btnFrPlayback.classList.add("btn-playback-active");
+    btnFrPlayback.classList.add("on");
 
     // 回放时显示波形 + 进度
     frWaveform.classList.add("active");
@@ -2107,7 +2128,7 @@ function playbackRecording() {
         const h = frWaveform.height = frWaveform.clientHeight * (window.devicePixelRatio || 1);
         pbCtx.clearRect(0, 0, w, h);
         pbCtx.lineWidth = 2;
-        pbCtx.strokeStyle = "#2196f3";
+        pbCtx.strokeStyle = "#e94560";
         pbCtx.beginPath();
         const sliceWidth = w / pbTimeDomain.length;
         let x = 0;
@@ -2133,9 +2154,11 @@ function playbackRecording() {
     frAudioPlayer.onended = () => {
         cancelAnimationFrame(pbAnimId);
         pbAudioCtx.close().catch(() => {});
-        btnFrPlayback.classList.remove("btn-playback-active");
+        btnFrPlayback.classList.remove("on");
         frWaveform.classList.remove("active");
         frTimer.textContent = t("status.playbackDone");
+        // 回放结束后才开放评分
+        btnFrScore.disabled = false;
     };
 }
 
@@ -2144,7 +2167,7 @@ async function submitForScoring() {
 
     const seg = segments[currentIndex];
     btnFrScore.disabled = true;
-    btnFrScore.textContent = t("status.scoringBtn");
+    setFrBtnLabel(btnFrScore, t("status.scoringBtn"));
     frTimer.textContent = t("status.scoring");
 
     const formData = new FormData();
@@ -2178,7 +2201,7 @@ async function submitForScoring() {
         if (data.error) {
             frTimer.textContent = t("status.scoreFail") + data.error;
             btnFrScore.disabled = false;
-            btnFrScore.textContent = t("follow.score");
+            setFrBtnLabel(btnFrScore, t("follow.score"));
             return;
         }
 
@@ -2196,7 +2219,7 @@ async function submitForScoring() {
     }
 
     btnFrScore.disabled = false;
-    btnFrScore.textContent = t("follow.score");
+    setFrBtnLabel(btnFrScore, t("follow.score"));
 }
 
 function displayScoreResult(data) {

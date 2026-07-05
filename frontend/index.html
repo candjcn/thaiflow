@@ -328,10 +328,35 @@
                     <div class="fr-reference" id="frReference"></div>
                     <div class="fr-translation" id="frTranslation"></div>
                     <div class="fr-controls">
-                        <button id="btnFrPlayOriginal" data-i18n-title="follow.playOriginal" data-i18n="follow.playOriginal" title="播放原句">原句</button>
-                        <button id="btnFrRecord" class="btn-record" data-i18n-title="follow.record" data-i18n="follow.record" title="开始录音">开始录音</button>
-                        <button id="btnFrPlayback" data-i18n-title="follow.playback" data-i18n="follow.playback" title="回放录音" disabled>回放</button>
-                        <button id="btnFrScore" class="btn-primary" data-i18n-title="follow.score" data-i18n="follow.score" title="AI 评分" disabled>评分</button>
+                        <button id="btnFrPlayOriginal" class="fr-btn" data-i18n-title="follow.playOriginal" title="影子跟读">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+                                <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+                                <path d="M18.5 5.5a9 9 0 0 1 0 13"/>
+                            </svg>
+                            <span class="fr-btn-label" data-i18n="follow.playOriginal">原句</span>
+                        </button>
+                        <button id="btnFrRecord" class="fr-btn" data-i18n-title="follow.record" title="开始录音">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="2" width="6" height="12" rx="3"/>
+                                <path d="M5 10v1a7 7 0 0 0 14 0v-1"/>
+                                <line x1="12" y1="21" x2="12" y2="18"/>
+                            </svg>
+                            <span class="fr-btn-label" data-i18n="follow.record">录音</span>
+                        </button>
+                        <button id="btnFrPlayback" class="fr-btn" data-i18n-title="follow.playback" title="回放录音" disabled>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polygon points="10,8 16,12 10,16"/>
+                            </svg>
+                            <span class="fr-btn-label" data-i18n="follow.playback">回放</span>
+                        </button>
+                        <button id="btnFrScore" class="fr-btn" data-i18n-title="follow.score" title="AI 评分" disabled>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+                            </svg>
+                            <span class="fr-btn-label" data-i18n="follow.score">评分</span>
+                        </button>
                     </div>
                 </div>
             </div>

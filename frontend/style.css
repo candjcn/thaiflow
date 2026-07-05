@@ -1005,30 +1005,58 @@ label {
 .fr-controls {
     display: flex;
     gap: 10px;
+    align-items: stretch;
+}
+
+/* 跟读按钮：图标 + 小文字，统一颜色逻辑
+   灰暗 = 不可用；深色底 = 可点击；红色 = 正在进行中 */
+.fr-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 10px 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    border-radius: 10px;
+    color: #ddd;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, color 0.2s, opacity 0.2s;
 }
 
-.btn-record {
-    background: #e94560 !important;
-    color: #fff !important;
-    min-width: 90px;
+.fr-btn svg {
+    width: 22px;
+    height: 22px;
 }
 
-.shadow-active {
-    background: #c0392b !important;
-    color: #fff !important;
-    animation: pulse-red 1s ease-in-out infinite;
+.fr-btn-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
 }
 
-.btn-record.recording {
-    background: #c0392b !important;
-    animation: pulse-red 1s ease-in-out infinite;
+.fr-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
 }
 
-.btn-playback-active {
-    background: #2196f3 !important;
-    color: #fff !important;
-    box-shadow: 0 0 8px rgba(33, 150, 243, 0.5);
+.fr-btn:not(:disabled):active {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* 正在进行中：统一红色 */
+.fr-btn.on {
+    background: #e94560;
+    color: #fff;
+}
+
+/* 录音中 / 跟读中：脉冲动画 */
+#btnFrRecord.on,
+#btnFrPlayOriginal.on {
+    animation: pulse-red 1.2s ease-in-out infinite;
 }
 
 @keyframes pulse-red {
@@ -1564,9 +1592,13 @@ label {
         margin-bottom: 14px;
     }
 
-    .fr-controls button {
-        font-size: 15px;
-        padding: 10px 14px;
+    .fr-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .fr-btn-label {
+        font-size: 12px;
     }
 
     .fr-timer {
