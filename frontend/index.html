@@ -2,7 +2,9 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>短视频外语学习播放器</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -165,12 +167,11 @@
 
             <!-- 移动端控制栏 -->
             <div class="mobile-controls" id="mobileControls">
-                <!-- 三段式模式切换 -->
+                <!-- 模式切换 -->
                 <div class="m-mode-tabs" id="mModeTabs">
                     <div class="m-mode-bg" id="mModeBg"></div>
-                    <button class="m-mode-tab active" id="btnModePlay" data-mode="play" data-i18n="mobile.mode.play">播放</button>
-                    <button class="m-mode-tab" id="btnModeStudy" data-mode="study" data-i18n="mobile.mode.study">复读</button>
-                    <button class="m-mode-tab" id="btnModeFollow" data-mode="follow" data-i18n="mobile.mode.follow">跟读</button>
+                    <button class="m-mode-tab active" id="btnModeStudy" data-mode="study" data-i18n="mobile.mode.study">三遍复读</button>
+                    <button class="m-mode-tab" id="btnModeFollow" data-mode="follow" data-i18n="mobile.mode.follow">影子跟读</button>
                 </div>
                 <!-- 主控制 -->
                 <div class="m-playback">

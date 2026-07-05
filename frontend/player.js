@@ -169,7 +169,6 @@ chkTranslation.addEventListener("change", updateSubtitleVisibility);
 
 // ========== 移动端控件 ==========
 const mobileControls = document.getElementById("mobileControls");
-const btnModePlay = document.getElementById("btnModePlay");
 const btnModeStudy = document.getElementById("btnModeStudy");
 const btnModeFollow = document.getElementById("btnModeFollow");
 const mModeBg = document.getElementById("mModeBg");
@@ -189,36 +188,44 @@ mBtnList.addEventListener("click", toggleDrawer);
 mBtnBack.addEventListener("click", backToSelect);
 document.getElementById("mBtnSave").addEventListener("click", saveToLocal);
 
-// 三段式模式切换：播放 / 复读 / 跟读
-btnModePlay.addEventListener("click", () => switchMode("play"));
+// 模式切换：三遍复读 / 影子跟读
 btnModeStudy.addEventListener("click", () => switchMode("study"));
 btnModeFollow.addEventListener("click", () => switchMode("follow"));
 
 function switchMode(mode) {
-    // 更新 tab 高亮 + 滑动指示器
-    [btnModePlay, btnModeStudy, btnModeFollow].forEach(b => b.classList.remove("active"));
-    if (mode === "play") {
-        btnModePlay.classList.add("active");
-        mModeBg.dataset.pos = "0";
-        repeatCountSelect.value = "1";
-    } else if (mode === "study") {
+    [btnModeStudy, btnModeFollow].forEach(b => b.classList.remove("active"));
+    if (mode === "study") {
         btnModeStudy.classList.add("active");
-        mModeBg.dataset.pos = "1";
+        mModeBg.dataset.pos = "0";
         repeatCountSelect.value = "3";
+        // 关闭跟读面板
+        if (followReadPanel.style.display !== "none") {
+            followReadPanel.style.display = "none";
+        }
+        if (currentIndex >= 0) {
+            jumpToSentence(currentIndex);
+            video.play();
+        }
     } else if (mode === "follow") {
         btnModeFollow.classList.add("active");
-        mModeBg.dataset.pos = "2";
+        mModeBg.dataset.pos = "1";
         openFollowRead();
-        return;
     }
-    // 播放/复读模式：关闭跟读面板（如果打开的话）
-    if (followReadPanel.style.display !== "none") {
-        followReadPanel.style.display = "none";
-    }
-    // 重新开始当前句
-    if (currentIndex >= 0) {
-        jumpToSentence(currentIndex);
-        video.play();
+}
+
+// 移动端判断
+function isMobile() {
+    return window.innerWidth <= 768;
+}
+
+// 进入播放界面时自动全屏（移动端）
+function tryMobileFullscreen() {
+    if (!isMobile()) return;
+    // 使用 Fullscreen API
+    if (phasePlay.requestFullscreen) {
+        phasePlay.requestFullscreen().catch(() => {});
+    } else if (phasePlay.webkitRequestFullscreen) {
+        phasePlay.webkitRequestFullscreen();
     }
 }
 
@@ -598,6 +605,7 @@ async function openLocalFiles() {
 
     phaseSelect.style.display = "none";
     phasePlay.style.display = "flex";
+    tryMobileFullscreen();
 
     // 用本地 URL 播放视频（不上传）
     const videoUrl = URL.createObjectURL(videoFile);
@@ -742,6 +750,7 @@ function showPlayerWithVideo(videoName) {
     // 切换到播放界面
     phaseSelect.style.display = "none";
     phasePlay.style.display = "flex";
+    tryMobileFullscreen();
 
     // 加载视频（显示首帧）
     video.src = `/videos/${encodeURIComponent(videoName)}`;
@@ -920,6 +929,10 @@ async function saveSubtitle() {
 
 // ========== 返回选择 ==========
 function backToSelect() {
+    // 退出全屏
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+    }
     video.pause();
     video.src = "";
     sentenceMode = false;
@@ -930,8 +943,8 @@ function backToSelect() {
     phaseSelect.style.display = "flex";
     sentenceDrawer.style.display = "none";
     loadingOverlay.style.display = "none";
-    // 重置移动端模式到播放
-    switchMode("play");
+    // 重置移动端模式到三遍复读
+    switchMode("study");
     loadVideoList();
 }
 
@@ -1436,9 +1449,9 @@ function closeFollowRead() {
         frAudioPlayer = null;
     }
     followReadPanel.style.display = "none";
-    // 同步移动端模式 tab 回到播放
+    // 同步移动端模式 tab 回到三遍复读
     if (btnModeFollow && btnModeFollow.classList.contains("active")) {
-        switchMode("play");
+        switchMode("study");
     }
 }
 

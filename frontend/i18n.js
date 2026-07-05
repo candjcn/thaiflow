@@ -91,9 +91,8 @@ const I18N = {
             "ctrl.fullscreen": "全屏",
 
             // 移动端
-            "mobile.mode.play": "播放",
-            "mobile.mode.study": "复读",
-            "mobile.mode.follow": "跟读",
+            "mobile.mode.study": "三遍复读",
+            "mobile.mode.follow": "影子跟读",
 
             // 句子列表
             "drawer.title": "句子列表",
@@ -265,9 +264,8 @@ const I18N = {
             "ctrl.export": "導出",
             "ctrl.fullscreen": "全螢幕",
 
-            "mobile.mode.play": "播放",
-            "mobile.mode.study": "複讀",
-            "mobile.mode.follow": "跟讀",
+            "mobile.mode.study": "三遍複讀",
+            "mobile.mode.follow": "影子跟讀",
 
             "drawer.title": "句子列表",
             "drawer.retranslate": "重新翻譯",
@@ -435,9 +433,8 @@ const I18N = {
             "ctrl.export": "Export",
             "ctrl.fullscreen": "Fullscreen",
 
-            "mobile.mode.play": "Play",
-            "mobile.mode.study": "Repeat",
-            "mobile.mode.follow": "Follow",
+            "mobile.mode.study": "Repeat ×3",
+            "mobile.mode.follow": "Shadow Read",
 
             "drawer.title": "Sentence List",
             "drawer.retranslate": "Re-translate",
