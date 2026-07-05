@@ -1591,6 +1591,10 @@ async function startRecording() {
 
 function startSilenceDetection(stream) {
     frAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    // iOS Safari 上 AudioContext 默认 suspended，必须 resume
+    if (frAudioContext.state === "suspended") {
+        frAudioContext.resume();
+    }
     const source = frAudioContext.createMediaStreamSource(stream);
     const analyser = frAudioContext.createAnalyser();
     analyser.fftSize = 512;
@@ -1598,14 +1602,14 @@ function startSilenceDetection(stream) {
 
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
     let silenceStart = null;
-    let speechFrames = 0;          // 连续检测到语音的帧数
-    const MIN_SPEECH_FRAMES = 6;   // 至少连续 6 帧(300ms)才算真正开口
-    const MIN_RECORD_MS = 1500;    // 最短录音 1.5 秒，防止误触发
+    let consecutiveSpeech = 0;     // 连续语音帧计数
+    const MIN_SPEECH_FRAMES = 4;   // 连续 4 帧(200ms)算开口
+    const MIN_RECORD_MS = 1200;    // 最短录音 1.2 秒
 
-    // 先采样 500ms 环境噪音，自动计算阈值
+    // 先采样 300ms 环境噪音，自动计算阈值
     let calibrating = true;
     let calibrateSamples = [];
-    const calibrateEnd = Date.now() + 500;
+    const calibrateEnd = Date.now() + 300;
 
     frSilenceTimer = setInterval(() => {
         if (!frIsRecording) return;
@@ -1620,9 +1624,12 @@ function startSilenceDetection(stream) {
             calibrateSamples.push(avg);
             if (Date.now() >= calibrateEnd) {
                 calibrating = false;
-                const noiseAvg = calibrateSamples.reduce((a, b) => a + b, 0) / calibrateSamples.length;
-                // 阈值 = 环境噪音均值 × 2.5，至少 15
-                frSpeechThreshold = Math.max(noiseAvg * 2.5, 15);
+                const noiseAvg = calibrateSamples.length > 0
+                    ? calibrateSamples.reduce((a, b) => a + b, 0) / calibrateSamples.length
+                    : 0;
+                // 阈值 = 环境噪音均值 × 2，至少 10
+                frSpeechThreshold = Math.max(noiseAvg * 2, 10);
+                console.log("[SilenceDetect] noise=" + noiseAvg.toFixed(1) + " threshold=" + frSpeechThreshold.toFixed(1));
             }
             return;
         }
@@ -1630,23 +1637,26 @@ function startSilenceDetection(stream) {
         const recordedMs = Date.now() - frRecordingStart;
 
         if (avg > frSpeechThreshold) {
-            speechFrames++;
-            if (speechFrames >= MIN_SPEECH_FRAMES) {
+            consecutiveSpeech++;
+            if (consecutiveSpeech >= MIN_SPEECH_FRAMES) {
                 frHasSpoken = true;
             }
             silenceStart = null;
-        } else if (frHasSpoken && recordedMs > MIN_RECORD_MS) {
-            // 用户确实说过话、且已录够最短时长，才开始静音计时
-            if (!silenceStart) {
-                silenceStart = Date.now();
-            } else if (Date.now() - silenceStart > 800) {
-                // 静音超过 0.8 秒，自动停止
-                stopRecording(true);
+        } else {
+            consecutiveSpeech = 0;  // 非连续语音，重置计数
+            if (frHasSpoken && recordedMs > MIN_RECORD_MS) {
+                if (!silenceStart) {
+                    silenceStart = Date.now();
+                } else if (Date.now() - silenceStart > 600) {
+                    // 静音超过 0.6 秒，自动停止并回放
+                    console.log("[SilenceDetect] auto-stop after " + recordedMs + "ms");
+                    stopRecording(true);
+                }
             }
         }
     }, 50);
 }
-let frSpeechThreshold = 30;
+let frSpeechThreshold = 15;
 
 function stopSilenceDetection() {
     if (frSilenceTimer) {
@@ -1710,7 +1720,14 @@ async function submitForScoring() {
         }
 
         displayScoreResult(data);
-        frTimer.textContent = "";
+        // 全部 0 分时给出提示
+        if ((data.overall_score || 0) === 0 && (data.accuracy_score || 0) === 0) {
+            frTimer.textContent = "⚠ " + (data.recognized_text
+                ? t("status.scoreFail") + "识别为: " + data.recognized_text
+                : t("status.scoreFail") + "未识别到语音，请靠近麦克风重试");
+        } else {
+            frTimer.textContent = "";
+        }
     } catch (e) {
         frTimer.textContent = t("status.scoreFail") + e.message;
     }

@@ -40,6 +40,14 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
     wav_path = audio_path + ".wav"
     convert_to_wav(audio_path, wav_path)
 
+    # 检查 WAV 文件大小
+    wav_size = os.path.getsize(wav_path) if os.path.exists(wav_path) else 0
+    print(f"[Pronounce] wav_size={wav_size} bytes, language={language}")
+    print(f"[Pronounce] reference_text={reference_text[:80]}")
+
+    if wav_size < 1000:
+        raise RuntimeError("录音太短，请重新录音")
+
     try:
         # 配置 Speech
         speech_config = speechsdk.SpeechConfig(
@@ -47,12 +55,13 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
         )
         speech_config.speech_recognition_language = language
 
-        # 配置发音评估
+        # 配置发音评估（miscue 仅英语支持良好）
+        use_miscue = language.startswith("en")
         pronunciation_config = speechsdk.PronunciationAssessmentConfig(
             reference_text=reference_text,
             grading_system=speechsdk.PronunciationAssessmentGradingSystem.HundredMark,
             granularity=speechsdk.PronunciationAssessmentGranularity.Word,
-            enable_miscue=True,
+            enable_miscue=use_miscue,
         )
 
         # 音频输入
@@ -96,6 +105,8 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
             }
 
         elif result.reason == speechsdk.ResultReason.NoMatch:
+            details = result.no_match_details if hasattr(result, 'no_match_details') else None
+            print(f"[Pronounce] NoMatch: {details}")
             return {
                 "recognized_text": "",
                 "overall_score": 0,
@@ -103,13 +114,17 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
                 "fluency_score": 0,
                 "completeness_score": 0,
                 "words": [],
-                "error": "未能识别语音，请重新录音",
+                "error": f"未能识别语音（语言: {language}），请靠近麦克风重新录音",
             }
-        else:
+        elif result.reason == speechsdk.ResultReason.Canceled:
             cancellation = result.cancellation_details
+            print(f"[Pronounce] Canceled: {cancellation.reason} - {cancellation.error_details}")
             raise RuntimeError(
                 f"语音识别失败: {cancellation.reason} - {cancellation.error_details}"
             )
+        else:
+            print(f"[Pronounce] Unknown reason: {result.reason}")
+            raise RuntimeError(f"语音识别返回未知状态: {result.reason}")
     finally:
         if os.path.exists(wav_path):
             os.remove(wav_path)
