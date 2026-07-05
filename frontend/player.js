@@ -2047,7 +2047,10 @@ function playShadowSentence() {
     updateFollowReadContentQuiet();  // 更新面板文字，不重置影子模式
     sentenceMode = true;
     repeatCount = 0;
-    video.currentTime = seg.start;
+    // 已经在句首附近时不再 seek，避免二次定位造成开头卡顿
+    if (Math.abs(video.currentTime - seg.start) > 0.05) {
+        video.currentTime = seg.start;
+    }
     video.play();
 }
 
