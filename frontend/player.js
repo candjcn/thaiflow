@@ -209,25 +209,31 @@ function isCssFullscreen() {
 
 function enterFullscreen() {
     const el = document.documentElement;
-    let nativeOk = false;
     if (el.requestFullscreen) {
-        el.requestFullscreen({ navigationUI: "hide" }).then(() => { nativeOk = true; }).catch(() => {});
+        el.requestFullscreen({ navigationUI: "hide" }).then(() => {
+            console.log("[Fullscreen] native OK");
+        }).catch((e) => {
+            console.log("[Fullscreen] native failed:", e.message);
+        });
     } else if (el.webkitRequestFullscreen) {
         el.webkitRequestFullscreen();
-        nativeOk = true;
     }
-    // CSS 后备（HTTP 下原生全屏不可用）
+    // CSS 后备（原生全屏不可用时）
     setTimeout(() => {
         if (!isNativeFullscreen()) {
             phasePlay.classList.add("css-fullscreen");
             mBtnFullscreen.classList.add("is-fullscreen");
         }
-    }, 300);
+    }, 400);
 }
 
 function exitFullscreen() {
     if (isNativeFullscreen()) {
-        (document.exitFullscreen || document.webkitExitFullscreen).call(document).catch(() => {});
+        if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
     }
     phasePlay.classList.remove("css-fullscreen");
     mBtnFullscreen.classList.remove("is-fullscreen");
@@ -1144,6 +1150,10 @@ function finishLoading() {
     jumpToSentence(0);
     video.play();
     initMobileOverlays();
+
+    // 识别完成后自动进入全屏（移动端）
+    // video.play() 算 user-activation 延续，此时可以请求全屏
+    tryMobileFullscreen();
 }
 
 // ========== 保存字幕 ==========
