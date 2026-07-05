@@ -1284,13 +1284,66 @@ function renderSentenceList() {
                 <div class="original">${escapeHtml(seg.text)}</div>
                 <div class="translation">${escapeHtml(seg.translation || "")}</div>
             </div>
+            <button class="sentence-edit-btn" title="编辑">✎</button>
         `;
-        div.addEventListener("click", () => {
+        div.addEventListener("click", (e) => {
+            if (e.target.closest(".sentence-edit-btn")) return;
+            if (div.classList.contains("editing")) return;
             sentenceMode = true;
             jumpToSentence(i);
             video.play();
         });
+        div.querySelector(".sentence-edit-btn").addEventListener("click", (e) => {
+            e.stopPropagation();
+            enterEditMode(div, i);
+        });
         sentenceList.appendChild(div);
+    });
+}
+
+// ========== 编辑句子（原文/译文） ==========
+function enterEditMode(div, i) {
+    if (div.classList.contains("editing")) return;
+    div.classList.add("editing");
+    const seg = segments[i];
+    const textGroup = div.querySelector(".text-group");
+    const origHtml = textGroup.innerHTML;
+
+    textGroup.innerHTML = `
+        <div class="time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
+        <textarea class="edit-original" rows="2">${escapeHtml(seg.text)}</textarea>
+        <textarea class="edit-translation" rows="2">${escapeHtml(seg.translation || "")}</textarea>
+        <div class="edit-actions">
+            <button class="edit-save">✓ 保存</button>
+            <button class="edit-cancel">✕ 取消</button>
+        </div>
+    `;
+
+    textGroup.querySelector(".edit-save").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        seg.text = textGroup.querySelector(".edit-original").value.trim();
+        seg.translation = textGroup.querySelector(".edit-translation").value.trim();
+        div.classList.remove("editing");
+        // 同步列表显示
+        textGroup.innerHTML = `
+            <div class="time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
+            <div class="original">${escapeHtml(seg.text)}</div>
+            <div class="translation">${escapeHtml(seg.translation || "")}</div>
+        `;
+        // 同步当前字幕显示
+        if (i === currentIndex) updateSubtitle(seg);
+        // 同步跟读面板
+        if (followReadPanel.style.display !== "none" && i === currentIndex) {
+            updateFollowReadContent();
+        }
+        // 保存到服务器
+        await saveSubtitle();
+    });
+
+    textGroup.querySelector(".edit-cancel").addEventListener("click", (e) => {
+        e.stopPropagation();
+        div.classList.remove("editing");
+        textGroup.innerHTML = origHtml;
     });
 }
 
