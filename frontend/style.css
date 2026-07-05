@@ -1043,108 +1043,138 @@ label {
 .mobile-controls {
     display: none;
     flex-direction: column;
-    background: rgba(13, 13, 26, 0.98);
-    padding: 8px 12px;
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    gap: 10px;
+    background: rgba(10, 10, 22, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 10px 16px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
     flex-shrink: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* 模式切换 */
-.mode-switch {
+/* 三段式模式切换 */
+.m-mode-tabs {
     display: flex;
-    background: #16213e;
+    position: relative;
+    background: rgba(255, 255, 255, 0.06);
     border-radius: 10px;
     padding: 3px;
-    margin-bottom: 10px;
 }
 
-.mode-btn {
+.m-mode-bg {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: calc(33.333% - 2px);
+    height: calc(100% - 6px);
+    background: #e94560;
+    border-radius: 8px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+}
+
+.m-mode-bg[data-pos="1"] { transform: translateX(100%); }
+.m-mode-bg[data-pos="2"] { transform: translateX(200%); }
+
+.m-mode-tab {
     flex: 1;
-    padding: 10px 0;
-    font-size: 15px;
+    position: relative;
+    z-index: 1;
+    padding: 8px 0;
+    font-size: 14px;
     font-weight: 600;
     background: transparent;
     border: none;
     border-radius: 8px;
-    color: #888;
+    color: rgba(255, 255, 255, 0.45);
     cursor: pointer;
-    transition: all 0.25s;
-}
-
-.mode-btn.active {
-    background: #e94560;
-    color: #fff;
-}
-
-/* 主控制按钮 */
-.mobile-main-controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-}
-
-.mc-btn {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    border: none;
-    background: #16213e;
-    color: #e0e0e0;
-    font-size: 20px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s;
+    transition: color 0.25s;
     -webkit-tap-highlight-color: transparent;
 }
 
-.mc-btn:active {
-    background: #1a1a4e;
+.m-mode-tab.active {
+    color: #fff;
 }
 
-.mc-btn-play {
+/* 主播放控制 */
+.m-playback {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+}
+
+.m-ctrl {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 22px;
+    font-weight: 300;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.m-ctrl:active {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(0.93);
+}
+
+.m-ctrl-sm {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.m-ctrl-sm:active {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.m-ctrl-play {
     width: 56px;
     height: 56px;
-    font-size: 24px;
+    font-size: 26px;
     background: #e94560;
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(233, 69, 96, 0.35);
 }
 
-.mc-btn-play:active {
-    background: #c73a52;
+.m-ctrl-play:active {
+    background: #d13b54;
+    transform: scale(0.95);
 }
 
-.mc-btn-follow {
-    font-size: 14px;
-    font-weight: 600;
-    width: auto;
-    padding: 0 16px;
-    border-radius: 24px;
-}
-
-/* 速度按钮 + 底部信息 */
-.mobile-bottom-row {
+/* 底部工具栏 */
+.m-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-.speed-buttons {
+.m-speed-group {
     display: flex;
-    gap: 4px;
+    gap: 2px;
 }
 
 .speed-btn {
-    padding: 5px 10px;
+    padding: 4px 10px;
     font-size: 12px;
-    border: 1px solid #1a1a4e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
     background: transparent;
-    color: #888;
+    color: rgba(255, 255, 255, 0.4);
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    transition: all 0.2s;
 }
 
 .speed-btn.active {
@@ -1152,30 +1182,36 @@ label {
     color: #e94560;
 }
 
-.mobile-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
 .m-repeat-info {
     font-size: 12px;
-    color: #888;
+    color: rgba(255, 255, 255, 0.4);
+    min-width: 40px;
+    text-align: center;
 }
 
-.mc-btn-small {
+.m-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.m-action {
     width: 32px;
     height: 32px;
-    border-radius: 6px;
+    border-radius: 8px;
     border: none;
-    background: #16213e;
-    color: #e0e0e0;
-    font-size: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 15px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+}
+
+.m-action:active {
+    background: rgba(255, 255, 255, 0.12);
 }
 
 /* ==========================================

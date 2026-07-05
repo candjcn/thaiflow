@@ -171,11 +171,12 @@ chkTranslation.addEventListener("change", updateSubtitleVisibility);
 const mobileControls = document.getElementById("mobileControls");
 const btnModePlay = document.getElementById("btnModePlay");
 const btnModeStudy = document.getElementById("btnModeStudy");
+const btnModeFollow = document.getElementById("btnModeFollow");
+const mModeBg = document.getElementById("mModeBg");
 const mBtnPrev = document.getElementById("mBtnPrev");
 const mBtnPause = document.getElementById("mBtnPause");
 const mBtnNext = document.getElementById("mBtnNext");
 const mBtnRepeat = document.getElementById("mBtnRepeat");
-const mBtnFollowRead = document.getElementById("mBtnFollowRead");
 const mBtnList = document.getElementById("mBtnList");
 const mBtnBack = document.getElementById("mBtnBack");
 const mRepeatInfo = document.getElementById("mRepeatInfo");
@@ -184,24 +185,35 @@ mBtnPrev.addEventListener("click", prevSentence);
 mBtnNext.addEventListener("click", nextSentence);
 mBtnPause.addEventListener("click", togglePause);
 mBtnRepeat.addEventListener("click", repeatCurrent);
-mBtnFollowRead.addEventListener("click", openFollowRead);
 mBtnList.addEventListener("click", toggleDrawer);
 mBtnBack.addEventListener("click", backToSelect);
 document.getElementById("mBtnSave").addEventListener("click", saveToLocal);
 
-// 模式切换：连播 / 精听
+// 三段式模式切换：播放 / 复读 / 跟读
 btnModePlay.addEventListener("click", () => switchMode("play"));
 btnModeStudy.addEventListener("click", () => switchMode("study"));
+btnModeFollow.addEventListener("click", () => switchMode("follow"));
 
 function switchMode(mode) {
+    // 更新 tab 高亮 + 滑动指示器
+    [btnModePlay, btnModeStudy, btnModeFollow].forEach(b => b.classList.remove("active"));
     if (mode === "play") {
-        repeatCountSelect.value = "1";
         btnModePlay.classList.add("active");
-        btnModeStudy.classList.remove("active");
-    } else {
-        repeatCountSelect.value = "3";
+        mModeBg.dataset.pos = "0";
+        repeatCountSelect.value = "1";
+    } else if (mode === "study") {
         btnModeStudy.classList.add("active");
-        btnModePlay.classList.remove("active");
+        mModeBg.dataset.pos = "1";
+        repeatCountSelect.value = "3";
+    } else if (mode === "follow") {
+        btnModeFollow.classList.add("active");
+        mModeBg.dataset.pos = "2";
+        openFollowRead();
+        return;
+    }
+    // 播放/复读模式：关闭跟读面板（如果打开的话）
+    if (followReadPanel.style.display !== "none") {
+        followReadPanel.style.display = "none";
     }
     // 重新开始当前句
     if (currentIndex >= 0) {
@@ -918,6 +930,8 @@ function backToSelect() {
     phaseSelect.style.display = "flex";
     sentenceDrawer.style.display = "none";
     loadingOverlay.style.display = "none";
+    // 重置移动端模式到播放
+    switchMode("play");
     loadVideoList();
 }
 
@@ -1422,6 +1436,10 @@ function closeFollowRead() {
         frAudioPlayer = null;
     }
     followReadPanel.style.display = "none";
+    // 同步移动端模式 tab 回到播放
+    if (btnModeFollow && btnModeFollow.classList.contains("active")) {
+        switchMode("play");
+    }
 }
 
 // ========== 影子跟读 ==========
