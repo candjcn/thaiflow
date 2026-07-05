@@ -571,9 +571,17 @@ function togglePause() {
         // 播完最后一句，重新从第一句开始
         isAtEnd = false;
         sentenceMode = true;
-        jumpToSentence(0);
+        repeatCount = 0;
+        currentIndex = 0;
+        const seg = segments[0];
+        video.currentTime = seg.start;
+        const maxRepeat = parseInt(repeatCountSelect.value) || 3;
+        updateRepeatInfo(maxRepeat);
+        updateSubtitle(seg);
+        highlightSentence(0);
         video.play();
         syncOverlayPlayState();
+        showMobileOverlays();
         showPauseIcon("▶");
         return;
     }
