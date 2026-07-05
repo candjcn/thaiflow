@@ -199,25 +199,54 @@ mBtnBack.addEventListener("click", () => {
 });
 
 // 全屏按钮
-mBtnFullscreen.addEventListener("click", () => {
-    if (document.fullscreenElement || document.webkitFullscreenElement) {
-        (document.exitFullscreen || document.webkitExitFullscreen).call(document).catch(() => {});
-    } else {
-        const el = document.documentElement;
-        if (el.requestFullscreen) {
-            el.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
-        } else if (el.webkitRequestFullscreen) {
-            el.webkitRequestFullscreen();
+function isNativeFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+function isCssFullscreen() {
+    return phasePlay.classList.contains("css-fullscreen");
+}
+
+function enterFullscreen() {
+    const el = document.documentElement;
+    let nativeOk = false;
+    if (el.requestFullscreen) {
+        el.requestFullscreen({ navigationUI: "hide" }).then(() => { nativeOk = true; }).catch(() => {});
+    } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+        nativeOk = true;
+    }
+    // CSS 后备（HTTP 下原生全屏不可用）
+    setTimeout(() => {
+        if (!isNativeFullscreen()) {
+            phasePlay.classList.add("css-fullscreen");
+            mBtnFullscreen.classList.add("is-fullscreen");
         }
+    }, 300);
+}
+
+function exitFullscreen() {
+    if (isNativeFullscreen()) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document).catch(() => {});
+    }
+    phasePlay.classList.remove("css-fullscreen");
+    mBtnFullscreen.classList.remove("is-fullscreen");
+}
+
+mBtnFullscreen.addEventListener("click", () => {
+    if (isNativeFullscreen() || isCssFullscreen()) {
+        exitFullscreen();
+    } else {
+        enterFullscreen();
     }
 });
 
-// 同步全屏按钮图标状态
+// 同步全屏按钮图标状态（原生全屏事件）
 document.addEventListener("fullscreenchange", () => {
-    mBtnFullscreen.classList.toggle("is-fullscreen", !!document.fullscreenElement);
+    mBtnFullscreen.classList.toggle("is-fullscreen", isNativeFullscreen());
 });
 document.addEventListener("webkitfullscreenchange", () => {
-    mBtnFullscreen.classList.toggle("is-fullscreen", !!document.webkitFullscreenElement);
+    mBtnFullscreen.classList.toggle("is-fullscreen", isNativeFullscreen());
 });
 
 // Overlay controls: play/pause, prev, next
@@ -348,12 +377,7 @@ function isMobile() {
 // 进入播放界面时自动全屏（移动端）
 function tryMobileFullscreen() {
     if (!isMobile()) return;
-    const el = document.documentElement; // 全屏整个页面，确保覆盖浏览器 UI
-    if (el.requestFullscreen) {
-        el.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
-    } else if (el.webkitRequestFullscreen) {
-        el.webkitRequestFullscreen();
-    }
+    enterFullscreen();
 }
 
 // 移动端浮动控制层逻辑
@@ -551,15 +575,10 @@ function showPauseIcon(icon) {
 
 // ========== 全屏 ==========
 function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-        const el = document.documentElement;
-        if (el.requestFullscreen) {
-            el.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
-        } else if (el.webkitRequestFullscreen) {
-            el.webkitRequestFullscreen();
-        }
+    if (isNativeFullscreen() || isCssFullscreen()) {
+        exitFullscreen();
     } else {
-        document.exitFullscreen();
+        enterFullscreen();
     }
 }
 
@@ -1134,9 +1153,7 @@ async function saveSubtitle() {
 // ========== 返回选择 ==========
 function backToSelect() {
     // 退出全屏
-    if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-    }
+    exitFullscreen();
     video.pause();
     video.src = "";
     sentenceMode = false;

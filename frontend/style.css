@@ -1539,7 +1539,37 @@ label {
     }
 }
 
-/* 全屏模式 */
+/* CSS 模拟全屏（HTTP 下原生全屏不可用时的后备） */
+.phase-play.css-fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    height: 100% !important;
+}
+
+.phase-play.css-fullscreen .m-top-btn {
+    display: flex !important;
+    top: max(40px, calc(env(safe-area-inset-top) + 8px));
+}
+
+.phase-play.css-fullscreen .m-top-status {
+    display: block !important;
+    top: max(40px, calc(env(safe-area-inset-top) + 8px));
+}
+
+.phase-play.css-fullscreen .mobile-controls {
+    display: flex !important;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+
+.phase-play.css-fullscreen .m-overlay-controls.visible {
+    display: flex !important;
+}
+
+/* 全屏模式（原生） */
 :fullscreen,
 :-webkit-full-screen {
     background: #000;
