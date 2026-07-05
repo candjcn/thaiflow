@@ -467,6 +467,37 @@ video.addEventListener("pause", () => {
 // 视频自然播放到末尾（timeupdate 可能没触发最后一句结束的判断）
 video.addEventListener("ended", () => {
     if (isLoading || segments.length === 0) return;
+
+    const maxRepeat = parseInt(repeatCountSelect.value) || 3;
+
+    // 还在句子模式且不是最后一句：跳到下一句继续
+    if (sentenceMode && currentIndex >= 0 && currentIndex < segments.length - 1) {
+        repeatCount++;
+        if (repeatCount < maxRepeat) {
+            // 当前句还没复读够遍数，重播当前句
+            video.currentTime = segments[currentIndex].start;
+            video.play();
+        } else {
+            jumpToSentence(currentIndex + 1);
+            video.play();
+        }
+        updateRepeatInfo(maxRepeat);
+        return;
+    }
+
+    // 最后一句：检查复读遍数是否播够
+    if (sentenceMode && currentIndex === segments.length - 1) {
+        repeatCount++;
+        updateRepeatInfo(maxRepeat);
+        if (repeatCount < maxRepeat) {
+            // 遍数未满，重播最后一句
+            video.currentTime = segments[currentIndex].start;
+            video.play();
+            return;
+        }
+    }
+
+    // 所有句子、所有遍数都播完，显示重播按钮
     isAtEnd = true;
     syncOverlayPlayState();
     if (isMobile()) {
