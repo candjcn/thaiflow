@@ -762,15 +762,88 @@ video {
 
 /* 单个句子 */
 .sentence-item {
-    display: flex;
-    gap: 8px;
-    padding: 8px 8px;
+    position: relative;
+    overflow: hidden;
     border-radius: 6px;
     cursor: pointer;
     margin-bottom: 4px;
     transition: background 0.15s;
     border-left: 3px solid transparent;
+}
+
+.sentence-content {
+    display: flex;
+    gap: 8px;
+    padding: 8px 8px;
     align-items: baseline;
+    position: relative;
+    z-index: 1;
+    transition: transform 0.2s ease;
+    background: #0d0d1a;
+    border-radius: 6px;
+}
+
+.sentence-item:hover .sentence-content {
+    background: #16162a;
+}
+
+.sentence-item.active .sentence-content {
+    background: #241624;
+}
+
+/* 左滑显示的删除按钮 */
+.sentence-delete-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 80px;
+    background: #c0392b;
+    border: none;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 0;
+    visibility: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.sentence-item.swiping .sentence-delete-btn,
+.sentence-item.swiped .sentence-delete-btn {
+    visibility: visible;
+}
+
+.sentence-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+.sentence-merge-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    opacity: 0.6;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.sentence-merge-btn svg {
+    width: 15px;
+    height: 15px;
+}
+
+.sentence-merge-btn:hover,
+.sentence-merge-btn:active {
+    color: #e94560;
+    opacity: 1;
+    background: rgba(233, 69, 96, 0.1);
 }
 
 .sentence-item:hover {

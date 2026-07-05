@@ -162,6 +162,11 @@ btnCloseDrawer.addEventListener("click", () => {
     sentenceDrawer.style.display = "none";
 });
 
+// 句子列表：下载字幕到本地（JSON + SRT）
+document.getElementById("btnDrawerSave").addEventListener("click", () => {
+    saveToLocal(true);
+});
+
 playbackRateSelect.addEventListener("change", () => {
     video.playbackRate = parseFloat(playbackRateSelect.value);
 });
@@ -1309,28 +1314,150 @@ function renderSentenceList() {
         const div = document.createElement("div");
         div.className = "sentence-item";
         div.dataset.index = i;
+        const mergeBtn = i < segments.length - 1
+            ? `<button class="sentence-merge-btn" title="与下一句合并">
+                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                       <line x1="12" y1="4" x2="12" y2="15"/>
+                       <polyline points="6,10 12,16 18,10"/>
+                       <line x1="5" y1="20" x2="19" y2="20"/>
+                   </svg>
+               </button>`
+            : "";
         div.innerHTML = `
-            <span class="seq">${i + 1}</span>
-            <div class="text-group">
-                <div class="time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
-                <div class="original">${escapeHtml(seg.text)}</div>
-                <div class="translation">${escapeHtml(seg.translation || "")}</div>
+            <div class="sentence-content">
+                <span class="seq">${i + 1}</span>
+                <div class="text-group">
+                    <div class="time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
+                    <div class="original">${escapeHtml(seg.text)}</div>
+                    <div class="translation">${escapeHtml(seg.translation || "")}</div>
+                </div>
+                <div class="sentence-actions">
+                    <button class="sentence-edit-btn" title="编辑">✎</button>
+                    ${mergeBtn}
+                </div>
             </div>
-            <button class="sentence-edit-btn" title="编辑">✎</button>
+            <button class="sentence-delete-btn">删除</button>
         `;
         div.addEventListener("click", (e) => {
             if (e.target.closest(".sentence-edit-btn")) return;
+            if (e.target.closest(".sentence-merge-btn")) return;
+            if (e.target.closest(".sentence-delete-btn")) return;
             if (div.classList.contains("editing")) return;
+            // 已滑出删除状态时，点击先收回
+            if (div.classList.contains("swiped")) {
+                closeSwipedItems();
+                return;
+            }
             sentenceMode = true;
             jumpToSentence(i);
             video.play();
         });
         div.querySelector(".sentence-edit-btn").addEventListener("click", (e) => {
             e.stopPropagation();
+            closeSwipedItems();
             enterEditMode(div, i);
         });
+        const mBtn = div.querySelector(".sentence-merge-btn");
+        if (mBtn) {
+            mBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                mergeSentenceDown(i);
+            });
+        }
+        div.querySelector(".sentence-delete-btn").addEventListener("click", (e) => {
+            e.stopPropagation();
+            deleteSentence(i);
+        });
+        attachSwipeToDelete(div);
         sentenceList.appendChild(div);
     });
+}
+
+// ========== 左滑删除 ==========
+function closeSwipedItems() {
+    sentenceList.querySelectorAll(".sentence-item.swiped").forEach((el) => {
+        el.classList.remove("swiped");
+        el.querySelector(".sentence-content").style.transform = "";
+    });
+}
+
+function attachSwipeToDelete(div) {
+    const content = div.querySelector(".sentence-content");
+    let startX = 0, startY = 0, swiping = false;
+
+    div.addEventListener("touchstart", (e) => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        swiping = false;
+    }, { passive: true });
+
+    div.addEventListener("touchmove", (e) => {
+        if (div.classList.contains("editing")) return;
+        const dx = e.touches[0].clientX - startX;
+        const dy = e.touches[0].clientY - startY;
+        // 水平滑动为主时才触发（不干扰列表垂直滚动）
+        if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            swiping = true;
+            div.classList.add("swiping");
+        }
+        if (swiping && dx < 0) {
+            content.style.transform = `translateX(${Math.max(dx, -80)}px)`;
+        }
+    }, { passive: true });
+
+    div.addEventListener("touchend", (e) => {
+        if (!swiping) return;
+        div.classList.remove("swiping");
+        const dx = e.changedTouches[0].clientX - startX;
+        if (dx < -40) {
+            closeSwipedItems();
+            div.classList.add("swiped");
+            content.style.transform = "translateX(-80px)";
+        } else {
+            div.classList.remove("swiped");
+            content.style.transform = "";
+        }
+    });
+}
+
+// ========== 向下合并句子 ==========
+async function mergeSentenceDown(i) {
+    if (i >= segments.length - 1) return;
+    if (!confirm(`确定将第 ${i + 1} 句与第 ${i + 2} 句合并吗？`)) return;
+
+    const a = segments[i];
+    const b = segments[i + 1];
+    a.text = (a.text + " " + b.text).trim();
+    a.translation = ((a.translation || "") + (b.translation || "")).trim();
+    a.end = b.end;
+    segments.splice(i + 1, 1);
+
+    // 调整当前播放位置
+    if (currentIndex > i) currentIndex--;
+
+    renderSentenceList();
+    highlightSentence(currentIndex);
+    updateRepeatInfo(parseInt(repeatCountSelect.value) || 3);
+    if (currentIndex === i) updateSubtitle(segments[i]);
+    await saveSubtitle();
+}
+
+// ========== 删除句子 ==========
+async function deleteSentence(i) {
+    segments.splice(i, 1);
+
+    if (segments.length === 0) {
+        currentIndex = -1;
+    } else if (currentIndex >= segments.length) {
+        currentIndex = segments.length - 1;
+    } else if (currentIndex > i) {
+        currentIndex--;
+    }
+
+    renderSentenceList();
+    highlightSentence(currentIndex);
+    updateRepeatInfo(parseInt(repeatCountSelect.value) || 3);
+    await saveSubtitle();
 }
 
 // ========== 编辑句子（原文/译文） ==========
