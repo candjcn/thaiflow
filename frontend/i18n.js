@@ -94,6 +94,8 @@ const I18N = {
             // 移动端
             "mobile.mode.study": "三遍复读",
             "mobile.mode.follow": "影子跟读",
+            "mobile.swipe.hint": "← 上一句 | 下一句 →",
+            "mobile.repeat.status": "第{current}/{total}遍",
 
             // 句子列表
             "drawer.title": "句子列表",
@@ -268,6 +270,8 @@ const I18N = {
 
             "mobile.mode.study": "三遍複讀",
             "mobile.mode.follow": "影子跟讀",
+            "mobile.swipe.hint": "← 上一句 | 下一句 →",
+            "mobile.repeat.status": "第{current}/{total}遍",
 
             "drawer.title": "句子列表",
             "drawer.retranslate": "重新翻譯",
@@ -438,6 +442,8 @@ const I18N = {
 
             "mobile.mode.study": "Repeat ×3",
             "mobile.mode.follow": "Shadow Read",
+            "mobile.swipe.hint": "← Prev | Next →",
+            "mobile.repeat.status": "Rep {current}/{total}",
 
             "drawer.title": "Sentence List",
             "drawer.retranslate": "Re-translate",

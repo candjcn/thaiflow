@@ -112,6 +112,23 @@
                 <!-- 暂停指示器 -->
                 <div class="pause-indicator" id="pauseIndicator">⏸</div>
 
+                <!-- 移动端退出全屏按钮 -->
+                <button class="m-exit-fullscreen" id="mBtnExitFullscreen">✕</button>
+
+                <!-- 移动端顶部状态栏 -->
+                <div class="m-top-status" id="mTopStatus">
+                    <div class="m-top-status-line" id="mTopStatusSentence">1/1</div>
+                    <div class="m-top-status-line" id="mTopStatusRepeat" data-i18n-template="mobile.repeat.status">第1/3遍</div>
+                </div>
+
+                <!-- 移动端中央播放按钮 -->
+                <div class="m-center-play" id="mCenterPlay">
+                    <div class="m-center-play-btn" id="mCenterPlayBtn">▶</div>
+                </div>
+
+                <!-- 移动端滑动提示 -->
+                <div class="m-swipe-hint" id="mSwipeHint" data-i18n="mobile.swipe.hint">← 上一句 | 下一句 →</div>
+
                 <!-- 字幕覆盖层 -->
                 <div class="subtitle-overlay" id="subtitleOverlay">
                     <div class="subtitle-original" id="subtitleOriginal"></div>
@@ -135,6 +152,7 @@
                     <option value="3">3</option>
                     <option value="5">5</option>
                     <option value="10">10</option>
+                    <option value="9999">&infin;</option>
                 </select>
                 <label data-i18n="ctrl.repeat.unit">遍</label>
                 <span class="separator">|</span>
@@ -161,33 +179,36 @@
 
             <!-- 移动端控制栏 -->
             <div class="mobile-controls" id="mobileControls">
-                <!-- 模式切换 -->
-                <div class="m-mode-tabs" id="mModeTabs">
-                    <div class="m-mode-bg" id="mModeBg"></div>
-                    <button class="m-mode-tab active" id="btnModeStudy" data-mode="study" data-i18n="mobile.mode.study">三遍复读</button>
-                    <button class="m-mode-tab" id="btnModeFollow" data-mode="follow" data-i18n="mobile.mode.follow">影子跟读</button>
-                </div>
-                <!-- 主控制 -->
-                <div class="m-playback">
-                    <button class="m-ctrl m-ctrl-sm" id="mBtnRepeat" data-i18n-title="ctrl.repeat" title="重听本句">↻</button>
-                    <button class="m-ctrl" id="mBtnPrev" data-i18n-title="ctrl.prev" title="上一句">‹</button>
-                    <button class="m-ctrl m-ctrl-play" id="mBtnPause" data-i18n-title="ctrl.pause" title="播放/暂停">⏸</button>
-                    <button class="m-ctrl" id="mBtnNext" data-i18n-title="ctrl.next" title="下一句">›</button>
-                    <button class="m-ctrl m-ctrl-sm" id="mBtnList" data-i18n-title="ctrl.list" title="句子列表">☰</button>
-                </div>
-                <!-- 底部工具栏 -->
-                <div class="m-toolbar">
-                    <div class="m-speed-group">
-                        <button class="speed-btn" data-speed="0.75">0.75</button>
-                        <button class="speed-btn active" data-speed="1">1x</button>
-                        <button class="speed-btn" data-speed="1.25">1.25</button>
-                        <button class="speed-btn" data-speed="1.5">1.5</button>
+                <!-- 隐藏元素：JS需要mBtnPause存在 -->
+                <button id="mBtnPause" style="display:none;">⏸</button>
+                <span id="mRepeatInfo" style="display:none;"></span>
+                <!-- 单行底部栏 -->
+                <div class="m-slim-bar">
+                    <button class="m-slim-btn m-speed-compact" id="mSpeedBtn">1x</button>
+                    <button class="m-slim-btn m-repeat-compact" id="mRepeatBtn" data-i18n-suffix="ctrl.repeat.unit">3遍</button>
+                    <div class="m-mode-tabs-slim" id="mModeTabs">
+                        <div class="m-mode-bg-slim" id="mModeBg"></div>
+                        <button class="m-mode-tab-slim active" id="btnModeStudy" data-mode="study" data-i18n="mobile.mode.study">三遍复读</button>
+                        <button class="m-mode-tab-slim" id="btnModeFollow" data-mode="follow" data-i18n="mobile.mode.follow">影子跟读</button>
                     </div>
-                    <span id="mRepeatInfo" class="m-repeat-info"></span>
-                    <div class="m-actions">
-                        <button class="m-action" id="mBtnSave" data-i18n-title="ctrl.save" title="保存到本地">💾</button>
-                        <button class="m-action" id="mBtnBack" data-i18n-title="ctrl.back" title="返回">✕</button>
-                    </div>
+                    <button class="m-slim-btn m-list-btn" id="mBtnList" data-i18n-title="ctrl.list" title="句子列表">☰</button>
+                </div>
+                <!-- 速度选择弹出 -->
+                <div class="m-picker" id="mSpeedPicker" style="display:none;">
+                    <button class="m-picker-opt" data-speed="0.5">0.5x</button>
+                    <button class="m-picker-opt" data-speed="0.75">0.75x</button>
+                    <button class="m-picker-opt active" data-speed="1">1x</button>
+                    <button class="m-picker-opt" data-speed="1.25">1.25x</button>
+                    <button class="m-picker-opt" data-speed="1.5">1.5x</button>
+                </div>
+                <!-- 重复次数选择弹出 -->
+                <div class="m-picker" id="mRepeatPicker" style="display:none;">
+                    <button class="m-picker-opt" data-repeat="1">1</button>
+                    <button class="m-picker-opt" data-repeat="2">2</button>
+                    <button class="m-picker-opt active" data-repeat="3">3</button>
+                    <button class="m-picker-opt" data-repeat="5">5</button>
+                    <button class="m-picker-opt" data-repeat="10">10</button>
+                    <button class="m-picker-opt" data-repeat="9999">&infin;</button>
                 </div>
             </div>
 

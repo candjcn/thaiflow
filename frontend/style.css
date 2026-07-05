@@ -1020,179 +1020,295 @@ label {
 .score-low { color: #e94560; }
 
 /* ==========================================
+   移动端退出全屏按钮
+   ========================================== */
+.m-exit-fullscreen {
+    display: none;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 60;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 18px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.m-exit-fullscreen:active {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+/* ==========================================
+   移动端顶部状态栏
+   ========================================== */
+.m-top-status {
+    display: none;
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 55;
+    text-align: center;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 8px;
+    padding: 4px 12px;
+}
+
+.m-top-status-line {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+.m-top-status-line:last-child {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+/* ==========================================
+   移动端中央播放按钮
+   ========================================== */
+.m-center-play {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 35;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.m-center-play.visible {
+    display: flex;
+}
+
+.m-center-play-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    cursor: pointer;
+    transition: opacity 0.3s, transform 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.m-center-play-btn:active {
+    transform: scale(0.9);
+}
+
+.m-center-play.fading {
+    opacity: 0;
+    transition: opacity 0.5s;
+}
+
+/* ==========================================
+   移动端滑动提示
+   ========================================== */
+.m-swipe-hint {
+    display: none;
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 35;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 0.5s;
+}
+
+.m-swipe-hint.visible {
+    display: block;
+}
+
+.m-swipe-hint.fading {
+    opacity: 0;
+}
+
+/* ==========================================
    移动端控制栏
    ========================================== */
 .mobile-controls {
     display: none;
     flex-direction: column;
-    gap: 10px;
     background: rgba(10, 10, 22, 0.96);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    padding: 10px 16px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding: 6px 10px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
     flex-shrink: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
+    position: relative;
 }
 
-/* 三段式模式切换 */
-.m-mode-tabs {
+/* 单行精简栏 */
+.m-slim-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.m-slim-btn {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.m-slim-btn:active {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.m-speed-compact {
+    min-width: 36px;
+    text-align: center;
+}
+
+.m-repeat-compact {
+    min-width: 36px;
+    text-align: center;
+}
+
+.m-list-btn {
+    margin-left: auto;
+    padding: 6px 14px;
+    font-size: 16px;
+    background: rgba(233, 69, 96, 0.15);
+    border-color: rgba(233, 69, 96, 0.3);
+    color: #e94560;
+}
+
+.m-list-btn:active {
+    background: rgba(233, 69, 96, 0.3);
+}
+
+/* 精简模式切换 */
+.m-mode-tabs-slim {
     display: flex;
     position: relative;
     background: rgba(255, 255, 255, 0.06);
-    border-radius: 10px;
-    padding: 3px;
+    border-radius: 6px;
+    padding: 2px;
+    flex: 1;
+    min-width: 0;
 }
 
-.m-mode-bg {
+.m-mode-bg-slim {
     position: absolute;
-    top: 3px;
-    left: 3px;
-    width: calc(50% - 3px);
-    height: calc(100% - 6px);
+    top: 2px;
+    left: 2px;
+    width: calc(50% - 2px);
+    height: calc(100% - 4px);
     background: #e94560;
-    border-radius: 8px;
+    border-radius: 5px;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 0;
 }
 
-.m-mode-bg[data-pos="1"] { transform: translateX(100%); }
+.m-mode-bg-slim[data-pos="1"] { transform: translateX(100%); }
 
-.m-mode-tab {
+.m-mode-tab-slim {
     flex: 1;
     position: relative;
     z-index: 1;
-    padding: 8px 0;
-    font-size: 14px;
+    padding: 5px 0;
+    font-size: 12px;
     font-weight: 600;
     background: transparent;
     border: none;
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.45);
+    border-radius: 5px;
+    color: rgba(255, 255, 255, 0.4);
     cursor: pointer;
     transition: color 0.25s;
     -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.m-mode-tab.active {
+.m-mode-tab-slim.active {
     color: #fff;
 }
 
-/* 主播放控制 */
-.m-playback {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 20px;
-}
-
-.m-ctrl {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: none;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.85);
-    font-size: 22px;
-    font-weight: 300;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s, transform 0.1s;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.m-ctrl:active {
-    background: rgba(255, 255, 255, 0.15);
-    transform: scale(0.93);
-}
-
-.m-ctrl-sm {
-    width: 36px;
-    height: 36px;
-    font-size: 18px;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.5);
-}
-
-.m-ctrl-sm:active {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.m-ctrl-play {
-    width: 56px;
-    height: 56px;
-    font-size: 26px;
-    background: #e94560;
-    color: #fff;
-    box-shadow: 0 2px 12px rgba(233, 69, 96, 0.35);
-}
-
-.m-ctrl-play:active {
-    background: #d13b54;
-    transform: scale(0.95);
-}
-
-/* 底部工具栏 */
-.m-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.m-speed-group {
-    display: flex;
-    gap: 2px;
-}
-
-.speed-btn {
-    padding: 4px 10px;
-    font-size: 12px;
+/* 弹出选择器 */
+.m-picker {
+    position: absolute;
+    bottom: 100%;
+    left: 10px;
+    margin-bottom: 6px;
+    background: rgba(16, 16, 32, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.4);
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition: all 0.2s;
+    border-radius: 10px;
+    padding: 6px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 70px;
 }
 
-.speed-btn.active {
-    border-color: #e94560;
+.m-picker-opt {
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    text-align: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.15s;
+}
+
+.m-picker-opt:active,
+.m-picker-opt.active {
+    background: rgba(233, 69, 96, 0.2);
     color: #e94560;
 }
 
-.m-repeat-info {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.4);
-    min-width: 40px;
-    text-align: center;
-}
-
-.m-actions {
-    display: flex;
-    gap: 6px;
-}
-
-.m-action {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    border: none;
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 15px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s;
-}
-
-.m-action:active {
-    background: rgba(255, 255, 255, 0.12);
+.m-picker-opt.active {
+    font-weight: 700;
 }
 
 /* ==========================================
@@ -1249,9 +1365,8 @@ label {
         bottom: 0;
     }
 
-    /* 跟读模式下：隐藏模式栏和速度栏，只保留播放控制 */
-    .mobile-controls.follow-mode .m-mode-tabs,
-    .mobile-controls.follow-mode .m-toolbar {
+    /* 跟读模式下：隐藏精简栏 */
+    .mobile-controls.follow-mode .m-slim-bar {
         display: none;
     }
 
@@ -1270,6 +1385,15 @@ label {
     .fr-score-details {
         flex-direction: column;
         gap: 4px;
+    }
+
+    /* 移动端显示退出按钮和顶部状态 */
+    .m-exit-fullscreen {
+        display: flex;
+    }
+
+    .m-top-status {
+        display: block;
     }
 }
 
