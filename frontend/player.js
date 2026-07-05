@@ -848,6 +848,33 @@ videoUrlInput.addEventListener("keydown", (e) => {
 });
 
 // ========== 保存到本地 ==========
+// SRT 时间格式：00:00:01,000
+function toSrtTime(sec) {
+    const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+    const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+    const s = String(Math.floor(sec % 60)).padStart(2, "0");
+    const ms = String(Math.round((sec % 1) * 1000)).padStart(3, "0");
+    return `${h}:${m}:${s},${ms}`;
+}
+
+// 生成 SRT 文本；field 为 "text"（原文）或 "translation"（译文）
+function generateSrt(field) {
+    return segments
+        .map((seg, i) => {
+            const content = (seg[field] || "").trim();
+            return `${i + 1}\n${toSrtTime(seg.start)} --> ${toSrtTime(seg.end)}\n${content}\n`;
+        })
+        .join("\n");
+}
+
+function downloadBlob(content, mimeType, filename, delayMs) {
+    const blob = new Blob([content], { type: mimeType });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    setTimeout(() => link.click(), delayMs);
+}
+
 // subtitleOnly: 为 true 时只下载字幕（用户本地已有视频文件时）
 function saveToLocal(subtitleOnly) {
     if (!currentVideoName || segments.length === 0) return;
@@ -860,15 +887,20 @@ function saveToLocal(subtitleOnly) {
         videoLink.click();
     }
 
-    // 下载字幕 JSON 文件
-    const subtitleData = JSON.stringify({ segments, language }, null, 2);
-    const blob = new Blob([subtitleData], { type: "application/json" });
-    const subLink = document.createElement("a");
-    subLink.href = URL.createObjectURL(blob);
     const baseName = currentVideoName.replace(/\.[^.]+$/, "");
-    subLink.download = baseName + ".json";
-    // 延迟一点触发下载（如果同时下载视频，需要错开避免被浏览器拦截）
-    setTimeout(() => subLink.click(), subtitleOnly ? 0 : 500);
+    let delay = subtitleOnly ? 0 : 500;
+
+    // 1. JSON（本应用回放用：含译文和语言信息）
+    const subtitleData = JSON.stringify({ segments, language }, null, 2);
+    downloadBlob(subtitleData, "application/json", baseName + ".json", delay);
+
+    // 2. SRT 原文（可导入剪映等编辑软件）
+    downloadBlob(generateSrt("text"), "text/plain", baseName + "_原文.srt", delay + 500);
+
+    // 3. SRT 中文译文（如果有翻译）
+    if (segments.some(s => s.translation)) {
+        downloadBlob(generateSrt("translation"), "text/plain", baseName + "_中文.srt", delay + 1000);
+    }
 }
 
 // ========== 打开本地文件（直接播放，不上传） ==========
