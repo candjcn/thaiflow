@@ -464,6 +464,18 @@ video.addEventListener("pause", () => {
     }
 });
 
+// 视频自然播放到末尾（timeupdate 可能没触发最后一句结束的判断）
+video.addEventListener("ended", () => {
+    if (isLoading || segments.length === 0) return;
+    isAtEnd = true;
+    syncOverlayPlayState();
+    if (isMobile()) {
+        mOverlayControls.classList.add("visible");
+        mOverlayControls.classList.remove("fading");
+        clearTimeout(mOverlayTimer);
+    }
+});
+
 // 滑动手势：左右滑动切换句子
 let touchStartX = 0;
 let touchStartY = 0;
@@ -495,6 +507,10 @@ videoContainer.addEventListener("click", (e) => {
     if (e.target.closest(".m-top-btn")) return;
     if (e.target.closest(".m-ov-btn")) return;
     if (isMobile()) {
+        // 保底：还没进入全屏时，借用这次点击手势进入全屏
+        if (!isNativeFullscreen() && !isCssFullscreen()) {
+            enterFullscreen();
+        }
         // 跟读面板打开时，点击视频同步影子跟读
         if (followReadPanel.style.display !== "none") {
             toggleShadowRead();
