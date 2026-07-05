@@ -1601,15 +1601,11 @@ function startSilenceDetection(stream) {
     source.connect(analyser);
 
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const SPEECH_THRESHOLD = 15;   // 低阈值，确保能检测到语音
     let silenceStart = null;
-    let consecutiveSpeech = 0;     // 连续语音帧计数
-    const MIN_SPEECH_FRAMES = 4;   // 连续 4 帧(200ms)算开口
-    const MIN_RECORD_MS = 1200;    // 最短录音 1.2 秒
-
-    // 先采样 300ms 环境噪音，自动计算阈值
-    let calibrating = true;
-    let calibrateSamples = [];
-    const calibrateEnd = Date.now() + 300;
+    let speechTotal = 0;           // 累计检测到语音的帧数（不要求连续）
+    const MIN_SPEECH_TOTAL = 4;    // 累计 4 帧(200ms)算开过口
+    const MIN_RECORD_MS = 1000;    // 最短录音 1 秒
 
     frSilenceTimer = setInterval(() => {
         if (!frIsRecording) return;
@@ -1619,44 +1615,25 @@ function startSilenceDetection(stream) {
         for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
         const avg = sum / dataArray.length;
 
-        // 校准阶段：采集环境噪音
-        if (calibrating) {
-            calibrateSamples.push(avg);
-            if (Date.now() >= calibrateEnd) {
-                calibrating = false;
-                const noiseAvg = calibrateSamples.length > 0
-                    ? calibrateSamples.reduce((a, b) => a + b, 0) / calibrateSamples.length
-                    : 0;
-                // 阈值 = 环境噪音均值 × 2，至少 10
-                frSpeechThreshold = Math.max(noiseAvg * 2, 10);
-                console.log("[SilenceDetect] noise=" + noiseAvg.toFixed(1) + " threshold=" + frSpeechThreshold.toFixed(1));
-            }
-            return;
-        }
-
         const recordedMs = Date.now() - frRecordingStart;
 
-        if (avg > frSpeechThreshold) {
-            consecutiveSpeech++;
-            if (consecutiveSpeech >= MIN_SPEECH_FRAMES) {
+        if (avg > SPEECH_THRESHOLD) {
+            speechTotal++;
+            if (speechTotal >= MIN_SPEECH_TOTAL) {
                 frHasSpoken = true;
             }
             silenceStart = null;
-        } else {
-            consecutiveSpeech = 0;  // 非连续语音，重置计数
-            if (frHasSpoken && recordedMs > MIN_RECORD_MS) {
-                if (!silenceStart) {
-                    silenceStart = Date.now();
-                } else if (Date.now() - silenceStart > 600) {
-                    // 静音超过 0.6 秒，自动停止并回放
-                    console.log("[SilenceDetect] auto-stop after " + recordedMs + "ms");
-                    stopRecording(true);
-                }
+        } else if (frHasSpoken && recordedMs > MIN_RECORD_MS) {
+            // 已经说过话、且录够最短时长，开始静音计时
+            if (!silenceStart) {
+                silenceStart = Date.now();
+            } else if (Date.now() - silenceStart > 600) {
+                // 静音超过 0.6 秒，自动停止并回放
+                stopRecording(true);
             }
         }
     }, 50);
 }
-let frSpeechThreshold = 15;
 
 function stopSilenceDetection() {
     if (frSilenceTimer) {
