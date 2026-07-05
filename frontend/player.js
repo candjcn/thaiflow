@@ -607,8 +607,8 @@ async function openLocalFiles() {
 
         setStep("step3", "active");
         setTip("正在翻译...");
-        const langMap = { th: "泰语", Thai: "泰语", en: "英语", English: "英语" };
-        const sourceLang = langMap[language] || "泰语";
+        const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
+        const sourceLang = langMap[language] || "外语";
         try {
             const res = await fetch("/api/translate", {
                 method: "POST",
@@ -765,8 +765,8 @@ async function startLoading(videoName) {
     // 步骤 3：翻译
     setStep("step3", "active");
     setTip("正在翻译字幕为中文...");
-    const langMap = { th: "泰语", Thai: "泰语", en: "英语", English: "英语", ja: "日语", ko: "韩语" };
-    const sourceLang = langMap[language] || "泰语";
+    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
+    const sourceLang = langMap[language] || "外语";
     try {
         const res = await fetch("/api/translate", {
             method: "POST",
@@ -1047,8 +1047,8 @@ async function translateAll() {
     btnTranslate.disabled = true;
     btnTranslate.textContent = "翻译中...";
 
-    const langMap = { th: "泰语", Thai: "泰语", en: "英语", English: "英语", ja: "日语", ko: "韩语" };
-    const sourceLang = langMap[language] || "泰语";
+    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
+    const sourceLang = langMap[language] || "外语";
 
     try {
         const res = await fetch("/api/translate", {
@@ -1415,7 +1415,7 @@ async function submitForScoring() {
     formData.append("audio", frRecordedBlob, "recording.webm");
     formData.append("reference_text", seg.text);
     // 语言映射
-    const langMap = { th: "th-TH", Thai: "th-TH", en: "en-US", English: "en-US" };
+    const langMap = { th: "th-TH", en: "en-US", ja: "ja-JP", ko: "ko-KR", fr: "fr-FR", de: "de-DE", es: "es-ES", pt: "pt-BR", ru: "ru-RU", it: "it-IT" };
     formData.append("language", langMap[language] || "th-TH");
 
     try {

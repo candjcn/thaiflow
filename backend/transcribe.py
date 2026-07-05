@@ -219,7 +219,7 @@ def transcribe_azure(video_path):
             subscription=speech_key, region=speech_region
         )
         auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(
-            languages=["th-TH", "en-US"]
+            languages=["th-TH", "en-US", "ja-JP", "ko-KR", "fr-FR", "de-DE", "es-ES", "pt-BR", "ru-RU", "it-IT"]
         )
         audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
 
@@ -270,7 +270,11 @@ def transcribe_azure(video_path):
         for i, seg in enumerate(segments):
             seg["index"] = i
 
-        lang_map = {"th-TH": "th", "en-US": "en"}
+        lang_map = {
+            "th-TH": "th", "en-US": "en", "ja-JP": "ja", "ko-KR": "ko",
+            "fr-FR": "fr", "de-DE": "de", "es-ES": "es", "pt-BR": "pt",
+            "ru-RU": "ru", "it-IT": "it",
+        }
         language = lang_map.get(detected_lang, detected_lang)
 
         return {
