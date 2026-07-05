@@ -1591,20 +1591,26 @@ function jumpToSentence(index) {
 
 function prevSentence() {
     if (currentIndex > 0) {
-        // 手动切句时停止影子跟读
-        if (frShadowMode) stopShadowRead();
         sentenceMode = true;
         jumpToSentence(currentIndex - 1);
-        video.play();
+        if (frShadowMode) {
+            // 影子跟读中切句：保持跟读状态，继续按遍数朗读
+            playShadowSentence();
+        } else {
+            video.play();
+        }
     }
 }
 
 function nextSentence() {
     if (currentIndex < segments.length - 1) {
-        if (frShadowMode) stopShadowRead();
         sentenceMode = true;
         jumpToSentence(currentIndex + 1);
-        video.play();
+        if (frShadowMode) {
+            playShadowSentence();
+        } else {
+            video.play();
+        }
     }
 }
 
