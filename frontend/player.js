@@ -258,8 +258,9 @@ document.addEventListener("webkitfullscreenchange", () => {
 /// Overlay controls: play/pause, prev, next
 mCenterPlayBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    // 跟读面板打开时，中央播放按钮同步影子跟读
-    if (followReadPanel.style.display !== "none") {
+    if (isAtEnd) {
+        togglePause(); // 重播
+    } else if (followReadPanel.style.display !== "none") {
         toggleShadowRead();
     } else {
         togglePause();
@@ -406,13 +407,16 @@ function showMobileOverlays() {
     resetOverlayTimer();
 }
 
+let isAtEnd = false; // 是否播放到最后一句结束
+
 function syncOverlayPlayState() {
-    if (video.paused) {
+    mCenterPlayBtn.classList.remove("paused", "playing", "ended");
+    if (isAtEnd) {
+        mCenterPlayBtn.classList.add("ended");
+    } else if (video.paused) {
         mCenterPlayBtn.classList.add("paused");
-        mCenterPlayBtn.classList.remove("playing");
     } else {
         mCenterPlayBtn.classList.add("playing");
-        mCenterPlayBtn.classList.remove("paused");
     }
 }
 
@@ -563,6 +567,16 @@ document.addEventListener("fullscreenchange", () => {
 // ========== 暂停/播放 ==========
 function togglePause() {
     if (isLoading) return;
+    if (isAtEnd) {
+        // 播完最后一句，重新从第一句开始
+        isAtEnd = false;
+        sentenceMode = true;
+        jumpToSentence(0);
+        video.play();
+        syncOverlayPlayState();
+        showPauseIcon("▶");
+        return;
+    }
     if (video.paused) {
         // 播放完毕后再次点击，从头开始
         if (!sentenceMode && segments.length > 0) {
@@ -1281,9 +1295,11 @@ function onTimeUpdate() {
                     video.play();
                 }
             } else {
-                // 整个视频循环：回到第一句重新开始
-                jumpToSentence(0);
-                video.play();
+                // 最后一句播完，暂停并显示重播标志
+                video.pause();
+                isAtEnd = true;
+                syncOverlayPlayState();
+                showMobileOverlays();
             }
         }
     }
@@ -1291,6 +1307,7 @@ function onTimeUpdate() {
 
 function jumpToSentence(index) {
     if (index < 0 || index >= segments.length) return;
+    isAtEnd = false;
     currentIndex = index;
     repeatCount = 0;
     const seg = segments[index];

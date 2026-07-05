@@ -1208,11 +1208,17 @@ label {
 }
 
 .m-ov-play .m-ov-icon-pause { display: none; }
+.m-ov-play .m-ov-icon-restart { display: none; }
 
 .m-ov-play.paused .m-ov-icon-play { display: block; }
 .m-ov-play.paused .m-ov-icon-pause { display: none; }
+.m-ov-play.paused .m-ov-icon-restart { display: none; }
 .m-ov-play.playing .m-ov-icon-play { display: none; }
 .m-ov-play.playing .m-ov-icon-pause { display: block; }
+.m-ov-play.playing .m-ov-icon-restart { display: none; }
+.m-ov-play.ended .m-ov-icon-play { display: none; }
+.m-ov-play.ended .m-ov-icon-pause { display: none; }
+.m-ov-play.ended .m-ov-icon-restart { display: block; }
 
 /* 上一句 / 下一句 */
 .m-ov-prev,
