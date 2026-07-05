@@ -99,6 +99,7 @@ const btnFrRecord = document.getElementById("btnFrRecord");
 const btnFrPlayback = document.getElementById("btnFrPlayback");
 const btnFrScore = document.getElementById("btnFrScore");
 const frTimer = document.getElementById("frTimer");
+const frWaveform = document.getElementById("frWaveform");
 const frResult = document.getElementById("frResult");
 const frScoreNum = document.getElementById("frScoreNum");
 const frAccuracy = document.getElementById("frAccuracy");
@@ -1618,6 +1619,7 @@ let frAudioPlayer = null;
 let frAudioContext = null;
 let frSilenceTimer = null;
 let frHasSpoken = false;
+let frWaveAnimId = null;
 let frShadowMode = false;  // 影子跟读是否正在进行
 
 function openFollowRead() {
@@ -1786,7 +1788,11 @@ async function startRecording() {
         frRecordingStart = Date.now();
         btnFrRecord.textContent = t("status.stopRecord");
         btnFrRecord.classList.add("recording");
+        btnFrPlayback.classList.remove("btn-playback-active");
         frResult.style.display = "none";
+
+        // 显示波形
+        frWaveform.classList.add("active");
 
         // 计时显示
         frRecordingTimer = setInterval(() => {
@@ -1794,7 +1800,7 @@ async function startRecording() {
             frTimer.textContent = t("status.recording", { t: elapsed });
         }, 100);
 
-        // 启动静音检测：用户说完话后自动停止录音并回放
+        // 启动静音检测 + 波形绘制
         startSilenceDetection(stream);
 
     } catch (e) {
@@ -1814,12 +1820,40 @@ function startSilenceDetection(stream) {
     source.connect(analyser);
 
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    const SPEECH_THRESHOLD = 15;   // 低阈值，确保能检测到语音
+    const timeDomain = new Uint8Array(analyser.fftSize);
+    const SPEECH_THRESHOLD = 15;
     let silenceStart = null;
-    let speechTotal = 0;           // 累计检测到语音的帧数（不要求连续）
-    const MIN_SPEECH_TOTAL = 4;    // 累计 4 帧(200ms)算开过口
-    const MIN_RECORD_MS = 1000;    // 最短录音 1 秒
+    let speechTotal = 0;
+    const MIN_SPEECH_TOTAL = 4;
+    const MIN_RECORD_MS = 1000;
 
+    // 波形绘制
+    const canvas = frWaveform;
+    const ctx = canvas.getContext("2d");
+    function drawWaveform() {
+        if (!frIsRecording) return;
+        frWaveAnimId = requestAnimationFrame(drawWaveform);
+        analyser.getByteTimeDomainData(timeDomain);
+        const w = canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
+        const h = canvas.height = canvas.clientHeight * (window.devicePixelRatio || 1);
+        ctx.clearRect(0, 0, w, h);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#e94560";
+        ctx.beginPath();
+        const sliceWidth = w / timeDomain.length;
+        let x = 0;
+        for (let i = 0; i < timeDomain.length; i++) {
+            const v = timeDomain[i] / 128.0;
+            const y = (v * h) / 2;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+            x += sliceWidth;
+        }
+        ctx.stroke();
+    }
+    drawWaveform();
+
+    // 静音检测
     frSilenceTimer = setInterval(() => {
         if (!frIsRecording) return;
 
@@ -1837,12 +1871,10 @@ function startSilenceDetection(stream) {
             }
             silenceStart = null;
         } else if (frHasSpoken && recordedMs > MIN_RECORD_MS) {
-            // 已经说过话、且录够最短时长，开始静音计时
             if (!silenceStart) {
                 silenceStart = Date.now();
             } else if (Date.now() - silenceStart > 600) {
-                // 静音超过 0.6 秒，自动停止并回放
-                stopRecording(true);
+                stopRecording();
             }
         }
     }, 50);
@@ -1853,23 +1885,27 @@ function stopSilenceDetection() {
         clearInterval(frSilenceTimer);
         frSilenceTimer = null;
     }
+    if (frWaveAnimId) {
+        cancelAnimationFrame(frWaveAnimId);
+        frWaveAnimId = null;
+    }
+    frWaveform.classList.remove("active");
     if (frAudioContext) {
         frAudioContext.close().catch(() => {});
         frAudioContext = null;
     }
 }
 
-function stopRecording(autoPlayback) {
+function stopRecording() {
     if (frMediaRecorder && frMediaRecorder.state !== "inactive") {
         frMediaRecorder.stop();
     }
     frTimer.textContent = t("status.recordDone");
 
-    // 自动停止时，延迟一点等 blob 生成完再回放
-    if (autoPlayback) {
-        setTimeout(() => {
-            if (frRecordedBlob) playbackRecording();
-        }, 300);
+    // 录音结束后自动回放（延迟等 blob 生成完）
+    setTimeout(() => {
+        if (frRecordedBlob) playbackRecording();
+    }, 300);
     }
 }
 
@@ -1877,7 +1913,11 @@ function playbackRecording() {
     if (!frRecordedBlob) return;
     if (frAudioPlayer) frAudioPlayer.pause();
     frAudioPlayer = new Audio(URL.createObjectURL(frRecordedBlob));
+    btnFrPlayback.classList.add("btn-playback-active");
     frAudioPlayer.play();
+    frAudioPlayer.onended = () => {
+        btnFrPlayback.classList.remove("btn-playback-active");
+    };
 }
 
 async function submitForScoring() {
