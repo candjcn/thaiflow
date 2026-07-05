@@ -31,10 +31,48 @@ html, body {
     overflow-y: auto;
 }
 
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
 .header h1 {
     font-size: 24px;
     color: #e94560;
     margin-bottom: 30px;
+}
+
+.header-lang {
+    margin-bottom: 30px;
+}
+
+.lang-switcher {
+    display: flex;
+    gap: 2px;
+}
+
+.lang-switcher-btn {
+    background: rgba(255,255,255,0.08);
+    color: #999;
+    border: none;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.lang-switcher-btn:hover {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+}
+
+.lang-switcher-btn.active {
+    background: #e94560;
+    color: #fff;
 }
 
 /* 视频列表 */
@@ -890,6 +928,12 @@ label {
     background: #e94560 !important;
     color: #fff !important;
     min-width: 90px;
+}
+
+.shadow-active {
+    background: #c0392b !important;
+    color: #fff !important;
+    animation: pulse-red 1s ease-in-out infinite;
 }
 
 .btn-record.recording {

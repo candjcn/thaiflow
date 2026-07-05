@@ -12,56 +12,61 @@
         <!-- ====== 阶段一：选择视频 ====== -->
         <div class="phase-select" id="phaseSelect">
             <header class="header">
-                <h1>短视频外语学习播放器</h1>
+                <h1 data-i18n="app.title">短视频外语学习播放器</h1>
+                <div class="lang-switcher header-lang">
+                    <button class="lang-switcher-btn" data-lang="zh-CN">简</button>
+                    <button class="lang-switcher-btn" data-lang="zh-TW">繁</button>
+                    <button class="lang-switcher-btn" data-lang="en">EN</button>
+                </div>
             </header>
             <div class="video-list-panel" id="videoListPanel">
                 <!-- 打开本地文件（已有字幕的视频直接播放） -->
                 <div class="local-play-section">
-                    <label class="btn-local-play" for="localFiles">打开本地视频（已有字幕）</label>
+                    <label class="btn-local-play" for="localFiles" data-i18n="app.local.btn">打开本地视频（已有字幕）</label>
                     <input type="file" id="localFiles" multiple accept="video/*,.json" style="display:none;">
-                    <p class="local-play-hint">选择同名的视频文件和字幕文件，直接播放，无需上传</p>
+                    <p class="local-play-hint" data-i18n="app.local.hint">选择同名的视频文件和字幕文件，直接播放，无需上传</p>
                 </div>
 
                 <!-- 服务器上的视频列表 -->
                 <div class="my-videos-section" id="myVideosSection">
-                    <h2 class="section-heading">服务器视频</h2>
+                    <h2 class="section-heading" data-i18n="app.server.title">服务器视频</h2>
                     <div id="videoList" class="video-list"></div>
                 </div>
 
                 <!-- 添加视频（折叠区域） -->
                 <div class="add-video-section">
-                    <button class="add-video-toggle" id="btnAddVideo">+ 添加新视频</button>
+                    <button class="add-video-toggle" id="btnAddVideo" data-i18n="app.add.toggle">+ 添加新视频</button>
                     <div class="add-video-content" id="addVideoContent" style="display:none;">
                         <!-- 网络视频下载 -->
                         <div class="url-download-panel">
-                            <p class="add-label">从链接下载</p>
+                            <p class="add-label" data-i18n="app.add.url.label">从链接下载</p>
                             <div class="url-input-row">
-                                <input type="text" id="videoUrlInput" placeholder="粘贴 TikTok / YouTube 链接...">
-                                <button id="btnDownloadUrl" class="btn-play">下载</button>
+                                <input type="text" id="videoUrlInput" data-i18n-placeholder="app.add.url.placeholder" placeholder="粘贴 TikTok / YouTube 链接...">
+                                <button id="btnDownloadUrl" class="btn-play" data-i18n="app.add.url.btn">下载</button>
                             </div>
                             <div class="url-status" id="urlStatus"></div>
                         </div>
                         <!-- 本地上传（需要识别翻译） -->
                         <div class="upload-panel">
-                            <p class="add-label">上传到服务器识别翻译</p>
-                            <label class="btn-upload" for="fileUpload">选择视频文件</label>
+                            <p class="add-label" data-i18n="app.add.upload.label">上传到服务器识别翻译</p>
+                            <label class="btn-upload" for="fileUpload" data-i18n="app.add.upload.btn">选择视频文件</label>
                             <input type="file" id="fileUpload" accept="video/mp4,video/*" style="display:none;">
                             <div class="upload-status" id="uploadStatus"></div>
                         </div>
                         <!-- 识别设置 -->
                         <div class="provider-select">
-                            <label>识别引擎：</label>
+                            <label data-i18n="app.add.engine.label">识别引擎：</label>
                             <select id="transcribeProvider">
-                                <option value="combined">智能校准 (Groq+Azure)</option>
+                                <option value="combined" data-i18n="app.add.engine.combined">智能校准 (Groq+Azure)</option>
                                 <option value="groq">Groq Whisper</option>
                                 <option value="azure">Azure Speech</option>
                             </select>
-                            <label>断句：</label>
+                            <label data-i18n="app.add.segment.label">断句：</label>
                             <select id="segmentTarget">
-                                <option value="">自动</option>
-                                <option value="15">短句</option>
-                                <option value="30">中等</option>
-                                <option value="50">长句</option>
+                                <option value="" data-i18n="app.add.segment.auto">自动</option>
+                                <option value="15" data-i18n="app.add.segment.short">短句</option>
+                                <option value="30" data-i18n="app.add.segment.medium">中等</option>
+                                <option value="50" data-i18n="app.add.segment.long">长句</option>
                             </select>
                         </div>
                     </div>
@@ -83,15 +88,15 @@
                     <div class="loading-box">
                         <div class="step" id="step1">
                             <span class="step-icon">⏳</span>
-                            <span class="step-text">加载视频文件...</span>
+                            <span class="step-text" data-i18n="loading.step1">加载视频文件...</span>
                         </div>
                         <div class="step" id="step2">
                             <span class="step-icon">⏳</span>
-                            <span class="step-text">语音识别与断句...</span>
+                            <span class="step-text" data-i18n="loading.step2">语音识别与断句...</span>
                         </div>
                         <div class="step" id="step3">
                             <span class="step-icon">⏳</span>
-                            <span class="step-text">翻译字幕...</span>
+                            <span class="step-text" data-i18n="loading.step3">翻译字幕...</span>
                         </div>
                         <div class="loading-tip" id="loadingTip"></div>
                     </div>
@@ -100,7 +105,7 @@
                 <!-- 导出进度遮罩 -->
                 <div class="loading-overlay" id="exportOverlay" style="display:none;">
                     <div class="loading-box">
-                        <div class="export-title">正在导出带字幕的视频...</div>
+                        <div class="export-title" data-i18n="export.overlay.title">正在导出带字幕的视频...</div>
                         <div class="progress-bar-wrap">
                             <div class="progress-bar" id="exportProgressBar" style="width:0%"></div>
                         </div>
@@ -120,14 +125,14 @@
 
             <!-- 播放控制 -->
             <div class="controls" id="controlsBar">
-                <button id="btnBack" title="返回选择">↩</button>
+                <button id="btnBack" data-i18n-title="ctrl.back" title="返回选择">↩</button>
                 <span class="separator">|</span>
-                <button id="btnPrev" title="上一句">⏮</button>
-                <button id="btnPause" title="暂停/播放">⏸</button>
-                <button id="btnRepeat" title="重复当前句">🔄</button>
-                <button id="btnNext" title="下一句">⏭</button>
+                <button id="btnPrev" data-i18n-title="ctrl.prev" title="上一句">⏮</button>
+                <button id="btnPause" data-i18n-title="ctrl.pause" title="暂停/播放">⏸</button>
+                <button id="btnRepeat" data-i18n-title="ctrl.repeat" title="重复当前句">🔄</button>
+                <button id="btnNext" data-i18n-title="ctrl.next" title="下一句">⏭</button>
                 <span class="separator">|</span>
-                <label>重复</label>
+                <label data-i18n="ctrl.repeat.label">重复</label>
                 <select id="repeatCount">
                     <option value="1" selected>1</option>
                     <option value="2">2</option>
@@ -135,9 +140,9 @@
                     <option value="5">5</option>
                     <option value="10">10</option>
                 </select>
-                <label>遍</label>
+                <label data-i18n="ctrl.repeat.unit">遍</label>
                 <span class="separator">|</span>
-                <label>速度</label>
+                <label data-i18n="ctrl.speed.label">速度</label>
                 <select id="playbackRate">
                     <option value="0.5">0.5x</option>
                     <option value="0.75">0.75x</option>
@@ -146,14 +151,14 @@
                     <option value="1.5">1.5x</option>
                 </select>
                 <span class="separator hide-mobile">|</span>
-                <label class="hide-mobile"><input type="checkbox" id="chkOriginal" checked> 原文</label>
-                <label class="hide-mobile"><input type="checkbox" id="chkTranslation" checked> 中文</label>
+                <label class="hide-mobile"><input type="checkbox" id="chkOriginal" checked> <span data-i18n="ctrl.original">原文</span></label>
+                <label class="hide-mobile"><input type="checkbox" id="chkTranslation" checked> <span data-i18n="ctrl.translation">译文</span></label>
                 <span class="separator hide-mobile">|</span>
-                <button id="btnList" title="句子列表" class="hide-mobile">📋</button>
-                <button id="btnFollowRead" title="跟读当前句">跟读</button>
-                <button id="btnSaveLocal" title="保存到本地">保存</button>
-                <button id="btnExport" title="导出">导出</button>
-                <button id="btnFullscreen" title="全屏">⛶</button>
+                <button id="btnList" data-i18n-title="ctrl.list" title="句子列表" class="hide-mobile">📋</button>
+                <button id="btnFollowRead" data-i18n-title="ctrl.follow" title="跟读当前句" data-i18n="ctrl.follow">跟读</button>
+                <button id="btnSaveLocal" data-i18n-title="ctrl.save" title="保存到本地" data-i18n="ctrl.save">保存</button>
+                <button id="btnExport" data-i18n-title="ctrl.export" title="导出" data-i18n="ctrl.export">导出</button>
+                <button id="btnFullscreen" data-i18n-title="ctrl.fullscreen" title="全屏">⛶</button>
                 <span id="timeDisplay" class="time-display">0:00 / 0:00</span>
                 <span id="repeatInfo" class="repeat-info"></span>
             </div>
@@ -162,16 +167,16 @@
             <div class="mobile-controls" id="mobileControls">
                 <!-- 模式切换 -->
                 <div class="mode-switch">
-                    <button class="mode-btn active" id="btnModePlay" data-mode="play">连播</button>
-                    <button class="mode-btn" id="btnModeStudy" data-mode="study">精听</button>
+                    <button class="mode-btn active" id="btnModePlay" data-mode="play" data-i18n="mobile.mode.play">连播</button>
+                    <button class="mode-btn" id="btnModeStudy" data-mode="study" data-i18n="mobile.mode.study">精听</button>
                 </div>
                 <!-- 主控制按钮 -->
                 <div class="mobile-main-controls">
-                    <button class="mc-btn" id="mBtnPrev" title="上一句">⏮</button>
-                    <button class="mc-btn mc-btn-play" id="mBtnPause" title="播放/暂停">⏸</button>
-                    <button class="mc-btn" id="mBtnNext" title="下一句">⏭</button>
-                    <button class="mc-btn" id="mBtnRepeat" title="重复">🔄</button>
-                    <button class="mc-btn mc-btn-follow" id="mBtnFollowRead" title="跟读">跟读</button>
+                    <button class="mc-btn" id="mBtnPrev" data-i18n-title="ctrl.prev" title="上一句">⏮</button>
+                    <button class="mc-btn mc-btn-play" id="mBtnPause" data-i18n-title="ctrl.pause" title="播放/暂停">⏸</button>
+                    <button class="mc-btn" id="mBtnNext" data-i18n-title="ctrl.next" title="下一句">⏭</button>
+                    <button class="mc-btn" id="mBtnRepeat" data-i18n-title="ctrl.repeat" title="重复">🔄</button>
+                    <button class="mc-btn mc-btn-follow" id="mBtnFollowRead" data-i18n-title="ctrl.follow" data-i18n="ctrl.follow" title="跟读">跟读</button>
                 </div>
                 <!-- 速度 + 信息 -->
                 <div class="mobile-bottom-row">
@@ -183,9 +188,9 @@
                     </div>
                     <div class="mobile-info">
                         <span id="mRepeatInfo" class="m-repeat-info"></span>
-                        <button class="mc-btn-small" id="mBtnSave" title="保存到本地">💾</button>
-                        <button class="mc-btn-small" id="mBtnList" title="句子列表">📋</button>
-                        <button class="mc-btn-small" id="mBtnBack" title="返回">↩</button>
+                        <button class="mc-btn-small" id="mBtnSave" data-i18n-title="ctrl.save" title="保存到本地">💾</button>
+                        <button class="mc-btn-small" id="mBtnList" data-i18n-title="ctrl.list" title="句子列表">📋</button>
+                        <button class="mc-btn-small" id="mBtnBack" data-i18n-title="ctrl.back" title="返回">↩</button>
                     </div>
                 </div>
             </div>
@@ -193,9 +198,9 @@
             <!-- 句子列表抽屉 -->
             <div class="sentence-drawer" id="sentenceDrawer" style="display:none;">
                 <div class="sentence-panel-header">
-                    <h2>句子列表</h2>
+                    <h2 data-i18n="drawer.title">句子列表</h2>
                     <div>
-                        <button id="btnTranslate" disabled>重新翻译</button>
+                        <button id="btnTranslate" disabled data-i18n="drawer.retranslate">重新翻译</button>
                         <button id="btnCloseDrawer">✕</button>
                     </div>
                 </div>
@@ -205,42 +210,42 @@
             <!-- 导出设置弹窗 -->
             <div class="modal-overlay" id="exportModal" style="display:none;">
                 <div class="modal-box">
-                    <h3>导出设置</h3>
+                    <h3 data-i18n="export.title">导出设置</h3>
                     <div class="modal-field">
-                        <label>导出内容：</label>
+                        <label data-i18n="export.type.label">导出内容：</label>
                         <select id="exportType">
-                            <option value="all">带字幕视频 + SRT 字幕文件</option>
-                            <option value="srt">仅 SRT 字幕文件</option>
+                            <option value="all" data-i18n="export.type.all">带字幕视频 + SRT 字幕文件</option>
+                            <option value="srt" data-i18n="export.type.srt">仅 SRT 字幕文件</option>
                         </select>
                     </div>
                     <div class="modal-field">
-                        <label>导出目录：</label>
+                        <label data-i18n="export.dir.label">导出目录：</label>
                         <div class="dir-input-row">
-                            <input type="text" id="exportDir" placeholder="/Users/apple/Desktop">
-                            <button type="button" id="btnBrowseDir" class="btn-browse">浏览</button>
+                            <input type="text" id="exportDir" data-i18n-placeholder="export.dir.placeholder" placeholder="/Users/apple/Desktop">
+                            <button type="button" id="btnBrowseDir" class="btn-browse" data-i18n="export.dir.browse">浏览</button>
                         </div>
                     </div>
                     <div class="dir-browser" id="dirBrowser" style="display:none;">
                         <div class="dir-browser-header">
-                            <button id="btnDirUp" title="上级目录">⬆</button>
+                            <button id="btnDirUp" data-i18n-title="export.dir.up" title="上级目录">⬆</button>
                             <span class="dir-current" id="dirCurrent"></span>
                         </div>
                         <div class="dir-list" id="dirList"></div>
                         <div class="dir-browser-actions">
-                            <button id="btnDirSelect" class="btn-primary">选择此目录</button>
-                            <button id="btnDirCancel">取消</button>
+                            <button id="btnDirSelect" class="btn-primary" data-i18n="export.dir.select">选择此目录</button>
+                            <button id="btnDirCancel" data-i18n="export.cancel">取消</button>
                         </div>
                     </div>
                     <div class="modal-field">
-                        <label>文件名前缀：</label>
-                        <input type="text" id="exportPrefix" placeholder="留空则使用视频原名">
+                        <label data-i18n="export.prefix.label">文件名前缀：</label>
+                        <input type="text" id="exportPrefix" data-i18n-placeholder="export.prefix.placeholder" placeholder="留空则使用视频原名">
                     </div>
-                    <div class="modal-hint" id="exportHint">
+                    <div class="modal-hint" id="exportHint" data-i18n="export.hint.default">
                         将导出 3 个文件：带字幕视频(.mp4)、泰语字幕(.srt)、中文字幕(.srt)
                     </div>
                     <div class="modal-actions">
-                        <button id="btnExportCancel">取消</button>
-                        <button id="btnExportConfirm" class="btn-primary">开始导出</button>
+                        <button id="btnExportCancel" data-i18n="export.cancel">取消</button>
+                        <button id="btnExportConfirm" class="btn-primary" data-i18n="export.confirm">开始导出</button>
                     </div>
                 </div>
             </div>
@@ -248,28 +253,28 @@
             <!-- 跟读面板 -->
             <div class="follow-read-panel" id="followReadPanel" style="display:none;">
                 <div class="fr-header">
-                    <h3>跟读练习</h3>
+                    <h3 data-i18n="follow.title">跟读练习</h3>
                     <button id="btnFrClose">✕</button>
                 </div>
                 <div class="fr-reference" id="frReference"></div>
                 <div class="fr-translation" id="frTranslation"></div>
                 <div class="fr-controls">
-                    <button id="btnFrPlayOriginal" title="播放原句">原句</button>
-                    <button id="btnFrRecord" class="btn-record" title="开始录音">开始录音</button>
-                    <button id="btnFrPlayback" title="回放录音" disabled>回放</button>
-                    <button id="btnFrScore" class="btn-primary" title="AI 评分" disabled>评分</button>
+                    <button id="btnFrPlayOriginal" data-i18n-title="follow.playOriginal" data-i18n="follow.playOriginal" title="播放原句">原句</button>
+                    <button id="btnFrRecord" class="btn-record" data-i18n-title="follow.record" data-i18n="follow.record" title="开始录音">开始录音</button>
+                    <button id="btnFrPlayback" data-i18n-title="follow.playback" data-i18n="follow.playback" title="回放录音" disabled>回放</button>
+                    <button id="btnFrScore" class="btn-primary" data-i18n-title="follow.score" data-i18n="follow.score" title="AI 评分" disabled>评分</button>
                 </div>
                 <div class="fr-timer" id="frTimer"></div>
                 <div class="fr-result" id="frResult" style="display:none;">
                     <div class="fr-scores">
                         <div class="fr-score-main">
                             <span class="fr-score-num" id="frScoreNum">0</span>
-                            <span class="fr-score-label">总分</span>
+                            <span class="fr-score-label" data-i18n="follow.total">总分</span>
                         </div>
                         <div class="fr-score-details">
-                            <div>准确度 <span id="frAccuracy">0</span></div>
-                            <div>流利度 <span id="frFluency">0</span></div>
-                            <div>完整度 <span id="frCompleteness">0</span></div>
+                            <div><span data-i18n="follow.accuracy">准确度</span> <span id="frAccuracy">0</span></div>
+                            <div><span data-i18n="follow.fluency">流利度</span> <span id="frFluency">0</span></div>
+                            <div><span data-i18n="follow.completeness">完整度</span> <span id="frCompleteness">0</span></div>
                         </div>
                     </div>
                     <div class="fr-words" id="frWords"></div>
@@ -278,6 +283,7 @@
         </div>
     </div>
 
+    <script src="i18n.js"></script>
     <script src="player.js"></script>
 </body>
 </html>

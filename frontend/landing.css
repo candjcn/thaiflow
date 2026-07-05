@@ -64,6 +64,38 @@ body {
     transition: background 0.2s;
 }
 
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lang-switcher {
+    display: flex;
+    gap: 2px;
+}
+
+.lang-switcher-btn {
+    background: rgba(255,255,255,0.08);
+    color: #999;
+    border: none;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.lang-switcher-btn:hover {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+}
+
+.lang-switcher-btn.active {
+    background: #0071e3;
+    color: #fff;
+}
+
 .nav-cta:hover {
     background: #0077ed;
 }

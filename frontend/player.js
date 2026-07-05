@@ -1,3 +1,43 @@
+// ========== i18n 初始化 ==========
+I18N.init();
+document.querySelectorAll(".lang-switcher-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        I18N.setLang(btn.dataset.lang);
+    });
+});
+
+// ========== 获取用户翻译目标语言 ==========
+function getTargetLang() {
+    // 根据用户浏览器语言 / UI 语言决定字幕翻译成什么语言
+    const lang = navigator.language || navigator.userLanguage || "zh-CN";
+    if (lang.startsWith("zh")) {
+        if (lang === "zh-TW" || lang === "zh-HK" || lang === "zh-Hant") {
+            return "繁體中文";
+        }
+        return "中文";
+    }
+    // 常见语言映射
+    const map = {
+        "th": "ไทย",
+        "en": "English",
+        "ja": "日本語",
+        "ko": "한국어",
+        "fr": "Français",
+        "de": "Deutsch",
+        "es": "Español",
+        "pt": "Português",
+        "ru": "Русский",
+        "it": "Italiano",
+        "vi": "Tiếng Việt",
+        "id": "Bahasa Indonesia",
+        "ms": "Bahasa Melayu",
+        "ar": "العربية",
+        "hi": "हिन्दी",
+    };
+    const shortLang = lang.split("-")[0];
+    return map[shortLang] || "English";
+}
+
 // ========== 状态 ==========
 let segments = [];
 let currentIndex = -1;
@@ -112,7 +152,7 @@ btnDownloadUrl.addEventListener("click", downloadFromUrl);
 fileUpload.addEventListener("change", uploadVideo);
 document.getElementById("localFiles").addEventListener("change", openLocalFiles);
 btnFrClose.addEventListener("click", closeFollowRead);
-btnFrPlayOriginal.addEventListener("click", playOriginalSentence);
+btnFrPlayOriginal.addEventListener("click", toggleShadowRead);
 btnFrRecord.addEventListener("click", toggleRecording);
 btnFrPlayback.addEventListener("click", playbackRecording);
 btnFrScore.addEventListener("click", submitForScoring);
@@ -332,7 +372,7 @@ const addVideoContent = document.getElementById("addVideoContent");
 btnAddVideo.addEventListener("click", () => {
     const isOpen = addVideoContent.style.display !== "none";
     addVideoContent.style.display = isOpen ? "none" : "block";
-    btnAddVideo.textContent = isOpen ? "+ 添加新视频" : "− 收起";
+    btnAddVideo.textContent = isOpen ? t("app.add.toggle") : t("app.add.collapse");
 });
 
 async function loadVideoList() {
@@ -345,7 +385,7 @@ async function loadVideoList() {
             myVideosSection.style.display = "none";
             // 没有视频时自动展开添加区域
             addVideoContent.style.display = "block";
-            btnAddVideo.textContent = "− 收起";
+            btnAddVideo.textContent = t("app.add.collapse");
             return;
         }
 
@@ -372,7 +412,7 @@ async function loadVideoList() {
 
             const status = document.createElement("div");
             status.className = "video-status";
-            status.textContent = v.has_subtitle ? "已识别 · 点击播放" : "未识别";
+            status.textContent = v.has_subtitle ? t("status.ready") : t("status.notReady");
 
             info.appendChild(name);
             info.appendChild(status);
@@ -389,7 +429,7 @@ async function loadVideoList() {
                 item.style.cursor = "pointer";
 
                 const btnRedo = document.createElement("button");
-                btnRedo.textContent = "重新识别";
+                btnRedo.textContent = t("status.redo");
                 btnRedo.className = "btn-redo";
                 btnRedo.addEventListener("click", (e) => {
                     e.stopPropagation();
@@ -398,7 +438,7 @@ async function loadVideoList() {
                 actions.appendChild(btnRedo);
             } else {
                 const btnNew = document.createElement("button");
-                btnNew.textContent = "识别翻译";
+                btnNew.textContent = t("status.recognize");
                 btnNew.className = "btn-new";
                 btnNew.addEventListener("click", () => startLoading(v.name));
                 actions.appendChild(btnNew);
@@ -417,14 +457,14 @@ async function loadVideoList() {
 async function downloadFromUrl() {
     const url = videoUrlInput.value.trim();
     if (!url) {
-        urlStatus.textContent = "请输入视频链接";
+        urlStatus.textContent = t("status.enterUrl");
         urlStatus.className = "url-status error";
         return;
     }
 
     btnDownloadUrl.disabled = true;
-    btnDownloadUrl.textContent = "下载中...";
-    urlStatus.textContent = "正在获取视频信息...";
+    btnDownloadUrl.textContent = t("status.downloading");
+    urlStatus.textContent = t("status.fetchingInfo");
     urlStatus.className = "url-status";
 
     try {
@@ -477,12 +517,12 @@ async function downloadFromUrl() {
         }
 
     } catch (e) {
-        urlStatus.textContent = "下载失败: " + e.message;
+        urlStatus.textContent = t("status.downloadFail") + e.message;
         urlStatus.className = "url-status error";
     }
 
     btnDownloadUrl.disabled = false;
-    btnDownloadUrl.textContent = "下载";
+    btnDownloadUrl.textContent = t("app.add.url.btn");
 }
 
 // 回车键触发下载
@@ -491,14 +531,17 @@ videoUrlInput.addEventListener("keydown", (e) => {
 });
 
 // ========== 保存到本地 ==========
-function saveToLocal() {
+// subtitleOnly: 为 true 时只下载字幕（用户本地已有视频文件时）
+function saveToLocal(subtitleOnly) {
     if (!currentVideoName || segments.length === 0) return;
 
-    // 下载视频文件
-    const videoLink = document.createElement("a");
-    videoLink.href = `/videos/${encodeURIComponent(currentVideoName)}`;
-    videoLink.download = currentVideoName;
-    videoLink.click();
+    if (!subtitleOnly) {
+        // 下载视频文件
+        const videoLink = document.createElement("a");
+        videoLink.href = `/videos/${encodeURIComponent(currentVideoName)}`;
+        videoLink.download = currentVideoName;
+        videoLink.click();
+    }
 
     // 下载字幕 JSON 文件
     const subtitleData = JSON.stringify({ segments, language }, null, 2);
@@ -507,8 +550,8 @@ function saveToLocal() {
     subLink.href = URL.createObjectURL(blob);
     const baseName = currentVideoName.replace(/\.[^.]+$/, "");
     subLink.download = baseName + ".json";
-    // 延迟一点触发第二个下载，避免被浏览器拦截
-    setTimeout(() => subLink.click(), 500);
+    // 延迟一点触发下载（如果同时下载视频，需要错开避免被浏览器拦截）
+    setTimeout(() => subLink.click(), subtitleOnly ? 0 : 500);
 }
 
 // ========== 打开本地文件（直接播放，不上传） ==========
@@ -529,12 +572,18 @@ async function openLocalFiles() {
     }
 
     if (!videoFile) {
-        alert("请选择一个视频文件");
+        alert(t("status.selectVideo"));
         return;
     }
 
     // 切换到播放界面
     currentVideoName = videoFile.name;
+
+    // 先隐藏所有遮罩，再显示播放界面，避免一闪而过
+    loadingOverlay.style.display = "none";
+    exportOverlay.style.display = "none";
+    followReadPanel.style.display = "none";
+
     phaseSelect.style.display = "none";
     phasePlay.style.display = "flex";
 
@@ -544,9 +593,6 @@ async function openLocalFiles() {
     video.load();
 
     if (subtitleFile) {
-        // 有字幕文件，直接解析，不显示加载遮罩
-        isLoading = true;
-        await waitForVideo();
 
         try {
             const text = await subtitleFile.text();
@@ -554,17 +600,23 @@ async function openLocalFiles() {
             segments = data.segments || [];
             language = data.language || "";
         } catch (e) {
-            alert("字幕文件解析失败: " + e.message);
+            alert(t("status.subtitleParseFail") + e.message);
             return;
         }
 
-        finishLoading();
+        await waitForVideo();
+        isLoading = false;
+        btnTranslate.disabled = false;
+        renderSentenceList();
+        sentenceMode = true;
+        jumpToSentence(0);
+        video.play();
     } else {
         // 没有字幕文件，需要上传到服务器识别，显示加载遮罩
         isLoading = true;
         loadingOverlay.style.display = "flex";
         setStep("step1", "active");
-        setTip("正在上传视频到服务器...");
+        setTip(t("status.uploadingServer"));
 
         const formData = new FormData();
         formData.append("video", videoFile);
@@ -573,7 +625,7 @@ async function openLocalFiles() {
             const data = await res.json();
             if (data.error) {
                 setStep("step2", "error");
-                setTip("上传失败: " + data.error);
+                setTip(t("status.uploadFail") + data.error);
                 return;
             }
             currentVideoName = data.name;
@@ -583,14 +635,14 @@ async function openLocalFiles() {
             await waitForVideo();
         } catch (e) {
             setStep("step2", "error");
-            setTip("上传失败: " + e.message);
+            setTip(t("status.uploadFail") + e.message);
             return;
         }
 
         // 继续走识别翻译流程
         const provider = transcribeProvider.value;
         setStep("step2", "active");
-        setTip("正在语音识别...");
+        setTip(t("status.recognizing"));
         try {
             const segTarget = segmentTarget.value || null;
             const res = await fetch("/api/transcribe", {
@@ -599,33 +651,36 @@ async function openLocalFiles() {
                 body: JSON.stringify({ video: currentVideoName, provider, segment_target: segTarget }),
             });
             const data = await res.json();
-            if (data.error) { setStep("step2", "error"); setTip("识别失败: " + data.error); return; }
+            if (data.error) { setStep("step2", "error"); setTip(t("status.recognizeFail") + data.error); return; }
             segments = data.segments || [];
             language = data.language || "";
             setStep("step2", "done");
-        } catch (e) { setStep("step2", "error"); setTip("识别失败: " + e.message); return; }
+        } catch (e) { setStep("step2", "error"); setTip(t("status.recognizeFail") + e.message); return; }
 
         setStep("step3", "active");
-        setTip("正在翻译...");
+        setTip(t("status.translating"));
         const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
         const sourceLang = langMap[language] || "外语";
         try {
             const res = await fetch("/api/translate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ segments: segments.map(s => ({ index: s.index, text: s.text })), source_lang: sourceLang }),
+                body: JSON.stringify({ segments: segments.map(s => ({ index: s.index, text: s.text })), source_lang: sourceLang, target_lang: getTargetLang() }),
             });
             const data = await res.json();
             if (!data.error) {
-                (data.translations || []).forEach(t => { if (segments[t.index]) segments[t.index].translation = t.translation; });
+                (data.translations || []).forEach(tr => { if (segments[tr.index]) segments[tr.index].translation = tr.translation; });
             }
             setStep("step3", "done");
-            setTip("全部就绪！");
-        } catch (e) { setStep("step3", "error"); setTip("翻译失败: " + e.message); }
+            setTip(t("status.allReady"));
+        } catch (e) { setStep("step3", "error"); setTip(t("status.translateFail") + e.message); }
 
         await saveSubtitle();
         await delay(500);
         finishLoading();
+
+        // 用户本地已有视频文件，只需下载字幕
+        saveToLocal(true);
     }
 
     input.value = "";
@@ -636,7 +691,7 @@ async function uploadVideo() {
     const file = fileUpload.files[0];
     if (!file) return;
 
-    uploadStatus.textContent = "正在上传...";
+    uploadStatus.textContent = t("status.uploading");
     uploadStatus.className = "upload-status";
 
     const formData = new FormData();
@@ -650,19 +705,19 @@ async function uploadVideo() {
         const data = await res.json();
 
         if (data.error) {
-            uploadStatus.textContent = "上传失败: " + data.error;
+            uploadStatus.textContent = t("status.uploadFail") + data.error;
             uploadStatus.className = "upload-status error";
             return;
         }
 
-        uploadStatus.textContent = "上传成功：" + data.name;
+        uploadStatus.textContent = t("status.uploadSuccess") + data.name;
         uploadStatus.className = "upload-status success";
 
         await loadVideoList();
         fileUpload.value = "";
         startLoading(data.name);
     } catch (e) {
-        uploadStatus.textContent = "上传失败: " + e.message;
+        uploadStatus.textContent = t("status.uploadFail") + e.message;
         uploadStatus.className = "upload-status error";
     }
 }
@@ -693,14 +748,14 @@ async function loadSaved(videoName) {
     showPlayerWithVideo(videoName);
 
     setStep("step1", "active");
-    setTip("正在加载视频...");
+    setTip(t("status.loadingVideo"));
 
     await waitForVideo();
     setStep("step1", "done");
 
     setStep("step2", "done");
     setStep("step3", "active");
-    setTip("正在读取已保存的字幕...");
+    setTip(t("status.loadingSubtitle"));
 
     try {
         const res = await fetch(`/api/subtitle/${encodeURIComponent(videoName)}`);
@@ -708,10 +763,10 @@ async function loadSaved(videoName) {
         segments = data.segments || [];
         language = data.language || "";
         setStep("step3", "done");
-        setTip("就绪！");
+        setTip(t("status.subtitleReady"));
     } catch (e) {
         setStep("step3", "error");
-        setTip("字幕读取失败: " + e.message);
+        setTip(t("status.subtitleFail") + e.message);
         return;
     }
 
@@ -725,20 +780,20 @@ async function startLoading(videoName) {
 
     // 步骤 1：加载视频
     setStep("step1", "active");
-    setTip("正在加载视频文件...");
+    setTip(t("status.loadingVideo"));
     await waitForVideo();
     setStep("step1", "done");
 
     // 步骤 2：语音识别
     const provider = transcribeProvider.value;
     const providerLabels = {
-        groq: "Groq Whisper",
-        azure: "Azure Speech",
-        combined: "Groq + Azure 智能校准",
+        groq: t("status.providerGroq"),
+        azure: t("status.providerAzure"),
+        combined: t("status.providerCombined"),
     };
     const providerLabel = providerLabels[provider] || provider;
     setStep("step2", "active");
-    setTip(`正在调用 ${providerLabel} 语音识别，将音频自动断句...`);
+    setTip(t("status.callingProvider", { provider: providerLabel }));
     try {
         const segTarget = segmentTarget.value || null;
         const res = await fetch("/api/transcribe", {
@@ -749,22 +804,22 @@ async function startLoading(videoName) {
         const data = await res.json();
         if (data.error) {
             setStep("step2", "error");
-            setTip("识别失败: " + data.error);
+            setTip(t("status.recognizeFail") + data.error);
             return;
         }
         segments = data.segments || [];
         language = data.language || "";
         setStep("step2", "done");
-        setTip(`识别完成，共 ${segments.length} 句`);
+        setTip(t("status.recognizeDone", { n: segments.length }));
     } catch (e) {
         setStep("step2", "error");
-        setTip("识别失败: " + e.message);
+        setTip(t("status.recognizeFail") + e.message);
         return;
     }
 
     // 步骤 3：翻译
     setStep("step3", "active");
-    setTip("正在翻译字幕为中文...");
+    setTip(t("status.translating"));
     const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
     const sourceLang = langMap[language] || "外语";
     try {
@@ -774,22 +829,23 @@ async function startLoading(videoName) {
             body: JSON.stringify({
                 segments: segments.map((s) => ({ index: s.index, text: s.text })),
                 source_lang: sourceLang,
+                target_lang: getTargetLang(),
             }),
         });
         const data = await res.json();
         if (data.error) {
             setStep("step3", "error");
-            setTip("翻译失败: " + data.error + "（可稍后手动重试）");
+            setTip(t("status.translateFail") + data.error + t("status.translateRetry"));
         } else {
-            (data.translations || []).forEach((t) => {
-                if (segments[t.index]) segments[t.index].translation = t.translation;
+            (data.translations || []).forEach((tr) => {
+                if (segments[tr.index]) segments[tr.index].translation = tr.translation;
             });
             setStep("step3", "done");
-            setTip("全部就绪！");
+            setTip(t("status.allReady"));
         }
     } catch (e) {
         setStep("step3", "error");
-        setTip("翻译失败: " + e.message + "（可稍后手动重试）");
+        setTip(t("status.translateFail") + e.message + t("status.translateRetry"));
     }
 
     // 保存字幕
@@ -797,6 +853,9 @@ async function startLoading(videoName) {
 
     await delay(500);
     finishLoading();
+
+    // 处理完成后自动下载视频+字幕到本地
+    saveToLocal();
 }
 
 // ========== 等待视频可播放 ==========
@@ -815,7 +874,7 @@ function waitForVideo() {
             video.removeEventListener("loadeddata", onReady);
             video.removeEventListener("error", onError);
             setStep("step1", "error");
-            setTip("视频加载失败");
+            setTip(t("status.videoLoadFail"));
         };
         video.addEventListener("loadeddata", onReady);
         video.addEventListener("error", onError);
@@ -912,6 +971,25 @@ function onTimeUpdate() {
     updateSubtitle(seg);
 
     if (video.currentTime >= seg.end - 0.05) {
+        // 跟读面板打开时
+        if (followReadPanel.style.display !== "none") {
+            if (frShadowMode) {
+                // 影子跟读模式：按重复次数播放，播完跳下一句
+                repeatCount++;
+                updateRepeatInfo(maxRepeat);
+                if (repeatCount < maxRepeat) {
+                    video.currentTime = seg.start;
+                    video.play();
+                } else {
+                    onShadowSentenceEnd();
+                }
+            } else {
+                // 非影子跟读：播完当前句就暂停
+                video.pause();
+            }
+            return;
+        }
+
         repeatCount++;
         updateRepeatInfo(maxRepeat);
 
@@ -928,6 +1006,10 @@ function onTimeUpdate() {
                     updateRepeatInfo(maxRepeat);
                     updateSubtitle(nextSeg);
                     highlightSentence(currentIndex);
+                    // 同步跟读面板
+                    if (followReadPanel.style.display !== "none") {
+                        updateFollowReadContent();
+                    }
                 } else {
                     jumpToSentence(currentIndex + 1);
                     video.play();
@@ -950,10 +1032,17 @@ function jumpToSentence(index) {
     updateRepeatInfo(parseInt(repeatCountSelect.value) || 3);
     updateSubtitle(seg);
     highlightSentence(index);
+
+    // 跟读面板打开时，同步更新显示的句子
+    if (followReadPanel.style.display !== "none") {
+        updateFollowReadContent();
+    }
 }
 
 function prevSentence() {
     if (currentIndex > 0) {
+        // 手动切句时停止影子跟读
+        if (frShadowMode) stopShadowRead();
         sentenceMode = true;
         jumpToSentence(currentIndex - 1);
         video.play();
@@ -962,6 +1051,7 @@ function prevSentence() {
 
 function nextSentence() {
     if (currentIndex < segments.length - 1) {
+        if (frShadowMode) stopShadowRead();
         sentenceMode = true;
         jumpToSentence(currentIndex + 1);
         video.play();
@@ -1045,7 +1135,7 @@ async function translateAll() {
     if (segments.length === 0) return;
 
     btnTranslate.disabled = true;
-    btnTranslate.textContent = "翻译中...";
+    btnTranslate.textContent = t("status.translatingBtn");
 
     const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
     const sourceLang = langMap[language] || "外语";
@@ -1057,14 +1147,15 @@ async function translateAll() {
             body: JSON.stringify({
                 segments: segments.map((s) => ({ index: s.index, text: s.text })),
                 source_lang: sourceLang,
+                target_lang: getTargetLang(),
             }),
         });
         const data = await res.json();
         if (data.error) {
-            alert("翻译失败: " + data.error);
+            alert(t("status.translateFail") + data.error);
         } else {
-            (data.translations || []).forEach((t) => {
-                if (segments[t.index]) segments[t.index].translation = t.translation;
+            (data.translations || []).forEach((tr) => {
+                if (segments[tr.index]) segments[tr.index].translation = tr.translation;
             });
             renderSentenceList();
             highlightSentence(currentIndex);
@@ -1072,9 +1163,9 @@ async function translateAll() {
             await saveSubtitle();
         }
     } catch (e) {
-        alert("翻译失败: " + e.message);
+        alert(t("status.translateFail") + e.message);
     }
-    btnTranslate.textContent = "重新翻译";
+    btnTranslate.textContent = t("status.retranslate");
     btnTranslate.disabled = false;
 }
 
@@ -1108,7 +1199,7 @@ async function openDirBrowser(path) {
 
         dirList.innerHTML = "";
         if (data.dirs.length === 0) {
-            dirList.innerHTML = '<div class="dir-item" style="color:#666;">（无子目录）</div>';
+            dirList.innerHTML = `<div class="dir-item" style="color:#666;">${t("export.dir.noSub")}</div>`;
         } else {
             data.dirs.forEach((name) => {
                 const item = document.createElement("div");
@@ -1128,12 +1219,12 @@ async function openDirBrowser(path) {
 }
 
 function updateExportHint() {
-    const prefix = exportPrefixInput.value.trim() || "视频名";
+    const prefix = exportPrefixInput.value.trim() || t("hint.videoName");
     const type = exportTypeSelect.value;
     if (type === "srt") {
-        exportHint.textContent = `将导出：${prefix}_泰语.srt、${prefix}_中文.srt`;
+        exportHint.textContent = t("hint.srtFiles", { prefix });
     } else {
-        exportHint.textContent = `将导出：${prefix}.mp4、${prefix}_泰语.srt、${prefix}_中文.srt`;
+        exportHint.textContent = t("hint.allFiles", { prefix });
     }
 }
 
@@ -1144,7 +1235,7 @@ async function doExport() {
     const exportType = exportTypeSelect.value;
 
     if (!exportDir) {
-        alert("请输入导出目录");
+        alert(t("status.enterExportDir"));
         return;
     }
 
@@ -1165,12 +1256,12 @@ async function doExport() {
             });
             const data = await res.json();
             if (data.error) {
-                alert("导出失败: " + data.error);
+                alert(t("status.exportFail") + data.error);
             } else {
-                alert(`字幕导出完成！\n保存到：${data.dir}\n文件：${data.files.join("、")}`);
+                alert(t("status.srtExportDone", { dir: data.dir, files: data.files.join(", ") }));
             }
         } catch (e) {
-            alert("导出失败: " + e.message);
+            alert(t("status.exportFail") + e.message);
         }
         btnExport.disabled = false;
         return;
@@ -1224,13 +1315,13 @@ async function doExport() {
 
         exportProgressBar.style.width = "100%";
         if (result) {
-            exportPct.textContent = `导出完成！已保存到 ${result.dir}`;
+            exportPct.textContent = t("status.exportDone") + result.dir;
         } else {
             exportPct.textContent = "100%";
         }
         await delay(1500);
     } catch (e) {
-        alert("导出失败: " + e.message);
+        alert(t("status.exportFail") + e.message);
     }
 
     exportOverlay.style.display = "none";
@@ -1266,7 +1357,7 @@ function escapeHtml(text) {
 }
 
 function updateRepeatInfo(maxRepeat) {
-    const modeLabels = { none: "盲听", original: "原文", both: "双语" };
+    const modeLabels = { none: t("mode.none"), original: t("mode.original"), both: t("mode.both") };
     const mode = getSubtitleMode();
     const label = modeLabels[mode];
     const info = `${currentIndex + 1}/${segments.length} | ${repeatCount + 1}/${maxRepeat} ${label}`;
@@ -1287,61 +1378,119 @@ let frRecordingTimer = null;
 let frRecordingStart = 0;
 let frIsRecording = false;
 let frAudioPlayer = null;
+let frAudioContext = null;
+let frSilenceTimer = null;
+let frHasSpoken = false;
+let frShadowMode = false;  // 影子跟读是否正在进行
 
 function openFollowRead() {
     if (currentIndex < 0 || segments.length === 0) return;
 
-    const seg = segments[currentIndex];
     video.pause();
-    sentenceMode = false;
-
-    // 显示面板，填入当前句子
-    frReference.textContent = seg.text || "";
-    frTranslation.textContent = seg.translation || "";
-    frResult.style.display = "none";
-    frTimer.textContent = "";
-    btnFrPlayback.disabled = true;
-    btnFrScore.disabled = true;
-    btnFrRecord.textContent = "开始录音";
-    btnFrRecord.classList.remove("recording");
-    frRecordedBlob = null;
-
     followReadPanel.style.display = "block";
+    updateFollowReadContent();
 }
 
-function closeFollowRead() {
-    // 停止录音（如果正在录）
+function updateFollowReadContent() {
+    if (currentIndex < 0 || segments.length === 0) return;
+
+    // 停止正在进行的录音
     if (frIsRecording) stopRecording();
     // 停止回放
     if (frAudioPlayer) {
         frAudioPlayer.pause();
         frAudioPlayer = null;
     }
-    followReadPanel.style.display = "none";
 
-    // 恢复句子模式
-    sentenceMode = true;
-    if (currentIndex >= 0) {
-        jumpToSentence(currentIndex);
+    const seg = segments[currentIndex];
+    frReference.textContent = seg.text || "";
+    frTranslation.textContent = seg.translation || "";
+    frResult.style.display = "none";
+    frTimer.textContent = "";
+    btnFrPlayback.disabled = true;
+    btnFrScore.disabled = true;
+    btnFrRecord.textContent = t("follow.record");
+    btnFrRecord.classList.remove("recording");
+    frRecordedBlob = null;
+}
+
+function closeFollowRead() {
+    stopShadowRead();
+    if (frIsRecording) stopRecording();
+    if (frAudioPlayer) {
+        frAudioPlayer.pause();
+        frAudioPlayer = null;
+    }
+    followReadPanel.style.display = "none";
+}
+
+// ========== 影子跟读 ==========
+function toggleShadowRead() {
+    if (frShadowMode) {
+        stopShadowRead();
+    } else {
+        startShadowRead();
     }
 }
 
-function playOriginalSentence() {
+function startShadowRead() {
     if (currentIndex < 0) return;
+    // 停止录音
+    if (frIsRecording) stopRecording();
+    if (frAudioPlayer) { frAudioPlayer.pause(); frAudioPlayer = null; }
+
+    frShadowMode = true;
+    btnFrPlayOriginal.textContent = t("follow.stopShadow");
+    btnFrPlayOriginal.classList.add("shadow-active");
+
+    // 开始播放当前句
+    playShadowSentence();
+}
+
+function stopShadowRead() {
+    frShadowMode = false;
+    btnFrPlayOriginal.textContent = t("follow.playOriginal");
+    btnFrPlayOriginal.classList.remove("shadow-active");
+    video.pause();
+}
+
+function playShadowSentence() {
+    if (!frShadowMode || currentIndex < 0) return;
     const seg = segments[currentIndex];
+    updateFollowReadContentQuiet();  // 更新面板文字，不重置影子模式
+    sentenceMode = true;
+    repeatCount = 0;
     video.currentTime = seg.start;
     video.play();
-    // 播放到句尾自动停
-    const onTime = () => {
-        if (video.currentTime >= seg.end - 0.05) {
-            video.pause();
-            video.removeEventListener("timeupdate", onTime);
-        }
-    };
-    video.addEventListener("timeupdate", onTime);
+}
+
+// 只更新面板文字，不影响影子跟读状态
+function updateFollowReadContentQuiet() {
+    if (currentIndex < 0 || segments.length === 0) return;
+    const seg = segments[currentIndex];
+    frReference.textContent = seg.text || "";
+    frTranslation.textContent = seg.translation || "";
+    frResult.style.display = "none";
+    frTimer.textContent = "";
+}
+
+// 影子跟读模式下，当前句播完后的回调
+function onShadowSentenceEnd() {
+    if (!frShadowMode) return;
+    if (currentIndex + 1 < segments.length) {
+        jumpToSentence(currentIndex + 1);
+        playShadowSentence();
+    } else {
+        // 播完最后一句，回到第一句继续
+        jumpToSentence(0);
+        playShadowSentence();
+    }
 }
 
 async function toggleRecording() {
+    // 录音时停止影子跟读
+    if (frShadowMode) stopShadowRead();
+
     if (frIsRecording) {
         stopRecording();
     } else {
@@ -1353,6 +1502,7 @@ async function startRecording() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         frRecordedChunks = [];
+        frHasSpoken = false;
         frMediaRecorder = new MediaRecorder(stream);
 
         frMediaRecorder.ondataavailable = (e) => {
@@ -1360,40 +1510,110 @@ async function startRecording() {
         };
 
         frMediaRecorder.onstop = () => {
-            // 释放麦克风
-            stream.getTracks().forEach((t) => t.stop());
+            // 释放麦克风和音频分析
+            stream.getTracks().forEach((tk) => tk.stop());
+            stopSilenceDetection();
             frRecordedBlob = new Blob(frRecordedChunks, { type: "audio/webm" });
             btnFrPlayback.disabled = false;
             btnFrScore.disabled = false;
             frIsRecording = false;
             clearInterval(frRecordingTimer);
-            btnFrRecord.textContent = "重新录音";
+            btnFrRecord.textContent = t("status.reRecord");
             btnFrRecord.classList.remove("recording");
         };
 
         frMediaRecorder.start();
         frIsRecording = true;
         frRecordingStart = Date.now();
-        btnFrRecord.textContent = "停止录音";
+        btnFrRecord.textContent = t("status.stopRecord");
         btnFrRecord.classList.add("recording");
         frResult.style.display = "none";
 
         // 计时显示
         frRecordingTimer = setInterval(() => {
             const elapsed = ((Date.now() - frRecordingStart) / 1000).toFixed(1);
-            frTimer.textContent = `录音中... ${elapsed}s`;
+            frTimer.textContent = t("status.recording", { t: elapsed });
         }, 100);
 
+        // 启动静音检测：用户说完话后自动停止录音并回放
+        startSilenceDetection(stream);
+
     } catch (e) {
-        alert("无法访问麦克风: " + e.message);
+        alert(t("status.micFail") + e.message);
     }
 }
 
-function stopRecording() {
+function startSilenceDetection(stream) {
+    frAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = frAudioContext.createMediaStreamSource(stream);
+    const analyser = frAudioContext.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const SPEECH_THRESHOLD = 30;   // 音量阈值：高于此视为"在说话"
+    let silenceStart = null;
+    let speechStart = null;        // 用户开始说话的时间
+
+    frSilenceTimer = setInterval(() => {
+        if (!frIsRecording) return;
+
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+
+        if (avg > SPEECH_THRESHOLD) {
+            frHasSpoken = true;
+            if (!speechStart) speechStart = Date.now();
+            silenceStart = null;
+        } else if (frHasSpoken) {
+            if (!silenceStart) {
+                silenceStart = Date.now();
+            } else {
+                // 智能静音阈值：根据已说话时长动态调整
+                // 说话越久 → 句子越完整 → 允许的停顿越短
+                const spokenMs = speechStart ? (Date.now() - speechStart) : 0;
+                let silenceThreshold;
+                if (spokenMs < 1000) {
+                    silenceThreshold = 800;  // 刚开口，多等一下
+                } else if (spokenMs < 3000) {
+                    silenceThreshold = 600;  // 说了一两秒
+                } else {
+                    silenceThreshold = 500;  // 说了较长，0.5秒静音即停
+                }
+
+                if (Date.now() - silenceStart > silenceThreshold) {
+                    stopRecording(true);
+                }
+            }
+        }
+    }, 50);
+}
+
+function stopSilenceDetection() {
+    if (frSilenceTimer) {
+        clearInterval(frSilenceTimer);
+        frSilenceTimer = null;
+    }
+    if (frAudioContext) {
+        frAudioContext.close().catch(() => {});
+        frAudioContext = null;
+    }
+}
+
+function stopRecording(autoPlayback) {
     if (frMediaRecorder && frMediaRecorder.state !== "inactive") {
         frMediaRecorder.stop();
     }
-    frTimer.textContent = "录音完成";
+    frTimer.textContent = t("status.recordDone");
+
+    // 自动停止时，延迟一点等 blob 生成完再回放
+    if (autoPlayback) {
+        setTimeout(() => {
+            if (frRecordedBlob) playbackRecording();
+        }, 300);
+    }
 }
 
 function playbackRecording() {
@@ -1408,15 +1628,15 @@ async function submitForScoring() {
 
     const seg = segments[currentIndex];
     btnFrScore.disabled = true;
-    btnFrScore.textContent = "评分中...";
-    frTimer.textContent = "正在分析发音...";
+    btnFrScore.textContent = t("status.scoringBtn");
+    frTimer.textContent = t("status.scoring");
 
     const formData = new FormData();
     formData.append("audio", frRecordedBlob, "recording.webm");
     formData.append("reference_text", seg.text);
-    // 语言映射
+    // 语言映射（默认英语而非泰语，覆盖更多用户场景）
     const langMap = { th: "th-TH", en: "en-US", ja: "ja-JP", ko: "ko-KR", fr: "fr-FR", de: "de-DE", es: "es-ES", pt: "pt-BR", ru: "ru-RU", it: "it-IT" };
-    formData.append("language", langMap[language] || "th-TH");
+    formData.append("language", langMap[language] || "en-US");
 
     try {
         const res = await fetch("/api/pronounce", {
@@ -1426,20 +1646,20 @@ async function submitForScoring() {
         const data = await res.json();
 
         if (data.error) {
-            frTimer.textContent = "评分失败: " + data.error;
+            frTimer.textContent = t("status.scoreFail") + data.error;
             btnFrScore.disabled = false;
-            btnFrScore.textContent = "评分";
+            btnFrScore.textContent = t("follow.score");
             return;
         }
 
         displayScoreResult(data);
         frTimer.textContent = "";
     } catch (e) {
-        frTimer.textContent = "评分失败: " + e.message;
+        frTimer.textContent = t("status.scoreFail") + e.message;
     }
 
     btnFrScore.disabled = false;
-    btnFrScore.textContent = "评分";
+    btnFrScore.textContent = t("follow.score");
 }
 
 function displayScoreResult(data) {
@@ -1464,7 +1684,7 @@ function displayScoreResult(data) {
         const span = document.createElement("span");
         span.className = "fr-word " + wordClass(w);
         span.textContent = w.word;
-        span.title = `${w.accuracy_score !== undefined ? Math.round(w.accuracy_score) + "分" : ""} ${w.error_type || ""}`;
+        span.title = `${w.accuracy_score !== undefined ? Math.round(w.accuracy_score) : ""} ${w.error_type || ""}`;
         frWords.appendChild(span);
     });
 }

@@ -3,10 +3,11 @@ import json
 import requests
 
 
-def translate_segments(segments, source_lang="泰语"):
+def translate_segments(segments, source_lang="泰语", target_lang="中文"):
     """
-    调用 DeepSeek API 将句子列表翻译为中文。
+    调用 DeepSeek API 将句子列表翻译为目标语言。
     segments: [{"index": 0, "text": "..."}, ...]
+    target_lang: 目标语言，如 "中文"、"English"、"ไทย" 等
     返回: [{"index": 0, "text": "...", "translation": "..."}, ...]
     """
     api_key = os.getenv("DEEPSEEK_API_KEY")
@@ -19,12 +20,21 @@ def translate_segments(segments, source_lang="泰语"):
         lines.append(f'{seg["index"]}. {seg["text"]}')
     text_block = "\n".join(lines)
 
+    # 根据目标语言生成示例
+    examples = {
+        "中文": '[{"index": 0, "translation": "你好"}, {"index": 1, "translation": "谢谢"}]',
+        "繁體中文": '[{"index": 0, "translation": "你好"}, {"index": 1, "translation": "謝謝"}]',
+        "English": '[{"index": 0, "translation": "Hello"}, {"index": 1, "translation": "Thank you"}]',
+        "ไทย": '[{"index": 0, "translation": "สวัสดี"}, {"index": 1, "translation": "ขอบคุณ"}]',
+    }
+    example = examples.get(target_lang, f'[{{"index": 0, "translation": "..."}}, {{"index": 1, "translation": "..."}}]')
+
     prompt = (
-        f"请将以下{source_lang}句子逐句翻译为中文。\n"
+        f"请将以下{source_lang}句子逐句翻译为{target_lang}。\n"
         f"严格按照 JSON 数组格式返回，每个元素包含 index 和 translation 字段。\n"
         f"只返回 JSON，不要任何其他文字。\n\n"
         f"示例返回格式：\n"
-        f'[{{"index": 0, "translation": "你好"}}, {{"index": 1, "translation": "谢谢"}}]\n\n'
+        f"{example}\n\n"
         f"待翻译内容：\n{text_block}"
     )
 
