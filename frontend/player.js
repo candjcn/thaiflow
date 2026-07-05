@@ -1701,8 +1701,22 @@ async function submitForScoring() {
     const formData = new FormData();
     formData.append("audio", frRecordedBlob, "recording." + frRecordedExt);
     formData.append("reference_text", seg.text);
-    // 语言映射（默认英语而非泰语，覆盖更多用户场景）
-    const langMap = { th: "th-TH", en: "en-US", ja: "ja-JP", ko: "ko-KR", fr: "fr-FR", de: "de-DE", es: "es-ES", pt: "pt-BR", ru: "ru-RU", it: "it-IT" };
+    // 语言映射：兼容 Whisper 返回的 ISO code ("th") 和全称 ("Thai")
+    const langMap = {
+        th: "th-TH", Thai: "th-TH", thai: "th-TH",
+        en: "en-US", English: "en-US", english: "en-US",
+        ja: "ja-JP", Japanese: "ja-JP", japanese: "ja-JP",
+        ko: "ko-KR", Korean: "ko-KR", korean: "ko-KR",
+        zh: "zh-CN", Chinese: "zh-CN", chinese: "zh-CN",
+        fr: "fr-FR", French: "fr-FR",
+        de: "de-DE", German: "de-DE",
+        es: "es-ES", Spanish: "es-ES",
+        pt: "pt-BR", Portuguese: "pt-BR",
+        ru: "ru-RU", Russian: "ru-RU",
+        it: "it-IT", Italian: "it-IT",
+        vi: "vi-VN", Vietnamese: "vi-VN",
+        hi: "hi-IN", Hindi: "hi-IN",
+    };
     formData.append("language", langMap[language] || "en-US");
 
     try {
