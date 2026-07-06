@@ -253,6 +253,46 @@
                 <div id="sentenceList" class="sentence-list"></div>
             </div>
 
+            <!-- 波形音轨编辑器（右滑句子弹出） -->
+            <div class="wave-editor-overlay" id="weOverlay" style="display:none;"></div>
+            <div class="wave-editor" id="waveEditor" style="display:none;">
+                <div class="we-header">
+                    <h3><span data-i18n="we.title">音轨编辑</span> <span class="we-seq" id="weSeq"></span></h3>
+                    <button id="weBtnClose">✕</button>
+                </div>
+                <div class="we-time-row">
+                    <div class="we-time-block">
+                        <span class="we-time-label" data-i18n="we.start">句首</span>
+                        <span class="we-time-value" id="weStart">0:00.00</span>
+                    </div>
+                    <div class="we-time-block">
+                        <span class="we-time-label" data-i18n="we.end">句尾</span>
+                        <span class="we-time-value" id="weEnd">0:00.00</span>
+                    </div>
+                </div>
+                <canvas id="weCanvas" class="we-canvas"></canvas>
+                <div class="we-hint" id="weHint" data-i18n="we.hint">拖动把手调整时间 · 双指缩放 · 单指平移</div>
+                <div class="we-controls">
+                    <button class="we-btn" id="weBtnPlay">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,4 20,12 6,20"/></svg>
+                        <span class="we-btn-label" data-i18n="we.play">试听</span>
+                    </button>
+                    <select id="weEngine" class="we-engine">
+                        <option value="groq">Groq</option>
+                        <option value="azure">Azure</option>
+                    </select>
+                    <button class="we-btn" id="weBtnRetrans">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21,3 21,9 15,9"/></svg>
+                        <span class="we-btn-label" data-i18n="we.retrans">重新识别</span>
+                    </button>
+                    <button class="we-btn we-btn-primary" id="weBtnSave">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+                        <span class="we-btn-label" data-i18n="we.save">保存</span>
+                    </button>
+                </div>
+                <div class="we-status" id="weStatus"></div>
+            </div>
+
             <!-- 导出设置弹窗 -->
             <div class="modal-overlay" id="exportModal" style="display:none;">
                 <div class="modal-box">

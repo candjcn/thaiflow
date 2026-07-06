@@ -7,7 +7,7 @@ import threading
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
-from transcribe import transcribe_video
+from transcribe import transcribe_video, transcribe_slice
 from translate import translate_segments
 from export import export_video_with_subtitles, export_srt
 from pronounce import assess_pronunciation
@@ -279,6 +279,70 @@ def api_transcribe():
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/retranscribe", methods=["POST"])
+def api_retranscribe():
+    """对视频的一个时间片段进行二次识别（用户微调时间戳后重新识别单句）"""
+    data = request.get_json()
+    video_name = data.get("video", "")
+    provider = data.get("provider", "groq")
+    do_translate = bool(data.get("translate", True))
+    source_lang = data.get("source_lang", "泰语")
+    language = data.get("language", "")  # 短语言码如 "th"，Azure 识别需要
+
+    try:
+        start = float(data.get("start", -1))
+        end = float(data.get("end", -1))
+    except (TypeError, ValueError):
+        return jsonify({"error": "时间参数无效"}), 400
+
+    if provider not in ("groq", "azure"):
+        return jsonify({"error": "不支持的识别引擎"}), 400
+    if not (0 <= start < end):
+        return jsonify({"error": "时间范围无效"}), 400
+    if end - start > 60:
+        return jsonify({"error": "识别范围不能超过 60 秒"}), 400
+
+    # 防路径穿越
+    videos_root = os.path.realpath(VIDEOS_DIR)
+    video_path = os.path.realpath(os.path.join(VIDEOS_DIR, video_name))
+    if not video_path.startswith(videos_root + os.sep) or not os.path.exists(video_path):
+        return jsonify({"error": "视频文件不存在"}), 404
+
+    wav_path = os.path.join(VIDEOS_DIR, f".slice_{os.getpid()}_{int(start * 1000)}.wav")
+    try:
+        # ffmpeg 切片：-ss/-to 放在 -i 之后保证帧精确
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-ss", str(start),
+            "-to", str(end),
+            "-vn", "-ar", "16000", "-ac", "1", "-sample_fmt", "s16",
+            wav_path,
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            return jsonify({"error": "音频切片失败: " + r.stderr[-200:]}), 500
+
+        result = transcribe_slice(wav_path, provider, language=language)
+        text = result["text"]
+
+        translation = ""
+        if do_translate and text:
+            try:
+                translated = translate_segments([{"index": 0, "text": text}], source_lang, "中文")
+                if translated:
+                    translation = translated[0].get("translation", "")
+            except Exception as te:
+                print(f"[Retranscribe] 翻译失败: {te}")
+
+        return jsonify({"text": text, "translation": translation})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+    finally:
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
 
 
 @app.route("/api/translate", methods=["POST"])

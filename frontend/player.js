@@ -932,6 +932,7 @@ async function openLocalFiles() {
 
     // 切换到播放界面
     currentVideoName = videoFile.name;
+    localVideoFile = videoFile; // 供波形编辑器解码音频用
 
     // 先隐藏所有遮罩，再显示播放界面，避免一闪而过
     loadingOverlay.style.display = "none";
@@ -1334,6 +1335,9 @@ function renderSentenceList() {
                 <div class="sentence-actions">
                     <button class="sentence-edit-btn" title="编辑">✎</button>
                     ${mergeBtn}
+                    <button class="sentence-wave-btn" title="音轨编辑">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="9" x2="3" y2="15"/><line x1="7" y1="5" x2="7" y2="19"/><line x1="11" y1="9" x2="11" y2="15"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="19" y1="8" x2="19" y2="16"/></svg>
+                    </button>
                 </div>
             </div>
             <button class="sentence-delete-btn">删除</button>
@@ -1367,6 +1371,11 @@ function renderSentenceList() {
         div.querySelector(".sentence-delete-btn").addEventListener("click", (e) => {
             e.stopPropagation();
             deleteSentence(i);
+        });
+        div.querySelector(".sentence-wave-btn").addEventListener("click", (e) => {
+            e.stopPropagation();
+            closeSwipedItems();
+            openWaveEditor(i);
         });
         attachSwipeToDelete(div);
         sentenceList.appendChild(div);
@@ -1402,6 +1411,9 @@ function attachSwipeToDelete(div) {
         }
         if (swiping && dx < 0) {
             content.style.transform = `translateX(${Math.max(dx, -80)}px)`;
+        } else if (swiping && dx > 0) {
+            // 右滑视觉暗示（最多 40px），松手后打开波形编辑器
+            content.style.transform = `translateX(${Math.min(dx, 40)}px)`;
         }
     }, { passive: true });
 
@@ -1410,9 +1422,15 @@ function attachSwipeToDelete(div) {
         div.classList.remove("swiping");
         const dx = e.changedTouches[0].clientX - startX;
         if (dx < -40) {
+            // 左滑：滑出删除按钮
             closeSwipedItems();
             div.classList.add("swiped");
             content.style.transform = "translateX(-80px)";
+        } else if (dx > 60) {
+            // 右滑：打开波形音轨编辑器
+            closeSwipedItems();
+            content.style.transform = "";
+            openWaveEditor(parseInt(div.dataset.index));
         } else {
             div.classList.remove("swiped");
             content.style.transform = "";
@@ -1934,6 +1952,52 @@ function delay(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }
 
+// ========== 统一波形绘制（剪映式竖条） ==========
+// amps: 0..1 振幅数组，每个元素一根竖条，从垂直中心镜像伸展
+function drawBars(ctx, w, h, amps, opts) {
+    const o = opts || {};
+    const color = o.color || "#e94560";
+    const gap = (o.gap !== undefined ? o.gap : 1) * (window.devicePixelRatio || 1);
+    const barW = (o.barW !== undefined ? o.barW : 2) * (window.devicePixelRatio || 1);
+    const minH = 2 * (window.devicePixelRatio || 1);
+    if (o.clear !== false) ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = color;
+    const step = barW + gap;
+    const count = Math.min(amps.length, Math.floor(w / step));
+    const cy = h / 2;
+    for (let i = 0; i < count; i++) {
+        const amp = Math.min(1, Math.max(0, amps[i]));
+        const bh = Math.max(minH, amp * h * 0.9);
+        const x = i * step;
+        // 圆角竖条
+        const r = Math.min(barW / 2, bh / 2);
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(x, cy - bh / 2, barW, bh, r);
+        } else {
+            ctx.rect(x, cy - bh / 2, barW, bh);
+        }
+        ctx.fill();
+    }
+}
+
+// 把时域样本（Uint8Array，128 为中心）分桶转为每根竖条的振幅
+function timeDomainToAmps(timeDomain, barCount) {
+    const amps = new Float32Array(barCount);
+    const bucket = Math.max(1, Math.floor(timeDomain.length / barCount));
+    for (let i = 0; i < barCount; i++) {
+        let sum = 0;
+        const base = i * bucket;
+        for (let j = 0; j < bucket; j++) {
+            const v = (timeDomain[base + j] - 128) / 128;
+            sum += v * v;
+        }
+        // RMS 放大到可视范围
+        amps[i] = Math.min(1, Math.sqrt(sum / bucket) * 3);
+    }
+    return amps;
+}
+
 // ========== 跟读功能 ==========
 // 更新跟读按钮的文字标签（按钮内含 SVG 图标 + 文字）
 function setFrBtnLabel(btn, text) {
@@ -2185,29 +2249,18 @@ function startSilenceDetection(stream) {
     const MIN_SPEECH_TOTAL = 4;
     const MIN_RECORD_MS = 1000;
 
-    // 波形绘制
+    // 波形绘制（剪映式竖条）
     const canvas = frWaveform;
     const ctx = canvas.getContext("2d");
     function drawWaveform() {
         if (!frIsRecording) return;
         frWaveAnimId = requestAnimationFrame(drawWaveform);
         analyser.getByteTimeDomainData(timeDomain);
-        const w = canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
-        const h = canvas.height = canvas.clientHeight * (window.devicePixelRatio || 1);
-        ctx.clearRect(0, 0, w, h);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#e94560";
-        ctx.beginPath();
-        const sliceWidth = w / timeDomain.length;
-        let x = 0;
-        for (let i = 0; i < timeDomain.length; i++) {
-            const v = timeDomain[i] / 128.0;
-            const y = (v * h) / 2;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-            x += sliceWidth;
-        }
-        ctx.stroke();
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.width = canvas.clientWidth * dpr;
+        const h = canvas.height = canvas.clientHeight * dpr;
+        const barCount = Math.floor(w / (3 * dpr));
+        drawBars(ctx, w, h, timeDomainToAmps(timeDomain, barCount));
     }
     drawWaveform();
 
@@ -2292,22 +2345,11 @@ function playbackRecording() {
     function drawPlaybackWave() {
         pbAnimId = requestAnimationFrame(drawPlaybackWave);
         pbAnalyser.getByteTimeDomainData(pbTimeDomain);
-        const w = frWaveform.width = frWaveform.clientWidth * (window.devicePixelRatio || 1);
-        const h = frWaveform.height = frWaveform.clientHeight * (window.devicePixelRatio || 1);
-        pbCtx.clearRect(0, 0, w, h);
-        pbCtx.lineWidth = 2;
-        pbCtx.strokeStyle = "#e94560";
-        pbCtx.beginPath();
-        const sliceWidth = w / pbTimeDomain.length;
-        let x = 0;
-        for (let i = 0; i < pbTimeDomain.length; i++) {
-            const v = pbTimeDomain[i] / 128.0;
-            const y = (v * h) / 2;
-            if (i === 0) pbCtx.moveTo(x, y);
-            else pbCtx.lineTo(x, y);
-            x += sliceWidth;
-        }
-        pbCtx.stroke();
+        const dpr = window.devicePixelRatio || 1;
+        const w = frWaveform.width = frWaveform.clientWidth * dpr;
+        const h = frWaveform.height = frWaveform.clientHeight * dpr;
+        const barCount = Math.floor(w / (3 * dpr));
+        drawBars(pbCtx, w, h, timeDomainToAmps(pbTimeDomain, barCount));
 
         // 进度时间
         if (frAudioPlayer && frAudioPlayer.duration) {
@@ -2432,3 +2474,473 @@ function wordClass(w) {
     if (s >= 50) return "fair";
     return "poor";
 }
+
+// ========== 波形音轨编辑器 ==========
+let localVideoFile = null; // 本地播放时的 File 对象（供解码音频）
+
+const weOverlay = document.getElementById("weOverlay");
+const waveEditor = document.getElementById("waveEditor");
+const weCanvas = document.getElementById("weCanvas");
+const weStartEl = document.getElementById("weStart");
+const weEndEl = document.getElementById("weEnd");
+const weSeq = document.getElementById("weSeq");
+const weBtnClose = document.getElementById("weBtnClose");
+const weBtnPlay = document.getElementById("weBtnPlay");
+const weBtnSave = document.getElementById("weBtnSave");
+const weBtnRetrans = document.getElementById("weBtnRetrans");
+const weEngine = document.getElementById("weEngine");
+const weStatus = document.getElementById("weStatus");
+
+const WE_PPS = 50; // 每秒峰值数
+let wePeaks = null;
+let wePeaksVideoKey = null;
+
+// 编辑器状态
+const we = {
+    idx: -1,
+    viewStart: 0,
+    viewEnd: 10,
+    start: 0,
+    end: 1,
+    dragging: null,   // 'start' | 'end' | 'pan' | 'pinch'
+    lastX: 0,
+    pinch0: null,
+    playing: false,
+};
+
+// ---- 峰值提取与缓存 ----
+async function getPeaks() {
+    if (wePeaksVideoKey === currentVideoName && wePeaks) return wePeaks;
+
+    let buf;
+    if (localVideoFile && video.src.startsWith("blob:")) {
+        buf = await localVideoFile.arrayBuffer();
+    } else {
+        const res = await fetch(`/videos/${encodeURIComponent(currentVideoName)}`);
+        buf = await res.arrayBuffer();
+    }
+
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const actx = new AC();
+    try {
+        // 回调形式兼容老 Safari
+        const audioBuf = await new Promise((resolve, reject) => {
+            actx.decodeAudioData(buf, resolve, reject);
+        });
+        const ch = audioBuf.getChannelData(0);
+        const total = Math.ceil(audioBuf.duration * WE_PPS);
+        const win = Math.floor(audioBuf.sampleRate / WE_PPS);
+        const peaks = new Float32Array(total);
+        for (let i = 0; i < total; i++) {
+            let max = 0;
+            const base = i * win;
+            const end = Math.min(base + win, ch.length);
+            for (let j = base; j < end; j += 4) {
+                const v = Math.abs(ch[j]);
+                if (v > max) max = v;
+            }
+            peaks[i] = max;
+        }
+        wePeaks = peaks;
+        wePeaksVideoKey = currentVideoName;
+        return peaks;
+    } finally {
+        actx.close().catch(() => {});
+    }
+}
+
+// ---- 打开/关闭 ----
+async function openWaveEditor(i) {
+    if (i < 0 || i >= segments.length) return;
+    const seg = segments[i];
+    we.idx = i;
+    we.start = seg.start;
+    we.end = seg.end;
+    we.viewStart = Math.max(0, seg.start - 3);
+    we.viewEnd = seg.end + 3;
+    we.playing = false;
+    weSeq.textContent = `#${i + 1}`;
+    weBtnPlay.classList.remove("on");
+
+    weOverlay.style.display = "block";
+    waveEditor.style.display = "block";
+
+    const isLocal = video.src.startsWith("blob:");
+    weBtnRetrans.disabled = isLocal;
+    weStatus.textContent = isLocal ? t("we.localOnly") : "";
+
+    weUpdateReadout();
+    weRender();
+
+    if (!wePeaks || wePeaksVideoKey !== currentVideoName) {
+        weStatus.textContent = t("we.loading");
+        try {
+            await getPeaks();
+            if (we.idx === i) {
+                weStatus.textContent = isLocal ? t("we.localOnly") : "";
+                weRender();
+            }
+        } catch (e) {
+            console.log("[WaveEditor] decode failed:", e);
+            if (we.idx === i) weStatus.textContent = t("we.decodeFail");
+        }
+    }
+}
+
+function closeWaveEditor() {
+    weStopPreview();
+    weOverlay.style.display = "none";
+    waveEditor.style.display = "none";
+    we.idx = -1;
+}
+
+weBtnClose.addEventListener("click", closeWaveEditor);
+weOverlay.addEventListener("click", closeWaveEditor);
+
+// ---- 时间与坐标换算 ----
+function weFormatTime(tSec) {
+    const m = Math.floor(tSec / 60);
+    const s = (tSec % 60).toFixed(2);
+    return `${m}:${s.padStart(5, "0")}`;
+}
+
+function weUpdateReadout() {
+    weStartEl.textContent = weFormatTime(we.start);
+    weEndEl.textContent = weFormatTime(we.end);
+}
+
+function weTimeToX(tSec, w) {
+    return ((tSec - we.viewStart) / (we.viewEnd - we.viewStart)) * w;
+}
+
+function weXToTime(x, w) {
+    return we.viewStart + (x / w) * (we.viewEnd - we.viewStart);
+}
+
+// ---- 渲染 ----
+function weRender() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = weCanvas.width = weCanvas.clientWidth * dpr;
+    const h = weCanvas.height = weCanvas.clientHeight * dpr;
+    const ctx = weCanvas.getContext("2d");
+
+    const span = we.viewEnd - we.viewStart;
+    const barW = 2, gap = 1;
+    const step = (barW + gap) * dpr;
+    const barCount = Math.floor(w / step);
+
+    // 从峰值取每根竖条的振幅
+    const amps = new Float32Array(barCount);
+    if (wePeaks) {
+        for (let b = 0; b < barCount; b++) {
+            const t0 = we.viewStart + (b / barCount) * span;
+            const t1 = we.viewStart + ((b + 1) / barCount) * span;
+            const i0 = Math.floor(t0 * WE_PPS);
+            const i1 = Math.max(i0 + 1, Math.ceil(t1 * WE_PPS));
+            let max = 0;
+            for (let i = Math.max(0, i0); i < i1 && i < wePeaks.length; i++) {
+                if (wePeaks[i] > max) max = wePeaks[i];
+            }
+            amps[b] = Math.min(1, max * 1.5);
+        }
+    } else {
+        amps.fill(0.04);
+    }
+
+    // 底层：暗色全部波形
+    drawBars(ctx, w, h, amps, { color: "rgba(255,255,255,0.28)", barW, gap });
+
+    // 选中区间内：红色波形（clip 重绘）
+    const xs = weTimeToX(we.start, w);
+    const xe = weTimeToX(we.end, w);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(xs, 0, xe - xs, h);
+    ctx.clip();
+    drawBars(ctx, w, h, amps, { color: "#e94560", barW, gap, clear: false });
+    ctx.restore();
+
+    // 邻句边界虚线
+    ctx.setLineDash([4 * dpr, 4 * dpr]);
+    ctx.lineWidth = 1 * dpr;
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    const drawBoundary = (tSec) => {
+        if (tSec === null || tSec < we.viewStart || tSec > we.viewEnd) return;
+        const x = weTimeToX(tSec, w);
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+    };
+    if (we.idx > 0) drawBoundary(Math.min(segments[we.idx - 1].end, we.start));
+    if (we.idx < segments.length - 1) drawBoundary(Math.max(segments[we.idx + 1].start, we.end));
+    ctx.setLineDash([]);
+
+    // 选区把手：竖线 + 圆形抓点
+    const drawHandle = (x) => {
+        ctx.strokeStyle = "#ffd700";
+        ctx.lineWidth = 2 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+        ctx.fillStyle = "#ffd700";
+        ctx.beginPath();
+        ctx.arc(x, h / 2, 7 * dpr, 0, Math.PI * 2);
+        ctx.fill();
+        // 抓点内部纹路
+        ctx.strokeStyle = "#12122a";
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(x - 2 * dpr, h / 2 - 3 * dpr);
+        ctx.lineTo(x - 2 * dpr, h / 2 + 3 * dpr);
+        ctx.moveTo(x + 2 * dpr, h / 2 - 3 * dpr);
+        ctx.lineTo(x + 2 * dpr, h / 2 + 3 * dpr);
+        ctx.stroke();
+    };
+    drawHandle(xs);
+    drawHandle(xe);
+
+    // 预览播放头
+    if (we.playing && video.currentTime >= we.viewStart && video.currentTime <= we.viewEnd) {
+        const px = weTimeToX(video.currentTime, w);
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(px, 0);
+        ctx.lineTo(px, h);
+        ctx.stroke();
+    }
+}
+
+// ---- 触摸交互：拖把手 / 平移 / 双指缩放 ----
+function weTouchDist(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function weCanvasX(clientX) {
+    const rect = weCanvas.getBoundingClientRect();
+    return clientX - rect.left;
+}
+
+function wePointerDown(clientX) {
+    const w = weCanvas.clientWidth;
+    const x = weCanvasX(clientX);
+    const xs = weTimeToX(we.start, w);
+    const xe = weTimeToX(we.end, w);
+    if (Math.abs(x - xs) < 24) {
+        we.dragging = "start";
+    } else if (Math.abs(x - xe) < 24) {
+        we.dragging = "end";
+    } else {
+        we.dragging = "pan";
+        we.lastX = x;
+    }
+}
+
+function wePointerMove(clientX) {
+    const w = weCanvas.clientWidth;
+    const x = weCanvasX(clientX);
+    const span = we.viewEnd - we.viewStart;
+
+    if (we.dragging === "start") {
+        let tSec = weXToTime(x, w);
+        // 下限：上一句的开头 +0.2（可以越过上一句 end，联动收缩上一句）
+        const lower = we.idx > 0 ? segments[we.idx - 1].start + 0.2 : 0;
+        tSec = Math.max(lower, Math.min(tSec, we.end - 0.2));
+        we.start = Math.round(tSec * 100) / 100;
+        weUpdateReadout();
+        weRender();
+    } else if (we.dragging === "end") {
+        let tSec = weXToTime(x, w);
+        // 上限：下一句的结尾 -0.2（可以越过下一句 start，联动推移下一句）
+        const upper = we.idx < segments.length - 1
+            ? segments[we.idx + 1].end - 0.2
+            : (video.duration || tSec + 10);
+        tSec = Math.min(upper, Math.max(tSec, we.start + 0.2));
+        we.end = Math.round(tSec * 100) / 100;
+        weUpdateReadout();
+        weRender();
+    } else if (we.dragging === "pan") {
+        const dt = ((we.lastX - x) / w) * span;
+        let vs = we.viewStart + dt;
+        if (vs < 0) vs = 0;
+        we.viewStart = vs;
+        we.viewEnd = vs + span;
+        we.lastX = x;
+        weRender();
+    }
+}
+
+weCanvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+        const midX = weCanvasX((e.touches[0].clientX + e.touches[1].clientX) / 2);
+        const w = weCanvas.clientWidth;
+        we.dragging = "pinch";
+        we.pinch0 = {
+            dist: weTouchDist(e.touches),
+            span: we.viewEnd - we.viewStart,
+            centerTime: weXToTime(midX, w),
+            centerRatio: midX / w,
+        };
+        return;
+    }
+    wePointerDown(e.touches[0].clientX);
+}, { passive: false });
+
+weCanvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (we.dragging === "pinch" && e.touches.length === 2 && we.pinch0) {
+        const d = weTouchDist(e.touches);
+        let newSpan = we.pinch0.span * (we.pinch0.dist / d);
+        newSpan = Math.max(1, Math.min(60, newSpan));
+        let vs = we.pinch0.centerTime - newSpan * we.pinch0.centerRatio;
+        if (vs < 0) vs = 0;
+        we.viewStart = vs;
+        we.viewEnd = vs + newSpan;
+        weRender();
+        return;
+    }
+    if (e.touches.length === 1) wePointerMove(e.touches[0].clientX);
+}, { passive: false });
+
+weCanvas.addEventListener("touchend", () => {
+    we.dragging = null;
+    we.pinch0 = null;
+});
+
+// 桌面鼠标支持
+weCanvas.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    wePointerDown(e.clientX);
+    const onMove = (ev) => wePointerMove(ev.clientX);
+    const onUp = () => {
+        we.dragging = null;
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+});
+
+// 桌面滚轮缩放
+weCanvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const w = weCanvas.clientWidth;
+    const x = weCanvasX(e.clientX);
+    const centerTime = weXToTime(x, w);
+    const ratio = x / w;
+    const span = we.viewEnd - we.viewStart;
+    let newSpan = span * (e.deltaY > 0 ? 1.2 : 0.8);
+    newSpan = Math.max(1, Math.min(60, newSpan));
+    let vs = centerTime - newSpan * ratio;
+    if (vs < 0) vs = 0;
+    we.viewStart = vs;
+    we.viewEnd = vs + newSpan;
+    weRender();
+}, { passive: false });
+
+// ---- 试听预览 ----
+function wePreview() {
+    if (we.playing) {
+        weStopPreview();
+        return;
+    }
+    we.playing = true;
+    weBtnPlay.classList.add("on");
+    setFrBtnLabelWe(weBtnPlay, t("we.stop"));
+    sentenceMode = false; // 暂停按句复读逻辑
+    video.currentTime = we.start;
+    video.play();
+}
+
+function weStopPreview() {
+    if (!we.playing) return;
+    we.playing = false;
+    weBtnPlay.classList.remove("on");
+    setFrBtnLabelWe(weBtnPlay, t("we.play"));
+    video.pause();
+    sentenceMode = true;
+}
+
+function setFrBtnLabelWe(btn, text) {
+    const label = btn.querySelector(".we-btn-label");
+    if (label) label.textContent = text;
+}
+
+video.addEventListener("timeupdate", () => {
+    if (we.playing) {
+        if (video.currentTime >= we.end) {
+            weStopPreview();
+        }
+        weRender();
+    }
+});
+
+weBtnPlay.addEventListener("click", wePreview);
+
+// ---- 保存 ----
+weBtnSave.addEventListener("click", async () => {
+    const i = we.idx;
+    if (i < 0) return;
+    const seg = segments[i];
+    seg.start = we.start;
+    seg.end = we.end;
+    // 跨句联动：消除与邻句的重叠
+    if (i > 0 && segments[i - 1].end > seg.start) {
+        segments[i - 1].end = Math.max(segments[i - 1].start + 0.1, seg.start);
+    }
+    if (i < segments.length - 1 && segments[i + 1].start < seg.end) {
+        segments[i + 1].start = Math.min(segments[i + 1].end - 0.1, seg.end);
+    }
+    renderSentenceList();
+    highlightSentence(currentIndex);
+    updateRepeatInfo(parseInt(repeatCountSelect.value) || 3);
+    weStatus.textContent = t("we.saved");
+    await saveSubtitle();
+});
+
+// ---- 二次识别 ----
+weBtnRetrans.addEventListener("click", async () => {
+    if (we.idx < 0 || weBtnRetrans.disabled) return;
+    weBtnRetrans.disabled = true;
+    weStatus.textContent = t("we.recognizing");
+
+    const langNameMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
+    const shortLang = (language || "").slice(0, 2).toLowerCase();
+
+    try {
+        const res = await fetch("/api/retranscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                video: currentVideoName,
+                start: we.start,
+                end: we.end,
+                provider: weEngine.value,
+                translate: true,
+                language: shortLang,
+                source_lang: langNameMap[shortLang] || "外语",
+            }),
+        });
+        const data = await res.json();
+        if (data.error) {
+            weStatus.textContent = "❌ " + data.error;
+            return;
+        }
+        const seg = segments[we.idx];
+        if (data.text) seg.text = data.text;
+        if (data.translation) seg.translation = data.translation;
+        renderSentenceList();
+        if (we.idx === currentIndex) updateSubtitle(seg);
+        weStatus.textContent = "✓ " + (data.text || "");
+        await saveSubtitle();
+    } catch (e) {
+        weStatus.textContent = "❌ " + e.message;
+    } finally {
+        weBtnRetrans.disabled = false;
+    }
+});

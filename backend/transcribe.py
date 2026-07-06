@@ -287,6 +287,81 @@ def transcribe_azure(video_path):
             os.remove(wav_path)
 
 
+def transcribe_slice(audio_path, provider="groq", language=None):
+    """识别一个音频切片（已切好的短音频文件），返回拼接后的完整文本。
+    language: 短语言码如 "th"/"en"，Azure 需要明确语言（自动检测限 4 种会报错）"""
+    if provider == "azure":
+        result = transcribe_azure_slice(audio_path, language)
+    else:
+        result = transcribe_groq(audio_path)
+    text = " ".join(seg["text"] for seg in result["segments"]).strip()
+    return {"text": text, "language": result.get("language", "unknown")}
+
+
+AZURE_LOCALE_MAP = {
+    "th": "th-TH", "en": "en-US", "ja": "ja-JP", "ko": "ko-KR",
+    "fr": "fr-FR", "de": "de-DE", "es": "es-ES", "pt": "pt-BR",
+    "ru": "ru-RU", "it": "it-IT", "zh": "zh-CN", "vi": "vi-VN", "hi": "hi-IN",
+}
+
+
+def transcribe_azure_slice(wav_path, language=None):
+    """用 Azure 识别短音频切片，明确指定语言（不用自动检测）"""
+    import azure.cognitiveservices.speech as speechsdk
+
+    speech_key = os.environ.get("AZURE_SPEECH_KEY", "")
+    speech_region = os.environ.get("AZURE_SPEECH_REGION", "")
+    if not speech_key or not speech_region:
+        raise RuntimeError("请在 .env 中配置 AZURE_SPEECH_KEY 和 AZURE_SPEECH_REGION")
+
+    short = (language or "en")[:2].lower()
+    locale = AZURE_LOCALE_MAP.get(short, "en-US")
+
+    speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+    speech_config.speech_recognition_language = locale
+    audio_config = speechsdk.audio.AudioConfig(filename=wav_path)
+    recognizer = speechsdk.SpeechRecognizer(
+        speech_config=speech_config, audio_config=audio_config
+    )
+
+    segments = []
+    done_event = threading.Event()
+
+    def on_recognized(evt):
+        import azure.cognitiveservices.speech as sdk
+        if evt.result.reason == sdk.ResultReason.RecognizedSpeech:
+            text = evt.result.text.strip()
+            if text:
+                offset_s = evt.result.offset / 10_000_000
+                duration_s = evt.result.duration / 10_000_000
+                segments.append({
+                    "text": text,
+                    "start": round(offset_s, 2),
+                    "end": round(offset_s + duration_s, 2),
+                })
+
+    def on_stopped(evt):
+        done_event.set()
+
+    def on_canceled(evt):
+        if evt.cancellation_details.reason == speechsdk.CancellationReason.Error:
+            print(f"Azure Slice 错误: {evt.cancellation_details.error_details}")
+        done_event.set()
+
+    recognizer.recognized.connect(on_recognized)
+    recognizer.session_stopped.connect(on_stopped)
+    recognizer.canceled.connect(on_canceled)
+
+    recognizer.start_continuous_recognition()
+    done_event.wait(timeout=120)
+    recognizer.stop_continuous_recognition()
+
+    for i, seg in enumerate(segments):
+        seg["index"] = i
+
+    return {"segments": segments, "language": short}
+
+
 def get_azure_result(video_path):
     """调用 Azure Speech，返回完整的 segments 列表和语言"""
     result = transcribe_azure(video_path)
