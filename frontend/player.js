@@ -969,75 +969,33 @@ async function openLocalFiles() {
         video.play();
         initMobileOverlays();
     } else {
-        // 没有字幕文件，需要上传到服务器识别，显示加载遮罩
+        // 没有字幕文件：先上传到服务器，再走与"粘贴链接"完全一致的识别翻译流程
         isLoading = true;
         loadingOverlay.style.display = "flex";
         setStep("step1", "active");
         setTip(t("status.uploadingServer"));
 
-        const formData = new FormData();
-        formData.append("video", videoFile);
+        let serverName;
         try {
+            const formData = new FormData();
+            formData.append("video", videoFile);
             const res = await fetch("/api/upload-video", { method: "POST", body: formData });
             const data = await res.json();
             if (data.error) {
-                setStep("step2", "error");
+                setStep("step1", "error");
                 setTip(t("status.uploadFail") + data.error);
                 return;
             }
-            currentVideoName = data.name;
-            // 用服务器的视频地址替换本地 URL（确保后续跟读等功能正常）
-            video.src = `/videos/${encodeURIComponent(data.name)}`;
-            video.load();
-            await waitForVideo();
+            serverName = data.name;
         } catch (e) {
-            setStep("step2", "error");
+            setStep("step1", "error");
             setTip(t("status.uploadFail") + e.message);
             return;
         }
 
-        // 继续走识别翻译流程
-        const provider = transcribeProvider.value;
-        setStep("step2", "active");
-        setTip(t("status.recognizing"));
-        try {
-            const segTarget = segmentTarget.value || null;
-            const res = await fetch("/api/transcribe", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ video: currentVideoName, provider, segment_target: segTarget }),
-            });
-            const data = await res.json();
-            if (data.error) { setStep("step2", "error"); setTip(t("status.recognizeFail") + data.error); return; }
-            segments = data.segments || [];
-            language = data.language || "";
-            setStep("step2", "done");
-        } catch (e) { setStep("step2", "error"); setTip(t("status.recognizeFail") + e.message); return; }
-
-        setStep("step3", "active");
-        setTip(t("status.translating"));
-        const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
-        const sourceLang = langMap[language] || "外语";
-        try {
-            const res = await fetch("/api/translate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ segments: segments.map(s => ({ index: s.index, text: s.text })), source_lang: sourceLang, target_lang: getTargetLang() }),
-            });
-            const data = await res.json();
-            if (!data.error) {
-                (data.translations || []).forEach(tr => { if (segments[tr.index]) segments[tr.index].translation = tr.translation; });
-            }
-            setStep("step3", "done");
-            setTip(t("status.allReady"));
-        } catch (e) { setStep("step3", "error"); setTip(t("status.translateFail") + e.message); }
-
-        await saveSubtitle();
-        await delay(500);
-        finishLoading();
-
-        // 用户本地已有视频文件，只需下载字幕
-        saveToLocal(true);
+        // 统一流程：与链接下载/重新识别使用同一个 startLoading
+        // subtitleOnly=true：用户本地已有视频文件，完成后只下载字幕
+        await startLoading(serverName, true);
     }
 
     input.value = "";
@@ -1140,7 +1098,7 @@ async function loadSaved(videoName) {
 }
 
 // ========== 完整加载流程 ==========
-async function startLoading(videoName) {
+async function startLoading(videoName, subtitleOnly) {
     showPlayerWithVideo(videoName);
 
     // 步骤 1：加载视频
@@ -1219,8 +1177,8 @@ async function startLoading(videoName) {
     await delay(500);
     finishLoading();
 
-    // 处理完成后自动下载视频+字幕到本地
-    saveToLocal();
+    // 处理完成后自动下载到本地（subtitleOnly: 用户本地已有视频，只下字幕）
+    saveToLocal(subtitleOnly === true);
 }
 
 // ========== 等待视频可播放 ==========
