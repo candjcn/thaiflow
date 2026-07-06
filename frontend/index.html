@@ -163,45 +163,89 @@
                 </div>
             </div>
 
-            <!-- 播放控制 -->
+            <!-- 播放控制（桌面：键盘优先，控件带键帽标注） -->
             <div class="controls" id="controlsBar">
-                <button id="btnBack" data-i18n-title="ctrl.back" title="返回选择">↩</button>
-                <span class="separator">|</span>
-                <button id="btnPrev" data-i18n-title="ctrl.prev" title="上一句">⏮</button>
-                <button id="btnPause" data-i18n-title="ctrl.pause" title="暂停/播放">⏸</button>
-                <button id="btnRepeat" data-i18n-title="ctrl.repeat" title="重复当前句">🔄</button>
-                <button id="btnNext" data-i18n-title="ctrl.next" title="下一句">⏭</button>
-                <span class="separator">|</span>
-                <label data-i18n="ctrl.repeat.label">重复</label>
-                <select id="repeatCount">
-                    <option value="1" selected>1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="5">5</option>
-                    <option value="10">10</option>
-                    <option value="9999">&infin;</option>
-                </select>
-                <label data-i18n="ctrl.repeat.unit">遍</label>
-                <span class="separator">|</span>
-                <label data-i18n="ctrl.speed.label">速度</label>
-                <select id="playbackRate">
-                    <option value="0.5">0.5x</option>
-                    <option value="0.75">0.75x</option>
-                    <option value="1" selected>1x</option>
-                    <option value="1.25">1.25x</option>
-                    <option value="1.5">1.5x</option>
-                </select>
-                <span class="separator hide-mobile">|</span>
-                <label class="hide-mobile"><input type="checkbox" id="chkOriginal" checked> <span data-i18n="ctrl.original">原文</span></label>
-                <label class="hide-mobile"><input type="checkbox" id="chkTranslation" checked> <span data-i18n="ctrl.translation">译文</span></label>
-                <span class="separator hide-mobile">|</span>
-                <button id="btnList" data-i18n-title="ctrl.list" title="句子列表" class="hide-mobile">📋</button>
-                <button id="btnFollowRead" data-i18n-title="ctrl.follow" title="跟读当前句" data-i18n="ctrl.follow">跟读</button>
-                <button id="btnSaveLocal" data-i18n-title="ctrl.save" title="保存到本地" data-i18n="ctrl.save">保存</button>
-                <button id="btnExport" data-i18n-title="ctrl.export" title="导出" data-i18n="ctrl.export">导出</button>
-                <button id="btnFullscreen" data-i18n-title="ctrl.fullscreen" title="全屏">⛶</button>
-                <span id="timeDisplay" class="time-display">0:00 / 0:00</span>
-                <span id="repeatInfo" class="repeat-info"></span>
+                <!-- 左组：返回 + 时间 -->
+                <div class="ctrl-group ctrl-group-left">
+                    <button class="ctrl-btn" id="btnBack" data-key="Escape" data-i18n-title="ctrl.back" title="返回选择">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg>
+                        <kbd>Esc</kbd>
+                    </button>
+                    <span id="timeDisplay" class="time-display">0:00 / 0:00</span>
+                    <span id="repeatInfo" class="repeat-info"></span>
+                </div>
+
+                <!-- 中组：播放核心四键 -->
+                <div class="ctrl-group ctrl-group-center">
+                    <button class="ctrl-btn" id="btnPrev" data-key="ArrowLeft" data-i18n-title="ctrl.prev" title="上一句">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19,20 9,12 19,4"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+                        <kbd>←</kbd>
+                    </button>
+                    <button class="ctrl-btn ctrl-btn-play" id="btnPause" data-key="Space" data-i18n-title="ctrl.pause" title="暂停/播放">
+                        <svg class="ic-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,4 20,12 6,20"/></svg>
+                        <svg class="ic-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="5" x2="8" y2="19"/><line x1="16" y1="5" x2="16" y2="19"/></svg>
+                        <kbd data-i18n="kbd.space">空格</kbd>
+                    </button>
+                    <button class="ctrl-btn" id="btnRepeat" data-key="KeyR" data-i18n-title="ctrl.repeat" title="重复当前句">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 2.64 6.36"/><polyline points="3,22 3,16 9,16"/></svg>
+                        <kbd>R</kbd>
+                    </button>
+                    <button class="ctrl-btn" id="btnNext" data-key="ArrowRight" data-i18n-title="ctrl.next" title="下一句">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5,4 15,12 5,20"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                        <kbd>→</kbd>
+                    </button>
+                </div>
+
+                <!-- 右组：设置 + 功能 -->
+                <div class="ctrl-group ctrl-group-right">
+                    <div class="ctrl-field">
+                        <label data-i18n="ctrl.repeat.label">重复</label>
+                        <select id="repeatCount">
+                            <option value="1" selected>1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="9999">&infin;</option>
+                        </select>
+                    </div>
+                    <div class="ctrl-field" data-key-hint="updown">
+                        <label data-i18n="ctrl.speed.label">速度</label>
+                        <select id="playbackRate">
+                            <option value="0.5">0.5x</option>
+                            <option value="0.75">0.75x</option>
+                            <option value="1" selected>1x</option>
+                            <option value="1.25">1.25x</option>
+                            <option value="1.5">1.5x</option>
+                        </select>
+                        <kbd>↑↓</kbd>
+                    </div>
+                    <div class="sub-toggles">
+                        <label class="sub-toggle"><input type="checkbox" id="chkOriginal" checked><span data-i18n="ctrl.original">原文</span></label>
+                        <label class="sub-toggle"><input type="checkbox" id="chkTranslation" checked><span data-i18n="ctrl.translation">译文</span></label>
+                    </div>
+                    <button class="ctrl-btn" id="btnList" data-key="KeyL" data-i18n-title="ctrl.list" title="句子列表">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="0.5"/><circle cx="4" cy="12" r="0.5"/><circle cx="4" cy="18" r="0.5"/></svg>
+                        <kbd>L</kbd>
+                    </button>
+                    <button class="ctrl-btn" id="btnFollowRead" data-key="KeyS" data-i18n-title="ctrl.follow" title="跟读当前句">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="21" x2="12" y2="18"/></svg>
+                        <kbd>S</kbd>
+                    </button>
+                    <div class="more-wrap">
+                        <button class="ctrl-btn" id="btnMore" title="更多">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                        </button>
+                        <div class="more-menu" id="moreMenu" style="display:none;">
+                            <button id="btnSaveLocal" data-i18n="ctrl.save">保存</button>
+                            <button id="btnExport" data-i18n="ctrl.export">导出</button>
+                        </div>
+                    </div>
+                    <button class="ctrl-btn" id="btnFullscreen" data-key="KeyF" data-i18n-title="ctrl.fullscreen" title="全屏">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                        <kbd>F</kbd>
+                    </button>
+                </div>
             </div>
 
             <!-- 移动端控制栏 -->

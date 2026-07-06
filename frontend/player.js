@@ -556,39 +556,108 @@ videoContainer.addEventListener("click", (e) => {
     togglePause();
 });
 
-// 键盘快捷键
+// 键盘快捷键（桌面键盘优先操作）
+const SPEED_STEPS = [0.5, 0.75, 1, 1.25, 1.5];
+
+function stepSpeed(dir) {
+    const cur = parseFloat(playbackRateSelect.value);
+    const i = SPEED_STEPS.indexOf(cur);
+    const next = SPEED_STEPS[Math.min(SPEED_STEPS.length - 1, Math.max(0, i + dir))];
+    playbackRateSelect.value = String(next);
+    video.playbackRate = next;
+    // 同步移动端速度按钮
+    if (mSpeedBtn) mSpeedBtn.textContent = next + "x";
+}
+
+// 按键 → 对应按钮闪光反馈（键盘与界面联动）
+function flashKeyButton(code) {
+    const btn = document.querySelector(`.ctrl-btn[data-key="${code}"]`);
+    if (!btn) return;
+    btn.classList.add("kbd-flash");
+    setTimeout(() => btn.classList.remove("kbd-flash"), 200);
+}
+
 document.addEventListener("keydown", (e) => {
     if (phasePlay.style.display === "none") return;
-    if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+    if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
 
     switch (e.code) {
         case "Space":
             e.preventDefault();
             togglePause();
+            flashKeyButton("Space");
             break;
         case "ArrowLeft":
             e.preventDefault();
             prevSentence();
+            flashKeyButton("ArrowLeft");
             break;
         case "ArrowRight":
             e.preventDefault();
             nextSentence();
+            flashKeyButton("ArrowRight");
+            break;
+        case "ArrowUp":
+            e.preventDefault();
+            stepSpeed(1);
+            break;
+        case "ArrowDown":
+            e.preventDefault();
+            stepSpeed(-1);
             break;
         case "KeyR":
             e.preventDefault();
             repeatCurrent();
+            flashKeyButton("KeyR");
+            break;
+        case "KeyL":
+            e.preventDefault();
+            toggleDrawer();
+            flashKeyButton("KeyL");
+            break;
+        case "KeyS":
+            e.preventDefault();
+            if (followReadPanel.style.display === "none") {
+                openFollowRead();
+            } else {
+                closeFollowRead();
+            }
+            flashKeyButton("KeyS");
             break;
         case "KeyF":
             e.preventDefault();
             toggleFullscreen();
+            flashKeyButton("KeyF");
+            break;
+        case "Escape":
+            // 原生全屏时 Esc 由浏览器处理退出全屏；非全屏时返回选择页
+            if (!isNativeFullscreen()) {
+                if (isCssFullscreen()) {
+                    exitFullscreen();
+                } else {
+                    backToSelect();
+                }
+                flashKeyButton("Escape");
+            }
             break;
     }
 });
 
-// 同步暂停按钮文字
-video.addEventListener("play", () => { btnPause.textContent = "⏸"; });
+// 更多菜单（保存/导出）
+const btnMore = document.getElementById("btnMore");
+const moreMenu = document.getElementById("moreMenu");
+btnMore.addEventListener("click", (e) => {
+    e.stopPropagation();
+    moreMenu.style.display = moreMenu.style.display === "none" ? "flex" : "none";
+});
+document.addEventListener("click", (e) => {
+    if (!e.target.closest(".more-wrap")) moreMenu.style.display = "none";
+});
+
+// 同步暂停按钮图标（SVG 切换）
+video.addEventListener("play", () => { btnPause.classList.add("playing"); });
 video.addEventListener("pause", () => {
-    if (!isLoading) btnPause.textContent = "▶";
+    if (!isLoading) btnPause.classList.remove("playing");
 });
 
 // 字幕宽度跟随视频实际渲染宽度

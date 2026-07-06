@@ -713,25 +713,208 @@ video {
     display: none;
 }
 
-/* 控制栏 */
+/* ==========================================
+   桌面控制栏：键盘优先，控件带键帽标注
+   ========================================== */
 .controls {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: rgba(22, 33, 62, 0.95);
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 16px;
+    background: rgba(10, 10, 22, 0.96);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
     flex-shrink: 0;
-    flex-wrap: wrap;
 }
 
-.separator {
-    color: #333;
+.ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ctrl-group-left { flex: 1; }
+.ctrl-group-center { flex-shrink: 0; gap: 4px; }
+.ctrl-group-right { flex: 1; justify-content: flex-end; }
+
+/* 键帽标注：物理键帽风格 */
+.controls kbd {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 9px;
+    line-height: 1;
+    padding: 2px 5px;
+    color: #777;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+/* 控制按钮：图标 + 键帽 垂直排列 */
+.ctrl-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 5px 9px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: #ccc;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.ctrl-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.controls .ctrl-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+
+.ctrl-btn:focus-visible {
+    outline: 2px solid #e94560;
+    outline-offset: 1px;
+}
+
+/* 按下真实按键时的联动闪光 */
+.controls .ctrl-btn.kbd-flash {
+    background: rgba(233, 69, 96, 0.35);
+    color: #fff;
+}
+
+.controls .ctrl-btn.kbd-flash kbd {
+    color: #ffb3c0;
+    border-color: #e94560;
+}
+
+/* 播放键：主操作，放大突出 */
+.ctrl-btn-play {
+    padding: 5px 14px;
+    background: rgba(233, 69, 96, 0.14);
+}
+
+.ctrl-btn-play svg {
+    width: 22px;
+    height: 22px;
+}
+
+.controls .ctrl-btn-play:hover {
+    background: rgba(233, 69, 96, 0.28);
+}
+
+.ctrl-btn-play .ic-pause { display: none; }
+.ctrl-btn-play.playing .ic-play { display: none; }
+.ctrl-btn-play.playing .ic-pause { display: block; }
+
+/* 下拉字段：标签 + select (+键帽) */
+.ctrl-field {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: #888;
+}
+
+.ctrl-field select {
+    padding: 4px 6px;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: #ddd;
+    cursor: pointer;
+}
+
+/* 字幕开关 pill */
+.sub-toggles {
+    display: flex;
+    gap: 4px;
+}
+
+.sub-toggle {
+    position: relative;
+    cursor: pointer;
+}
+
+.sub-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.sub-toggle span {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 11px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #666;
+    transition: all 0.15s;
+    user-select: none;
+}
+
+.sub-toggle input:checked + span {
+    background: rgba(255, 215, 0, 0.12);
+    border-color: rgba(255, 215, 0, 0.4);
+    color: #ffd700;
+}
+
+.sub-toggle:last-child input:checked + span {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #eee;
+}
+
+/* 更多菜单 */
+.more-wrap {
+    position: relative;
+}
+
+.more-menu {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    background: rgba(16, 16, 32, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 6px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 120px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.more-menu button {
+    padding: 8px 14px;
+    font-size: 13px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #ddd;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.controls .more-menu button:hover {
+    background: rgba(233, 69, 96, 0.18);
+    color: #fff;
 }
 
 .time-display {
     color: #888;
     font-size: 12px;
-    font-family: monospace;
+    font-family: ui-monospace, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
@@ -1070,13 +1253,18 @@ label {
 
 .follow-read-panel {
     position: absolute;
-    bottom: 46px;
-    left: 0;
-    right: 0;
+    bottom: 58px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 620px;
     z-index: 150;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
+    border-radius: 14px 14px 0 0;
+    overflow: hidden;
+    box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.5);
 }
 
 /* 固定区：标题 + 参考文本 + 按钮，永不移动 */
@@ -1832,6 +2020,9 @@ label {
 
     .follow-read-panel {
         bottom: 48px; /* 不覆盖底部菜单栏 */
+        max-width: none;
+        border-radius: 0;
+        box-shadow: none;
     }
 
     .fr-fixed {
