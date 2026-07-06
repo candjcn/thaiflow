@@ -8,8 +8,12 @@ document.querySelectorAll(".lang-switcher-btn").forEach(btn => {
 
 // ========== 获取用户翻译目标语言 ==========
 function getTargetLang() {
-    // 根据用户浏览器语言 / UI 语言决定字幕翻译成什么语言
-    const lang = navigator.language || navigator.userLanguage || "zh-CN";
+    // 跟随界面语言（右上角 简/繁/EN 切换），不再依赖浏览器上报语言
+    const uiLang = I18N.currentLang || "zh-CN";
+    if (uiLang === "zh-CN") return "中文";
+    if (uiLang === "zh-TW") return "繁體中文";
+    // 界面为英文时，按浏览器语言细分目标语言
+    const lang = navigator.language || navigator.userLanguage || "en";
     if (lang.startsWith("zh")) {
         if (lang === "zh-TW" || lang === "zh-HK" || lang === "zh-Hant") {
             return "繁體中文";
