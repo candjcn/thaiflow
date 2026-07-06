@@ -2565,9 +2565,8 @@ async function openWaveEditor(i) {
     weOverlay.style.display = "block";
     waveEditor.style.display = "block";
 
-    const isLocal = video.src.startsWith("blob:");
-    weBtnRetrans.disabled = isLocal;
-    weStatus.textContent = isLocal ? t("we.localOnly") : "";
+    weBtnRetrans.disabled = false;
+    weStatus.textContent = "";
 
     weUpdateReadout();
     weRender();
@@ -2577,7 +2576,7 @@ async function openWaveEditor(i) {
         try {
             await getPeaks();
             if (we.idx === i) {
-                weStatus.textContent = isLocal ? t("we.localOnly") : "";
+                weStatus.textContent = "";
                 weRender();
             }
         } catch (e) {
@@ -2912,20 +2911,39 @@ weBtnRetrans.addEventListener("click", async () => {
     const langNameMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
     const shortLang = (language || "").slice(0, 2).toLowerCase();
 
+    const isLocal = video.src.startsWith("blob:") && localVideoFile;
+
     try {
-        const res = await fetch("/api/retranscribe", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                video: currentVideoName,
-                start: we.start,
-                end: we.end,
-                provider: weEngine.value,
-                translate: true,
-                language: shortLang,
-                source_lang: langNameMap[shortLang] || "外语",
-            }),
-        });
+        let res;
+        if (isLocal) {
+            // 本地视频：客户端切音频编码 WAV 上传识别
+            const wavBlob = await getLocalAudioSliceWav(we.start, we.end);
+            const formData = new FormData();
+            formData.append("audio", wavBlob, "slice.wav");
+            formData.append("provider", weEngine.value);
+            formData.append("translate", "true");
+            formData.append("language", shortLang);
+            formData.append("source_lang", langNameMap[shortLang] || "外语");
+            res = await fetch("/api/retranscribe-audio", {
+                method: "POST",
+                body: formData,
+            });
+        } else {
+            // 服务器视频：后端直接切片
+            res = await fetch("/api/retranscribe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    video: currentVideoName,
+                    start: we.start,
+                    end: we.end,
+                    provider: weEngine.value,
+                    translate: true,
+                    language: shortLang,
+                    source_lang: langNameMap[shortLang] || "外语",
+                }),
+            });
+        }
         const data = await res.json();
         if (data.error) {
             weStatus.textContent = "❌ " + data.error;
@@ -2944,3 +2962,48 @@ weBtnRetrans.addEventListener("click", async () => {
         weBtnRetrans.disabled = false;
     }
 });
+
+// ---- 本地视频：客户端切音频并编码 WAV（供二次识别上传） ----
+async function getLocalAudioSliceWav(startSec, endSec) {
+    const buf = await localVideoFile.arrayBuffer();
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const actx = new AC();
+    try {
+        const audioBuf = await new Promise((resolve, reject) => {
+            actx.decodeAudioData(buf, resolve, reject);
+        });
+        const sr = audioBuf.sampleRate;
+        const ch = audioBuf.getChannelData(0);
+        const i0 = Math.max(0, Math.floor(startSec * sr));
+        const i1 = Math.min(ch.length, Math.ceil(endSec * sr));
+        const slice = ch.subarray(i0, i1);
+
+        // 编码 16-bit PCM WAV（单声道，原采样率，后端会再转 16k）
+        const dataLen = slice.length * 2;
+        const wav = new ArrayBuffer(44 + dataLen);
+        const dv = new DataView(wav);
+        const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); };
+        writeStr(0, "RIFF");
+        dv.setUint32(4, 36 + dataLen, true);
+        writeStr(8, "WAVE");
+        writeStr(12, "fmt ");
+        dv.setUint32(16, 16, true);
+        dv.setUint16(20, 1, true);       // PCM
+        dv.setUint16(22, 1, true);       // mono
+        dv.setUint32(24, sr, true);
+        dv.setUint32(28, sr * 2, true);  // byte rate
+        dv.setUint16(32, 2, true);       // block align
+        dv.setUint16(34, 16, true);      // bits
+        writeStr(36, "data");
+        dv.setUint32(40, dataLen, true);
+        let off = 44;
+        for (let i = 0; i < slice.length; i++) {
+            const v = Math.max(-1, Math.min(1, slice[i]));
+            dv.setInt16(off, v < 0 ? v * 0x8000 : v * 0x7FFF, true);
+            off += 2;
+        }
+        return new Blob([wav], { type: "audio/wav" });
+    } finally {
+        actx.close().catch(() => {});
+    }
+}

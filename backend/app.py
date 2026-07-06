@@ -345,6 +345,59 @@ def api_retranscribe():
             os.remove(wav_path)
 
 
+@app.route("/api/retranscribe-audio", methods=["POST"])
+def api_retranscribe_audio():
+    """对上传的音频切片进行二次识别（本地视频场景：前端切好音频上传）"""
+    if "audio" not in request.files:
+        return jsonify({"error": "缺少音频文件"}), 400
+
+    provider = request.form.get("provider", "groq")
+    do_translate = request.form.get("translate", "true") == "true"
+    source_lang = request.form.get("source_lang", "泰语")
+    language = request.form.get("language", "")
+
+    if provider not in ("groq", "azure"):
+        return jsonify({"error": "不支持的识别引擎"}), 400
+
+    audio_file = request.files["audio"]
+    raw_path = os.path.join(VIDEOS_DIR, f".upload_slice_{os.getpid()}.wav")
+    wav_path = raw_path + ".16k.wav"
+    try:
+        audio_file.save(raw_path)
+        if os.path.getsize(raw_path) > 20 * 1024 * 1024:
+            return jsonify({"error": "音频切片过大"}), 400
+
+        # 统一转成 16kHz 单声道，兼容任何上传采样率
+        cmd = [
+            "ffmpeg", "-y", "-i", raw_path,
+            "-ar", "16000", "-ac", "1", "-sample_fmt", "s16",
+            wav_path,
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            return jsonify({"error": "音频转换失败: " + r.stderr[-200:]}), 500
+
+        result = transcribe_slice(wav_path, provider, language=language)
+        text = result["text"]
+
+        translation = ""
+        if do_translate and text:
+            try:
+                translated = translate_segments([{"index": 0, "text": text}], source_lang, "中文")
+                if translated:
+                    translation = translated[0].get("translation", "")
+            except Exception as te:
+                print(f"[RetranscribeAudio] 翻译失败: {te}")
+
+        return jsonify({"text": text, "translation": translation})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+    finally:
+        for p in (raw_path, wav_path):
+            if os.path.exists(p):
+                os.remove(p)
+
+
 @app.route("/api/translate", methods=["POST"])
 def api_translate():
     """翻译句子"""
