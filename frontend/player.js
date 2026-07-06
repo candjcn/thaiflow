@@ -147,7 +147,7 @@ btnDirSelect.addEventListener("click", () => {
 });
 btnDirCancel.addEventListener("click", () => { dirBrowser.style.display = "none"; });
 btnFollowRead.addEventListener("click", openFollowRead);
-document.getElementById("btnSaveLocal").addEventListener("click", saveToLocal);
+document.getElementById("btnSaveLocal").addEventListener("click", () => saveToLocal(false, true));
 btnDownloadUrl.addEventListener("click", downloadFromUrl);
 document.getElementById("localFiles").addEventListener("change", openLocalFiles);
 btnFrClose.addEventListener("click", closeFollowRead);
@@ -161,7 +161,7 @@ btnCloseDrawer.addEventListener("click", () => {
 
 // 句子列表：下载字幕到本地（JSON + SRT）
 document.getElementById("btnDrawerSave").addEventListener("click", () => {
-    saveToLocal(true);
+    saveToLocal(true, true); // 用户点击：可弹目录选择
 });
 
 playbackRateSelect.addEventListener("change", () => {
@@ -955,40 +955,125 @@ function generateSrt(field) {
         .join("\n");
 }
 
-function downloadBlob(content, mimeType, filename, delayMs) {
-    const blob = new Blob([content], { type: mimeType });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    setTimeout(() => link.click(), delayMs);
+// ========== 保存目录记忆（File System Access API，Chrome/Edge 桌面） ==========
+function fsIdb(mode, key, val) {
+    return new Promise((resolve) => {
+        const req = indexedDB.open("thaiflow-fs", 1);
+        req.onupgradeneeded = () => req.result.createObjectStore("kv");
+        req.onerror = () => resolve(null);
+        req.onsuccess = () => {
+            const db = req.result;
+            const tx = db.transaction("kv", mode === "get" ? "readonly" : "readwrite");
+            const store = tx.objectStore("kv");
+            const r = mode === "get" ? store.get(key) : store.put(val, key);
+            r.onsuccess = () => resolve(mode === "get" ? r.result : true);
+            r.onerror = () => resolve(null);
+        };
+    });
 }
 
-// subtitleOnly: 为 true 时只下载字幕（用户本地已有视频文件时）
-function saveToLocal(subtitleOnly) {
+// interactive: 是否处于用户手势中（选目录/请求权限需要手势）
+async function getSaveDir(interactive) {
+    if (!window.showDirectoryPicker) return null; // Safari 等不支持
+
+    let handle = await fsIdb("get", "saveDir");
+    if (handle) {
+        try {
+            let perm = await handle.queryPermission({ mode: "readwrite" });
+            if (perm === "granted") return handle;
+            if (interactive) {
+                perm = await handle.requestPermission({ mode: "readwrite" });
+                if (perm === "granted") return handle;
+            } else {
+                return null; // 无手势无法请求权限，回退下载
+            }
+        } catch (e) { /* handle 失效，重新选 */ }
+    }
+
+    if (!interactive) return null;
+    try {
+        handle = await window.showDirectoryPicker({ mode: "readwrite" });
+        await fsIdb("put", "saveDir", handle);
+        return handle;
+    } catch (e) {
+        return null; // 用户取消
+    }
+}
+
+async function writeFileToDir(dir, filename, blob) {
+    const fh = await dir.getFileHandle(filename, { create: true });
+    const w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+}
+
+// 轻量提示条
+function showToast(text) {
+    let el = document.getElementById("appToast");
+    if (!el) {
+        el = document.createElement("div");
+        el.id = "appToast";
+        el.className = "app-toast";
+        document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.add("show");
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.classList.remove("show"), 3000);
+}
+
+// subtitleOnly: 为 true 时只保存字幕（用户本地已有视频文件时）
+// interactive: 是否由用户点击触发（首次可弹目录选择框）
+async function saveToLocal(subtitleOnly, interactive) {
     if (!currentVideoName || segments.length === 0) return;
 
+    const baseName = currentVideoName.replace(/\.[^.]+$/, "");
+    const files = [];
+
+    // 1. JSON（本应用回放用：含译文和语言信息）
+    files.push([baseName + ".json",
+        new Blob([JSON.stringify({ segments, language }, null, 2)], { type: "application/json" })]);
+    // 2. SRT 原文（可导入剪映等编辑软件）
+    files.push([baseName + "_原文.srt",
+        new Blob([generateSrt("text")], { type: "text/plain" })]);
+    // 3. SRT 中文译文（如果有翻译）
+    if (segments.some(s => s.translation)) {
+        files.push([baseName + "_中文.srt",
+            new Blob([generateSrt("translation")], { type: "text/plain" })]);
+    }
+
+    // 优先：写入记住的目录（只选一次，之后自动保存）
+    const dir = await getSaveDir(interactive === true);
+    if (dir) {
+        try {
+            if (!subtitleOnly) {
+                const res = await fetch(`/videos/${encodeURIComponent(currentVideoName)}`);
+                files.unshift([currentVideoName, await res.blob()]);
+            }
+            for (const [name, blob] of files) {
+                await writeFileToDir(dir, name, blob);
+            }
+            showToast(t("save.savedToDir", { n: files.length, dir: dir.name }));
+            return;
+        } catch (e) {
+            console.log("[Save] 目录写入失败，回退下载:", e);
+        }
+    }
+
+    // 回退：浏览器下载（Safari / 未授权目录时）
     if (!subtitleOnly) {
-        // 下载视频文件
         const videoLink = document.createElement("a");
         videoLink.href = `/videos/${encodeURIComponent(currentVideoName)}`;
         videoLink.download = currentVideoName;
         videoLink.click();
     }
-
-    const baseName = currentVideoName.replace(/\.[^.]+$/, "");
     let delay = subtitleOnly ? 0 : 500;
-
-    // 1. JSON（本应用回放用：含译文和语言信息）
-    const subtitleData = JSON.stringify({ segments, language }, null, 2);
-    downloadBlob(subtitleData, "application/json", baseName + ".json", delay);
-
-    // 2. SRT 原文（可导入剪映等编辑软件）
-    downloadBlob(generateSrt("text"), "text/plain", baseName + "_原文.srt", delay + 500);
-
-    // 3. SRT 中文译文（如果有翻译）
-    if (segments.some(s => s.translation)) {
-        downloadBlob(generateSrt("translation"), "text/plain", baseName + "_中文.srt", delay + 1000);
-    }
+    files.forEach(([name, blob], i) => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = name;
+        setTimeout(() => link.click(), delay + i * 500);
+    });
 }
 
 // ========== 打开本地文件（直接播放，不上传） ==========
@@ -1227,7 +1312,7 @@ async function startLoading(videoName, subtitleOnly) {
     finishLoading();
 
     // 处理完成后自动下载到本地（subtitleOnly: 用户本地已有视频，只下字幕）
-    saveToLocal(subtitleOnly === true);
+    saveToLocal(subtitleOnly === true, false); // 自动保存：已授权目录则静默写入，否则回退下载
 }
 
 // ========== 等待视频可播放 ==========
