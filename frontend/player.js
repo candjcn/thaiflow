@@ -110,8 +110,6 @@ const frWords = document.getElementById("frWords");
 const videoUrlInput = document.getElementById("videoUrlInput");
 const btnDownloadUrl = document.getElementById("btnDownloadUrl");
 const urlStatus = document.getElementById("urlStatus");
-const fileUpload = document.getElementById("fileUpload");
-const uploadStatus = document.getElementById("uploadStatus");
 const btnBrowseDir = document.getElementById("btnBrowseDir");
 const dirBrowser = document.getElementById("dirBrowser");
 const dirCurrent = document.getElementById("dirCurrent");
@@ -151,7 +149,6 @@ btnDirCancel.addEventListener("click", () => { dirBrowser.style.display = "none"
 btnFollowRead.addEventListener("click", openFollowRead);
 document.getElementById("btnSaveLocal").addEventListener("click", saveToLocal);
 btnDownloadUrl.addEventListener("click", downloadFromUrl);
-fileUpload.addEventListener("change", uploadVideo);
 document.getElementById("localFiles").addEventListener("change", openLocalFiles);
 btnFrClose.addEventListener("click", closeFollowRead);
 btnFrPlayOriginal.addEventListener("click", toggleShadowRead);
@@ -999,42 +996,6 @@ async function openLocalFiles() {
     }
 
     input.value = "";
-}
-
-// ========== 上传视频到服务器识别 ==========
-async function uploadVideo() {
-    const file = fileUpload.files[0];
-    if (!file) return;
-
-    uploadStatus.textContent = t("status.uploading");
-    uploadStatus.className = "upload-status";
-
-    const formData = new FormData();
-    formData.append("video", file);
-
-    try {
-        const res = await fetch("/api/upload-video", {
-            method: "POST",
-            body: formData,
-        });
-        const data = await res.json();
-
-        if (data.error) {
-            uploadStatus.textContent = t("status.uploadFail") + data.error;
-            uploadStatus.className = "upload-status error";
-            return;
-        }
-
-        uploadStatus.textContent = t("status.uploadSuccess") + data.name;
-        uploadStatus.className = "upload-status success";
-
-        await loadVideoList();
-        fileUpload.value = "";
-        startLoading(data.name);
-    } catch (e) {
-        uploadStatus.textContent = t("status.uploadFail") + e.message;
-        uploadStatus.className = "upload-status error";
-    }
 }
 
 // ========== 显示播放界面并加载视频首帧 ==========

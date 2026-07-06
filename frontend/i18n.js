@@ -49,7 +49,8 @@ const I18N = {
 
             // ---- App 页 ----
             "app.title": "短视频外语学习播放器",
-            "app.local.btn": "打开本地视频（已有字幕）",
+            "app.local.btn": "打开本地视频",
+            "app.local.desc": "已有字幕：同时选择视频和字幕文件 · 没有字幕：自动识别翻译生成",
             "app.local.hint": "选择同名的视频文件和字幕文件，直接播放，无需上传",
             "app.server.title": "服务器视频",
             "app.add.toggle": "+ 添加新视频",
@@ -242,7 +243,8 @@ const I18N = {
 
             // ---- App 頁 ----
             "app.title": "短視頻外語學習播放器",
-            "app.local.btn": "打開本地視頻（已有字幕）",
+            "app.local.btn": "打開本地視頻",
+            "app.local.desc": "已有字幕：同時選擇視頻和字幕檔案 · 沒有字幕：自動識別翻譯生成",
             "app.local.hint": "選擇同名的視頻檔案和字幕檔案，直接播放，無需上傳",
             "app.server.title": "伺服器視頻",
             "app.add.toggle": "+ 添加新視頻",
@@ -428,7 +430,8 @@ const I18N = {
 
             // ---- App page ----
             "app.title": "Short Video Language Player",
-            "app.local.btn": "Open Local Video (with subtitles)",
+            "app.local.btn": "Open Local Video",
+            "app.local.desc": "With subtitles: select both video and subtitle file · Without: auto-recognize and translate",
             "app.local.hint": "Select video and subtitle files with matching names for direct playback, no upload needed",
             "app.server.title": "Server Videos",
             "app.add.toggle": "+ Add New Video",

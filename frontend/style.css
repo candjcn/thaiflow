@@ -83,17 +83,28 @@ html, body {
 
 .provider-select {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    gap: 10px;
     margin-bottom: 14px;
     font-size: 13px;
     color: #aaa;
-    flex-wrap: wrap;
+}
+
+.provider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.provider-row label {
+    flex-shrink: 0;
+    min-width: 70px;
 }
 
 .provider-select select {
     padding: 5px 8px;
     font-size: 13px;
+    flex: 1;
 }
 
 /* 网络视频下载 */
@@ -230,6 +241,13 @@ html, body {
 .btn-local-play:hover {
     border-color: rgba(255, 255, 255, 0.3);
     color: rgba(255, 255, 255, 0.8);
+}
+
+.local-play-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #666;
+    line-height: 1.5;
 }
 
 /* 我的视频区域 */
