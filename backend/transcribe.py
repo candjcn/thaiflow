@@ -292,10 +292,67 @@ def transcribe_slice(audio_path, provider="groq", language=None):
     language: 短语言码如 "th"/"en"，Azure 需要明确语言（自动检测限 4 种会报错）"""
     if provider == "azure":
         result = transcribe_azure_slice(audio_path, language)
+    elif provider == "gemini":
+        result = transcribe_gemini_slice(audio_path, language)
     else:
         result = transcribe_groq(audio_path)
     text = " ".join(seg["text"] for seg in result["segments"]).strip()
     return {"text": text, "language": result.get("language", "unknown")}
+
+
+LANG_NAME_MAP = {
+    "th": "Thai", "en": "English", "ja": "Japanese", "ko": "Korean",
+    "fr": "French", "de": "German", "es": "Spanish", "pt": "Portuguese",
+    "ru": "Russian", "it": "Italian", "zh": "Chinese", "vi": "Vietnamese", "hi": "Hindi",
+}
+
+
+def transcribe_gemini_slice(wav_path, language=None):
+    """用 Google Gemini 识别短音频切片（REST API，只需 GEMINI_API_KEY）"""
+    import base64
+    import requests
+
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("请在 .env 中配置 GEMINI_API_KEY（在 aistudio.google.com 免费申请）")
+
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    short = (language or "")[:2].lower()
+    lang_name = LANG_NAME_MAP.get(short, "")
+    lang_hint = f"The audio is in {lang_name}. " if lang_name else ""
+
+    with open(wav_path, "rb") as f:
+        audio_b64 = base64.b64encode(f.read()).decode()
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": (
+                    f"{lang_hint}Transcribe this audio verbatim. "
+                    "Output ONLY the exact transcription text, nothing else. "
+                    "No explanations, no labels, no punctuation additions beyond what is spoken."
+                )},
+                {"inline_data": {"mime_type": "audio/wav", "data": audio_b64}},
+            ]
+        }],
+        "generationConfig": {"temperature": 0},
+    }
+
+    resp = requests.post(url, json=payload, timeout=60)
+    if resp.status_code != 200:
+        raise RuntimeError(f"Gemini API 错误 {resp.status_code}: {resp.text[:200]}")
+
+    data = resp.json()
+    try:
+        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except (KeyError, IndexError):
+        raise RuntimeError(f"Gemini 返回格式异常: {str(data)[:200]}")
+
+    return {
+        "segments": [{"index": 0, "text": text, "start": 0, "end": 0}] if text else [],
+        "language": short or "unknown",
+    }
 
 
 AZURE_LOCALE_MAP = {
