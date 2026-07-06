@@ -695,81 +695,8 @@ btnAddVideo.addEventListener("click", () => {
 });
 
 async function loadVideoList() {
-    try {
-        const res = await fetch("/api/videos");
-        const data = await res.json();
-        videoListEl.innerHTML = "";
-
-        if (data.videos.length === 0) {
-            myVideosSection.style.display = "none";
-            // 没有视频时自动展开添加区域
-            addVideoContent.style.display = "block";
-            btnAddVideo.textContent = t("app.add.collapse");
-            return;
-        }
-
-        myVideosSection.style.display = "block";
-
-        // 已识别的视频排在前面
-        const sorted = [...data.videos].sort((a, b) => {
-            if (a.has_subtitle && !b.has_subtitle) return -1;
-            if (!a.has_subtitle && b.has_subtitle) return 1;
-            return 0;
-        });
-
-        sorted.forEach((v) => {
-            const item = document.createElement("div");
-            item.className = "video-item" + (v.has_subtitle ? " ready" : "");
-
-            const info = document.createElement("div");
-            info.className = "video-info";
-
-            const name = document.createElement("div");
-            name.className = "video-name";
-            // 去掉 .mp4 后缀显示
-            name.textContent = v.name.replace(/\.mp4$/i, "");
-
-            const status = document.createElement("div");
-            status.className = "video-status";
-            status.textContent = v.has_subtitle ? t("status.ready") : t("status.notReady");
-
-            info.appendChild(name);
-            info.appendChild(status);
-
-            const actions = document.createElement("div");
-            actions.className = "video-actions";
-
-            if (v.has_subtitle) {
-                // 整个卡片可点击播放
-                item.addEventListener("click", (e) => {
-                    if (e.target.tagName === "BUTTON") return;
-                    loadSaved(v.name);
-                });
-                item.style.cursor = "pointer";
-
-                const btnRedo = document.createElement("button");
-                btnRedo.textContent = t("status.redo");
-                btnRedo.className = "btn-redo";
-                btnRedo.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    startLoading(v.name);
-                });
-                actions.appendChild(btnRedo);
-            } else {
-                const btnNew = document.createElement("button");
-                btnNew.textContent = t("status.recognize");
-                btnNew.className = "btn-new";
-                btnNew.addEventListener("click", () => startLoading(v.name));
-                actions.appendChild(btnNew);
-            }
-
-            item.appendChild(info);
-            item.appendChild(actions);
-            videoListEl.appendChild(item);
-        });
-    } catch (e) {
-        console.error("加载视频列表失败:", e);
-    }
+    // 已识别视频不在首页展示（隐私考虑，且多用户共用时列表混乱）
+    myVideosSection.style.display = "none";
 }
 
 // ========== 从 URL 下载视频 ==========
