@@ -1439,6 +1439,9 @@ async function deleteSentence(i) {
 // ========== 编辑句子（原文/译文） ==========
 function enterEditMode(div, i) {
     if (div.classList.contains("editing")) return;
+    // 进入编辑模式：停止自动按句播放
+    if (frShadowMode) stopShadowRead();
+    video.pause();
     div.classList.add("editing");
     const seg = segments[i];
     const textGroup = div.querySelector(".text-group");
@@ -2510,6 +2513,9 @@ async function getPeaks() {
 // ---- 打开/关闭 ----
 async function openWaveEditor(i) {
     if (i < 0 || i >= segments.length) return;
+    // 进入音轨编辑：停止自动按句播放
+    if (frShadowMode) stopShadowRead();
+    video.pause();
     const seg = segments[i];
     we.idx = i;
     we.start = seg.start;
