@@ -355,6 +355,64 @@ def transcribe_gemini_slice(wav_path, language=None):
     }
 
 
+def add_word_spacing(texts, language="th"):
+    """用 Gemini 给无空格语言（如泰语）的文本按词加空格，方便学习者阅读。
+    只插入空格，不改动任何字符；失败时原样返回。"""
+    import json as _json
+    import requests
+
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key or not texts:
+        return texts
+
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    lang_name = {"th": "Thai", "ja": "Japanese", "km": "Khmer", "lo": "Lao", "my": "Burmese"}.get(
+        (language or "")[:2].lower(), "Thai")
+
+    numbered = "\n".join(f"{i}\t{t}" for i, t in enumerate(texts))
+    prompt = (
+        f"The following numbered lines are {lang_name} sentences (index TAB text).\n"
+        f"Task: insert a single space between every {lang_name} word "
+        "(word segmentation to help language learners read).\n"
+        "Rules: do NOT change, add, remove, or reorder any characters — "
+        "only insert spaces. Keep existing spaces/punctuation as-is.\n"
+        "Return ONLY a JSON array of strings in the same order, no explanations, no markdown.\n\n"
+        + numbered
+    )
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0},
+    }
+    try:
+        resp = requests.post(url, json=payload, timeout=60)
+        if resp.status_code != 200:
+            print(f"[WordSpacing] Gemini {resp.status_code}: {resp.text[:150]}")
+            return texts
+        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        # 去掉可能的 markdown 代码块包裹
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.startswith("json"):
+                raw = raw[4:]
+        spaced = _json.loads(raw)
+        if not isinstance(spaced, list) or len(spaced) != len(texts):
+            print("[WordSpacing] 返回数量不匹配，放弃")
+            return texts
+        # 安全校验：除空格外内容必须完全一致，否则该句保留原文
+        result = []
+        for orig, sp in zip(texts, spaced):
+            if isinstance(sp, str) and sp.replace(" ", "") == orig.replace(" ", ""):
+                result.append(sp.strip())
+            else:
+                result.append(orig)
+        return result
+    except Exception as e:
+        print(f"[WordSpacing] 失败: {e}")
+        return texts
+
+
 AZURE_LOCALE_MAP = {
     "th": "th-TH", "en": "en-US", "ja": "ja-JP", "ko": "ko-KR",
     "fr": "fr-FR", "de": "de-DE", "es": "es-ES", "pt": "pt-BR",

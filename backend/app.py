@@ -7,7 +7,7 @@ import threading
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
-from transcribe import transcribe_video, transcribe_slice
+from transcribe import transcribe_video, transcribe_slice, add_word_spacing
 from translate import translate_segments
 from export import export_video_with_subtitles, export_srt
 from pronounce import assess_pronunciation
@@ -321,6 +321,16 @@ def api_transcribe():
     try:
         result = transcribe_video(video_path, provider=provider,
                                   segment_target=segment_target)
+
+        # 泰语等无空格语言：用 Gemini 按词加空格，方便学习者阅读
+        lang = (result.get("language") or "")[:2].lower()
+        lang_full = (result.get("language") or "").lower()
+        if lang == "th" or lang_full == "thai":
+            texts = [s["text"] for s in result["segments"]]
+            spaced = add_word_spacing(texts, "th")
+            for s, sp in zip(result["segments"], spaced):
+                s["text"] = sp
+
         log_event("transcribe", video=video_name, provider=provider,
                   language=result.get("language", ""),
                   segments=len(result.get("segments", [])))
@@ -377,6 +387,10 @@ def api_retranscribe():
         result = transcribe_slice(wav_path, provider, language=language)
         text = result["text"]
 
+        # 泰语：按词加空格
+        if (language or "")[:2].lower() == "th" and text:
+            text = add_word_spacing([text], "th")[0]
+
         translation = ""
         if do_translate and text:
             try:
@@ -430,6 +444,10 @@ def api_retranscribe_audio():
 
         result = transcribe_slice(wav_path, provider, language=language)
         text = result["text"]
+
+        # 泰语：按词加空格
+        if (language or "")[:2].lower() == "th" and text:
+            text = add_word_spacing([text], "th")[0]
 
         translation = ""
         if do_translate and text:
