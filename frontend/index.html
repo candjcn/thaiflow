@@ -166,18 +166,10 @@
                 </div>
             </div>
 
-            <!-- 播放控制（桌面：键盘优先 + 双模式入口，60% 宽悬浮栏） -->
+            <!-- 播放控制（桌面：左=双模式入口，中=重复/速度，右=列表） -->
             <div class="controls" id="controlsBar">
-                <!-- 左组：返回 -->
+                <!-- 左组：双模式入口 -->
                 <div class="ctrl-group ctrl-group-left">
-                    <button class="ctrl-btn" id="btnBack" data-key="Escape" data-i18n-title="ctrl.back" title="返回选择">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg>
-                        <kbd>Esc</kbd>
-                    </button>
-                </div>
-
-                <!-- 中组：双模式入口 -->
-                <div class="ctrl-group ctrl-group-center">
                     <div class="d-mode-tabs">
                         <button class="d-mode-tab" id="dModeStudy" data-i18n="mobile.mode.study">三遍复读</button>
                         <button class="d-mode-tab" id="dModeFollow">
@@ -187,8 +179,8 @@
                     </div>
                 </div>
 
-                <!-- 右组：速度 / 循环 / 列表 / 更多 / 全屏 -->
-                <div class="ctrl-group ctrl-group-right">
+                <!-- 中组：重复次数 / 速度 -->
+                <div class="ctrl-group ctrl-group-center">
                     <div class="ctrl-field">
                         <label data-i18n="ctrl.repeat.label">重复</label>
                         <select id="repeatCount">
@@ -211,33 +203,28 @@
                         </select>
                         <kbd>↑↓</kbd>
                     </div>
+                </div>
+
+                <!-- 右组：句子列表 -->
+                <div class="ctrl-group ctrl-group-right">
                     <button class="ctrl-btn" id="btnList" data-key="KeyL" data-i18n-title="ctrl.list" title="句子列表">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="0.5"/><circle cx="4" cy="12" r="0.5"/><circle cx="4" cy="18" r="0.5"/></svg>
                         <kbd>L</kbd>
                     </button>
-                    <div class="more-wrap">
-                        <button class="ctrl-btn" id="btnMore" title="更多">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
-                        </button>
-                        <div class="more-menu" id="moreMenu" style="display:none;">
-                            <button id="btnSaveLocal" data-i18n="ctrl.save">保存</button>
-                            <button id="btnExport" data-i18n="ctrl.export">导出</button>
-                        </div>
-                    </div>
-                    <button class="ctrl-btn" id="btnFullscreen" data-key="KeyF" data-i18n-title="ctrl.fullscreen" title="全屏">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-                        <kbd>F</kbd>
-                    </button>
                 </div>
             </div>
 
-            <!-- 隐藏遗留元素：JS 逻辑仍引用这些 id（桌面播放控制已改为纯键盘操作） -->
+            <!-- 隐藏遗留元素：JS 逻辑仍引用这些 id（播放控制为纯键盘，返回/全屏在视频角落） -->
             <div style="display:none;">
                 <button id="btnPrev"></button>
                 <button id="btnPause"></button>
                 <button id="btnRepeat"></button>
                 <button id="btnNext"></button>
+                <button id="btnBack"></button>
+                <button id="btnFullscreen"></button>
                 <button id="btnFollowRead"></button>
+                <button id="btnSaveLocal"></button>
+                <button id="btnExport"></button>
                 <input type="checkbox" id="chkOriginal" checked>
                 <input type="checkbox" id="chkTranslation" checked>
                 <span id="repeatInfo"></span>
