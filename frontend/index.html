@@ -127,6 +127,9 @@
                     <div class="m-top-status-line" id="mTopStatusRepeat" data-i18n-template="mobile.repeat.status">第1/3遍</div>
                 </div>
 
+                <!-- 时间进度（视频右上角，仅桌面显示） -->
+                <span id="timeDisplay" class="time-display">0:00 / 0:00</span>
+
                 <!-- 移动端浮动控制层 -->
                 <div class="m-overlay-controls" id="mOverlayControls">
                     <button class="m-ov-btn m-ov-prev" id="mOvPrev">
@@ -165,18 +168,12 @@
 
             <!-- 播放控制（桌面：键盘优先 + 双模式入口，60% 宽悬浮栏） -->
             <div class="controls" id="controlsBar">
-                <!-- 左组：返回 + 时间 + 键盘提示 -->
+                <!-- 左组：返回 -->
                 <div class="ctrl-group ctrl-group-left">
                     <button class="ctrl-btn" id="btnBack" data-key="Escape" data-i18n-title="ctrl.back" title="返回选择">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg>
                         <kbd>Esc</kbd>
                     </button>
-                    <span id="timeDisplay" class="time-display">0:00 / 0:00</span>
-                    <span class="kbd-hints">
-                        <span class="kbd-hint"><kbd data-i18n="kbd.space">空格</kbd><em data-i18n="kbd.hint.play">播放</em></span>
-                        <span class="kbd-hint"><kbd>← →</kbd><em data-i18n="kbd.hint.sentence">切句</em></span>
-                        <span class="kbd-hint"><kbd>R</kbd><em data-i18n="kbd.hint.repeat">重读</em></span>
-                    </span>
                 </div>
 
                 <!-- 中组：双模式入口 -->

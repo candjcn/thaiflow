@@ -734,27 +734,6 @@ video {
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
 }
 
-/* 键盘操作提示（播放/切句/重读 无实体按钮，纯键盘） */
-.kbd-hints {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    margin-left: 6px;
-}
-
-.kbd-hint {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.kbd-hint em {
-    font-style: normal;
-    font-size: 11px;
-    color: #666;
-    white-space: nowrap;
-}
-
 /* 双模式入口（与手机版 mode tabs 逻辑一致） */
 .d-mode-tabs {
     display: flex;
@@ -919,12 +898,23 @@ video {
     color: #fff;
 }
 
+/* 时间进度：视频右上角 */
 .time-display {
-    color: #888;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 55;
+    color: rgba(255, 255, 255, 0.75);
     font-size: 12px;
     font-family: ui-monospace, Menlo, monospace;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 8px;
+    padding: 5px 10px;
+    pointer-events: none;
 }
 
 .repeat-info {
@@ -2106,6 +2096,11 @@ label {
     /* 移动端显示顶部按钮和状态 */
     .m-top-btn {
         display: flex;
+    }
+
+    /* 移动端隐藏右上角时间（与全屏按钮位置冲突） */
+    .time-display {
+        display: none;
     }
 
     .m-top-status {

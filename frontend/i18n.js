@@ -595,16 +595,12 @@ const I18N = {
         if (saved && this.translations[saved]) {
             this.currentLang = saved;
         } else {
+            // 默认简体中文；繁体地区用繁体。需要英文可手动点右上角 EN 切换
             const browserLang = navigator.language || navigator.userLanguage || "zh-CN";
-            if (browserLang.startsWith("zh")) {
-                // 繁体中文地区
-                if (browserLang === "zh-TW" || browserLang === "zh-HK" || browserLang === "zh-Hant") {
-                    this.currentLang = "zh-TW";
-                } else {
-                    this.currentLang = "zh-CN";
-                }
+            if (browserLang === "zh-TW" || browserLang === "zh-HK" || browserLang === "zh-Hant") {
+                this.currentLang = "zh-TW";
             } else {
-                this.currentLang = "en";
+                this.currentLang = "zh-CN";
             }
         }
         this.applyToPage();
