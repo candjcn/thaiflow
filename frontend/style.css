@@ -720,11 +720,79 @@ video {
     display: flex;
     align-items: stretch;
     justify-content: space-between;
-    gap: 16px;
+    gap: 14px;
     padding: 8px 16px;
-    background: rgba(10, 10, 22, 0.96);
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(16, 16, 32, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
     flex-shrink: 0;
+    /* 60% 屏宽悬浮栏（略宽于跟读弹窗 620px） */
+    width: 60%;
+    min-width: 660px;
+    max-width: 900px;
+    margin: 0 auto 10px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* 键盘操作提示（播放/切句/重读 无实体按钮，纯键盘） */
+.kbd-hints {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-left: 6px;
+}
+
+.kbd-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.kbd-hint em {
+    font-style: normal;
+    font-size: 11px;
+    color: #666;
+    white-space: nowrap;
+}
+
+/* 双模式入口（与手机版 mode tabs 逻辑一致） */
+.d-mode-tabs {
+    display: flex;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 3px;
+}
+
+.d-mode-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: #999;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.controls .d-mode-tab:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ddd;
+}
+
+.controls .d-mode-tab.active {
+    background: #e94560;
+    color: #fff;
+}
+
+.controls .d-mode-tab.active kbd {
+    color: rgba(255, 255, 255, 0.75);
+    border-color: rgba(255, 255, 255, 0.4);
 }
 
 .ctrl-group {
@@ -794,25 +862,6 @@ video {
     border-color: #e94560;
 }
 
-/* 播放键：主操作，放大突出 */
-.ctrl-btn-play {
-    padding: 5px 14px;
-    background: rgba(233, 69, 96, 0.14);
-}
-
-.ctrl-btn-play svg {
-    width: 22px;
-    height: 22px;
-}
-
-.controls .ctrl-btn-play:hover {
-    background: rgba(233, 69, 96, 0.28);
-}
-
-.ctrl-btn-play .ic-pause { display: none; }
-.ctrl-btn-play.playing .ic-play { display: none; }
-.ctrl-btn-play.playing .ic-pause { display: block; }
-
 /* 下拉字段：标签 + select (+键帽) */
 .ctrl-field {
     display: flex;
@@ -830,46 +879,6 @@ video {
     border-radius: 6px;
     color: #ddd;
     cursor: pointer;
-}
-
-/* 字幕开关 pill */
-.sub-toggles {
-    display: flex;
-    gap: 4px;
-}
-
-.sub-toggle {
-    position: relative;
-    cursor: pointer;
-}
-
-.sub-toggle input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.sub-toggle span {
-    display: inline-block;
-    padding: 4px 10px;
-    font-size: 11px;
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #666;
-    transition: all 0.15s;
-    user-select: none;
-}
-
-.sub-toggle input:checked + span {
-    background: rgba(255, 215, 0, 0.12);
-    border-color: rgba(255, 215, 0, 0.4);
-    color: #ffd700;
-}
-
-.sub-toggle:last-child input:checked + span {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.35);
-    color: #eee;
 }
 
 /* 更多菜单 */
@@ -1349,6 +1358,20 @@ label {
     cursor: default;
 }
 
+/* 录音按钮的键盘提示（桌面：按住 Enter 录音） */
+.fr-kbd {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 9px;
+    line-height: 1;
+    padding: 2px 5px;
+    color: #777;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
 .fr-btn:not(:disabled):active {
     background: rgba(255, 255, 255, 0.15);
 }
@@ -1659,8 +1682,9 @@ label {
 /* ==========================================
    移动端顶部状态栏
    ========================================== */
+/* 顶部状态栏：桌面和手机统一显示（当前第几句/第几遍，两行居中） */
 .m-top-status {
-    display: none;
+    display: block;
     position: absolute;
     top: 12px;
     left: 50%;
@@ -2051,6 +2075,11 @@ label {
 
     .fr-btn-label {
         font-size: 12px;
+    }
+
+    /* 手机端无键盘，隐藏键盘提示 */
+    .fr-kbd {
+        display: none;
     }
 
     .fr-timer {

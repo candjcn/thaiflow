@@ -343,8 +343,18 @@ btnModeFollow.addEventListener("click", () => {
     switchMode(btnModeFollow.classList.contains("active") ? "normal" : "follow");
 });
 
+// 桌面模式 tabs（与移动端 tabs 状态同步）
+const dModeStudy = document.getElementById("dModeStudy");
+const dModeFollow = document.getElementById("dModeFollow");
+dModeStudy.addEventListener("click", () => {
+    switchMode(dModeStudy.classList.contains("active") ? "normal" : "study");
+});
+dModeFollow.addEventListener("click", () => {
+    switchMode(dModeFollow.classList.contains("active") ? "normal" : "follow");
+});
+
 function switchMode(mode) {
-    [btnModeStudy, btnModeFollow].forEach(b => b.classList.remove("active"));
+    [btnModeStudy, btnModeFollow, dModeStudy, dModeFollow].forEach(b => b.classList.remove("active"));
     mModeBg.dataset.pos = "";
     if (mode === "normal") {
         // 默认模式：从头到尾播放一遍，不重复
@@ -360,6 +370,7 @@ function switchMode(mode) {
         mobileControls.classList.remove("follow-mode");
     } else if (mode === "study") {
         btnModeStudy.classList.add("active");
+        dModeStudy.classList.add("active");
         mModeBg.dataset.pos = "0";
         repeatCountSelect.value = "3";
         // Sync mobile repeat button
@@ -378,6 +389,7 @@ function switchMode(mode) {
         }
     } else if (mode === "follow") {
         btnModeFollow.classList.add("active");
+        dModeFollow.classList.add("active");
         mModeBg.dataset.pos = "1";
         openFollowRead();
     }
@@ -617,12 +629,17 @@ document.addEventListener("keydown", (e) => {
             break;
         case "KeyS":
             e.preventDefault();
-            if (followReadPanel.style.display === "none") {
-                openFollowRead();
-            } else {
-                closeFollowRead();
+            switchMode(followReadPanel.style.display === "none" ? "follow" : "normal");
+            break;
+        case "Enter":
+            // 跟读面板打开时：按住 Enter 录音，松开停止
+            if (followReadPanel.style.display !== "none") {
+                e.preventDefault();
+                if (!e.repeat && !frIsRecording) {
+                    frEnterHold = true;
+                    toggleRecording();
+                }
             }
-            flashKeyButton("KeyS");
             break;
         case "KeyF":
             e.preventDefault();
@@ -640,6 +657,15 @@ document.addEventListener("keydown", (e) => {
                 flashKeyButton("Escape");
             }
             break;
+    }
+});
+
+// 松开 Enter 停止录音（长按录音模式）
+let frEnterHold = false;
+document.addEventListener("keyup", (e) => {
+    if (e.code === "Enter" && frEnterHold) {
+        frEnterHold = false;
+        if (frIsRecording) stopRecording();
     }
 });
 
@@ -961,6 +987,7 @@ async function openLocalFiles() {
         jumpToSentence(0);
         video.play();
         initMobileOverlays();
+        openDrawerIfDesktop();
     } else {
         // 没有字幕文件：先上传到服务器，再走与"粘贴链接"完全一致的识别翻译流程
         isLoading = true;
@@ -1052,6 +1079,7 @@ async function loadSaved(videoName) {
     jumpToSentence(0);
     video.play();
     initMobileOverlays();
+    openDrawerIfDesktop();
 }
 
 // ========== 完整加载流程 ==========
@@ -1161,6 +1189,13 @@ function waitForVideo() {
     });
 }
 
+// 桌面端：句子列表默认展开
+function openDrawerIfDesktop() {
+    if (!isMobile()) {
+        sentenceDrawer.style.display = "flex";
+    }
+}
+
 // ========== 加载完成，进入播放 ==========
 function finishLoading() {
     isLoading = false;
@@ -1172,6 +1207,7 @@ function finishLoading() {
     jumpToSentence(0);
     video.play();
     initMobileOverlays();
+    openDrawerIfDesktop();
 
     // 识别完成后自动进入全屏（移动端）
     // video.play() 算 user-activation 延续，此时可以请求全屏

@@ -163,40 +163,34 @@
                 </div>
             </div>
 
-            <!-- 播放控制（桌面：键盘优先，控件带键帽标注） -->
+            <!-- 播放控制（桌面：键盘优先 + 双模式入口，60% 宽悬浮栏） -->
             <div class="controls" id="controlsBar">
-                <!-- 左组：返回 + 时间 -->
+                <!-- 左组：返回 + 时间 + 键盘提示 -->
                 <div class="ctrl-group ctrl-group-left">
                     <button class="ctrl-btn" id="btnBack" data-key="Escape" data-i18n-title="ctrl.back" title="返回选择">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg>
                         <kbd>Esc</kbd>
                     </button>
                     <span id="timeDisplay" class="time-display">0:00 / 0:00</span>
-                    <span id="repeatInfo" class="repeat-info"></span>
+                    <span class="kbd-hints">
+                        <span class="kbd-hint"><kbd data-i18n="kbd.space">空格</kbd><em data-i18n="kbd.hint.play">播放</em></span>
+                        <span class="kbd-hint"><kbd>← →</kbd><em data-i18n="kbd.hint.sentence">切句</em></span>
+                        <span class="kbd-hint"><kbd>R</kbd><em data-i18n="kbd.hint.repeat">重读</em></span>
+                    </span>
                 </div>
 
-                <!-- 中组：播放核心四键 -->
+                <!-- 中组：双模式入口 -->
                 <div class="ctrl-group ctrl-group-center">
-                    <button class="ctrl-btn" id="btnPrev" data-key="ArrowLeft" data-i18n-title="ctrl.prev" title="上一句">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19,20 9,12 19,4"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
-                        <kbd>←</kbd>
-                    </button>
-                    <button class="ctrl-btn ctrl-btn-play" id="btnPause" data-key="Space" data-i18n-title="ctrl.pause" title="暂停/播放">
-                        <svg class="ic-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,4 20,12 6,20"/></svg>
-                        <svg class="ic-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="5" x2="8" y2="19"/><line x1="16" y1="5" x2="16" y2="19"/></svg>
-                        <kbd data-i18n="kbd.space">空格</kbd>
-                    </button>
-                    <button class="ctrl-btn" id="btnRepeat" data-key="KeyR" data-i18n-title="ctrl.repeat" title="重复当前句">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 2.64 6.36"/><polyline points="3,22 3,16 9,16"/></svg>
-                        <kbd>R</kbd>
-                    </button>
-                    <button class="ctrl-btn" id="btnNext" data-key="ArrowRight" data-i18n-title="ctrl.next" title="下一句">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5,4 15,12 5,20"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
-                        <kbd>→</kbd>
-                    </button>
+                    <div class="d-mode-tabs">
+                        <button class="d-mode-tab" id="dModeStudy" data-i18n="mobile.mode.study">三遍复读</button>
+                        <button class="d-mode-tab" id="dModeFollow">
+                            <span data-i18n="mobile.mode.follow">影子跟读</span>
+                            <kbd>S</kbd>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- 右组：设置 + 功能 -->
+                <!-- 右组：速度 / 循环 / 列表 / 更多 / 全屏 -->
                 <div class="ctrl-group ctrl-group-right">
                     <div class="ctrl-field">
                         <label data-i18n="ctrl.repeat.label">重复</label>
@@ -209,7 +203,7 @@
                             <option value="9999">&infin;</option>
                         </select>
                     </div>
-                    <div class="ctrl-field" data-key-hint="updown">
+                    <div class="ctrl-field">
                         <label data-i18n="ctrl.speed.label">速度</label>
                         <select id="playbackRate">
                             <option value="0.5">0.5x</option>
@@ -220,17 +214,9 @@
                         </select>
                         <kbd>↑↓</kbd>
                     </div>
-                    <div class="sub-toggles">
-                        <label class="sub-toggle"><input type="checkbox" id="chkOriginal" checked><span data-i18n="ctrl.original">原文</span></label>
-                        <label class="sub-toggle"><input type="checkbox" id="chkTranslation" checked><span data-i18n="ctrl.translation">译文</span></label>
-                    </div>
                     <button class="ctrl-btn" id="btnList" data-key="KeyL" data-i18n-title="ctrl.list" title="句子列表">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="0.5"/><circle cx="4" cy="12" r="0.5"/><circle cx="4" cy="18" r="0.5"/></svg>
                         <kbd>L</kbd>
-                    </button>
-                    <button class="ctrl-btn" id="btnFollowRead" data-key="KeyS" data-i18n-title="ctrl.follow" title="跟读当前句">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="21" x2="12" y2="18"/></svg>
-                        <kbd>S</kbd>
                     </button>
                     <div class="more-wrap">
                         <button class="ctrl-btn" id="btnMore" title="更多">
@@ -246,6 +232,18 @@
                         <kbd>F</kbd>
                     </button>
                 </div>
+            </div>
+
+            <!-- 隐藏遗留元素：JS 逻辑仍引用这些 id（桌面播放控制已改为纯键盘操作） -->
+            <div style="display:none;">
+                <button id="btnPrev"></button>
+                <button id="btnPause"></button>
+                <button id="btnRepeat"></button>
+                <button id="btnNext"></button>
+                <button id="btnFollowRead"></button>
+                <input type="checkbox" id="chkOriginal" checked>
+                <input type="checkbox" id="chkTranslation" checked>
+                <span id="repeatInfo"></span>
             </div>
 
             <!-- 移动端控制栏 -->
@@ -421,13 +419,14 @@
                             </svg>
                             <span class="fr-btn-label" data-i18n="follow.playOriginal">原句</span>
                         </button>
-                        <button id="btnFrRecord" class="fr-btn" data-i18n-title="follow.record" title="开始录音">
+                        <button id="btnFrRecord" class="fr-btn" data-i18n-title="follow.record" title="开始录音（或按住 Enter）">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="9" y="2" width="6" height="12" rx="3"/>
                                 <path d="M5 10v1a7 7 0 0 0 14 0v-1"/>
                                 <line x1="12" y1="21" x2="12" y2="18"/>
                             </svg>
                             <span class="fr-btn-label" data-i18n="follow.record">录音</span>
+                            <kbd class="fr-kbd" data-i18n="kbd.holdEnter">按住 Enter</kbd>
                         </button>
                         <button id="btnFrPlayback" class="fr-btn" data-i18n-title="follow.playback" title="回放录音" disabled>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
