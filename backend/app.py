@@ -27,6 +27,47 @@ def subtitle_path(video_name):
     return os.path.join(VIDEOS_DIR, base + ".json")
 
 
+# ========== 使用日志（开发者分析用） ==========
+USAGE_LOG = os.path.join(VIDEOS_DIR, "usage_log.jsonl")
+
+
+def log_event(kind, **data):
+    """记录一条使用事件：写文件 + 打印 stdout（Railway 控制台可查看）"""
+    import datetime
+    record = {
+        "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "event": kind,
+        **data,
+    }
+    line = json.dumps(record, ensure_ascii=False)
+    print(f"[USAGE] {line}", flush=True)
+    try:
+        os.makedirs(VIDEOS_DIR, exist_ok=True)
+        with open(USAGE_LOG, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
+@app.route("/api/admin/logs")
+def admin_logs():
+    """开发者查看使用日志（需要 ADMIN_KEY）"""
+    admin_key = os.environ.get("ADMIN_KEY", "")
+    if not admin_key or request.args.get("key") != admin_key:
+        return jsonify({"error": "unauthorized"}), 403
+    events = []
+    if os.path.exists(USAGE_LOG):
+        with open(USAGE_LOG, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        events.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+    return jsonify({"count": len(events), "events": events[-500:]})
+
+
 @app.route("/")
 def landing():
     return send_from_directory(FRONTEND_DIR, "landing.html")
@@ -104,6 +145,8 @@ def api_upload_video():
             sub_file.save(sub_path)
             has_subtitle = True
 
+    log_event("upload", video=safe_name, has_subtitle=has_subtitle)
+
     return jsonify({
         "name": safe_name,
         "has_subtitle": has_subtitle,
@@ -118,6 +161,8 @@ def api_download_video():
     url = data.get("url", "").strip()
     if not url:
         return jsonify({"error": "缺少视频链接"}), 400
+
+    log_event("download", url=url)
 
     os.makedirs(VIDEOS_DIR, exist_ok=True)
 
@@ -276,8 +321,12 @@ def api_transcribe():
     try:
         result = transcribe_video(video_path, provider=provider,
                                   segment_target=segment_target)
+        log_event("transcribe", video=video_name, provider=provider,
+                  language=result.get("language", ""),
+                  segments=len(result.get("segments", [])))
         return jsonify(result)
     except Exception as e:
+        log_event("transcribe_fail", video=video_name, provider=provider, error=str(e)[:200])
         return jsonify({"error": str(e)}), 500
 
 
@@ -337,6 +386,8 @@ def api_retranscribe():
             except Exception as te:
                 print(f"[Retranscribe] 翻译失败: {te}")
 
+        log_event("retranscribe", video=video_name, provider=provider,
+                  range=f"{start:.1f}-{end:.1f}", language=language)
         return jsonify({"text": text, "translation": translation})
     except Exception as e:
         return jsonify({"error": str(e)}), 502
@@ -389,6 +440,7 @@ def api_retranscribe_audio():
             except Exception as te:
                 print(f"[RetranscribeAudio] 翻译失败: {te}")
 
+        log_event("retranscribe_audio", provider=provider, language=language)
         return jsonify({"text": text, "translation": translation})
     except Exception as e:
         return jsonify({"error": str(e)}), 502
