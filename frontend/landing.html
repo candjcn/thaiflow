@@ -14,9 +14,13 @@
         <a href="/" class="nav-logo">ThaiFlow</a>
         <div class="nav-right">
             <div class="lang-switcher">
-                <button class="lang-switcher-btn" data-lang="zh-CN">简</button>
-                <button class="lang-switcher-btn" data-lang="zh-TW">繁</button>
-                <button class="lang-switcher-btn" data-lang="en">EN</button>
+                <select class="lang-switcher-select">
+                    <option value="zh-CN">简体中文</option>
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="en">English</option>
+                    <option value="ja">日本語</option>
+                    <option value="ko">한국어</option>
+                </select>
             </div>
             <a href="/app" class="nav-cta" data-i18n="nav.cta">开始学习</a>
         </div>
@@ -200,10 +204,10 @@
 <script>
 I18N.init();
 
-// 语言切换按钮
-document.querySelectorAll(".lang-switcher-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-        I18N.setLang(btn.dataset.lang);
+// 语言切换下拉框
+document.querySelectorAll(".lang-switcher-select").forEach(sel => {
+    sel.addEventListener("change", () => {
+        I18N.setLang(sel.value);
     });
 });
 

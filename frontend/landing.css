@@ -75,25 +75,14 @@ body {
     gap: 2px;
 }
 
-.lang-switcher-btn {
+.lang-switcher-select {
     background: rgba(255,255,255,0.08);
-    color: #999;
-    border: none;
-    padding: 4px 8px;
+    color: #ccc;
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 5px 8px;
     font-size: 12px;
     cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.lang-switcher-btn:hover {
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-}
-
-.lang-switcher-btn.active {
-    background: #0071e3;
-    color: #fff;
+    border-radius: 6px;
 }
 
 .nav-cta:hover {

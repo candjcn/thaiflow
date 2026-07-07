@@ -1,17 +1,19 @@
 // ========== i18n 初始化 ==========
 I18N.init();
-document.querySelectorAll(".lang-switcher-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-        I18N.setLang(btn.dataset.lang);
+document.querySelectorAll(".lang-switcher-select").forEach(sel => {
+    sel.addEventListener("change", () => {
+        I18N.setLang(sel.value);
     });
 });
 
 // ========== 获取用户翻译目标语言 ==========
 function getTargetLang() {
-    // 跟随界面语言（右上角 简/繁/EN 切换），不再依赖浏览器上报语言
+    // 跟随界面语言（右上角下拉切换），不再依赖浏览器上报语言
     const uiLang = I18N.currentLang || "zh-CN";
     if (uiLang === "zh-CN") return "中文";
     if (uiLang === "zh-TW") return "繁體中文";
+    if (uiLang === "ja") return "日本語";
+    if (uiLang === "ko") return "한국어";
     // 界面为英文时，按浏览器语言细分目标语言
     const lang = navigator.language || navigator.userLanguage || "en";
     if (lang.startsWith("zh")) {
