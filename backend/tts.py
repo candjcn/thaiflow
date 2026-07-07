@@ -116,30 +116,56 @@ def _pcm_to_wav(pcm_bytes, sample_rate=24000):
     return header + pcm_bytes
 
 
-def gemini_tts_sentence(text, voice_slot, emotion, out_path):
-    """Gemini TTS 生成单句，带情感指令"""
+def gemini_tts_sentence(text, voice_slot, emotion, out_path, max_retries=4):
+    """Gemini TTS 生成单句，带情感指令。
+    免费额度有每分钟请求数限制（429）且预览版偶发 5xx，必须带重试退避。"""
+    import time
+
     model = os.environ.get("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
     voice = GEMINI_VOICES.get(voice_slot, "Kore")
     styled = f"Say in a {emotion} tone: {text}" if emotion else text
-    resp = requests.post(
-        GEMINI_URL.format(model=model, key=_gemini_key()),
-        json={
-            "contents": [{"parts": [{"text": styled}]}],
-            "generationConfig": {
-                "responseModalities": ["AUDIO"],
-                "speechConfig": {
-                    "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}
-                },
+    payload = {
+        "contents": [{"parts": [{"text": styled}]}],
+        "generationConfig": {
+            "responseModalities": ["AUDIO"],
+            "speechConfig": {
+                "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}
             },
         },
-        timeout=120,
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f"Gemini TTS 失败 {resp.status_code}: {resp.text[:200]}")
-    data = resp.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]
-    pcm = base64.b64decode(data)
-    with open(out_path, "wb") as f:
-        f.write(_pcm_to_wav(pcm, 24000))
+    }
+
+    last_err = ""
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(
+                GEMINI_URL.format(model=model, key=_gemini_key()),
+                json=payload, timeout=120,
+            )
+            if resp.status_code == 200:
+                parts = resp.json()["candidates"][0]["content"]["parts"]
+                inline = next((p["inlineData"] for p in parts if "inlineData" in p), None)
+                if inline is None:
+                    raise RuntimeError("返回中没有音频")
+                pcm = base64.b64decode(inline["data"])
+                with open(out_path, "wb") as f:
+                    f.write(_pcm_to_wav(pcm, 24000))
+                return
+            last_err = f"{resp.status_code}: {resp.text[:150]}"
+            if resp.status_code == 429:
+                # 限流：按建议或指数退避等待后重试
+                wait = 15 * (attempt + 1)
+                print(f"[TTS] Gemini 限流，{wait}s 后重试（{attempt + 1}/{max_retries}）")
+                time.sleep(wait)
+                continue
+            if resp.status_code >= 500:
+                time.sleep(3 * (attempt + 1))
+                continue
+            break  # 4xx 非限流错误不重试
+        except requests.RequestException as e:
+            last_err = str(e)[:150]
+            time.sleep(3 * (attempt + 1))
+
+    raise RuntimeError(f"Gemini TTS 失败（已重试 {max_retries} 次）{last_err}")
 
 
 def azure_tts_sentence(text, voice_slot, language, out_path):
