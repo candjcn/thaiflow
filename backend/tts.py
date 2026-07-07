@@ -93,8 +93,10 @@ def prepare_script(text, language="th"):
     prompt = (
         f"Analyze this {lang_desc} text for a language-learning audio lesson.\n"
         + lang_line +
-        "1. Split it into natural sentences (each item should be one spoken sentence, "
-        "not too long; split long sentences at natural pauses).\n"
+        "1. Split it into short spoken sentences. HARD LIMIT: each item must be at most "
+        "~12 words (or ~60 characters for Thai/Chinese/Japanese). Long passages WITHOUT "
+        "punctuation (common in Thai) MUST still be split at natural clause boundaries "
+        "(e.g. before เพื่อ/และ/ที่/ว่า/ตาม in Thai). Never return one giant sentence.\n"
         "2. Detect if it is a dialogue. If yes, assign speakers \"A\" and \"B\" "
         "(alternating logically). For narration/story use speaker \"N\".\n"
         "3. Determine each speaker's gender from context. For Thai: sentence-final "
@@ -146,6 +148,9 @@ def prepare_script(text, language="th"):
     if not script:
         raise RuntimeError("分句结果为空")
 
+    # 保底：仍存在超长句时，二次强制拆分
+    script = _split_long_sentences(script, detected)
+
     # 对话场景：强制 A/B 一男一女，便于区分学习
     # （保留 A 检测到的性别，B 取相反性别）
     speakers = {it["speaker"] for it in script}
@@ -165,6 +170,66 @@ def prepare_script(text, language="th"):
                 it["gender"] = ga
 
     return script, detected
+
+
+def _split_long_sentences(script, language):
+    """保底拆分：分句结果里仍有超长句时，再让 Gemini 按语义子句强拆。
+    拆分后的子句继承原句的说话人/性别/情感；字符级校验失败则保留原句。"""
+    MAX_CHARS = 70   # 无空格文字（泰/中/日）
+    MAX_WORDS = 16   # 有空格文字
+
+    def too_long(t):
+        if " " in t:
+            return len(t.split()) > MAX_WORDS
+        return len(t) > MAX_CHARS
+
+    long_idx = [i for i, it in enumerate(script) if too_long(it["text"])]
+    if not long_idx:
+        return script
+
+    lang_name = {"th": "Thai", "en": "English", "zh": "Chinese",
+                 "ja": "Japanese", "ko": "Korean"}.get(language, "")
+    texts = [script[i]["text"] for i in long_idx]
+    numbered = "\n".join(f"{i}\t{t}" for i, t in enumerate(texts))
+    prompt = (
+        f"Each numbered line below is a long {lang_name} sentence (index TAB text).\n"
+        "Split EACH into shorter spoken chunks of at most ~10 words "
+        "(~50 characters for Thai/Chinese/Japanese), cutting ONLY at natural "
+        "clause boundaries. Do NOT change, add, remove, or reorder any characters.\n"
+        "Return ONLY a JSON array of arrays: element i is the ordered list of "
+        "chunks for input line i.\n\n" + numbered
+    )
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    try:
+        result = _gemini_request(model, {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0},
+        }, timeout=60, tag="长句拆分")
+        raw = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.startswith("json"):
+                raw = raw[4:]
+        chunk_lists = json.loads(raw)
+    except Exception as e:
+        print(f"[SplitLong] 拆分失败，保留原句: {e}")
+        return script
+
+    new_script = []
+    for i, it in enumerate(script):
+        if i in long_idx:
+            pos = long_idx.index(i)
+            chunks = chunk_lists[pos] if pos < len(chunk_lists) else None
+            # 校验：拆分后拼回去（忽略空格）必须与原文一致
+            if (isinstance(chunks, list) and len(chunks) > 1 and
+                    "".join(chunks).replace(" ", "") == it["text"].replace(" ", "")):
+                for c in chunks:
+                    c = c.strip()
+                    if c:
+                        new_script.append({**it, "text": c})
+                continue
+        new_script.append(it)
+    return new_script
 
 
 # ========== 第二步：逐句 TTS ==========
