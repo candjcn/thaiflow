@@ -169,17 +169,44 @@ def api_download_video():
 
     progress_queue = queue.Queue()
 
+    def ytdlp_cookie_args():
+        """YouTube 数据中心 IP 反爬兜底：支持通过环境变量注入 cookies"""
+        cookies = os.environ.get("YOUTUBE_COOKIES", "")
+        if not cookies:
+            return []
+        cookie_file = os.path.join(os.path.dirname(__file__), ".yt_cookies.txt")
+        try:
+            with open(cookie_file, "w", encoding="utf-8") as f:
+                f.write(cookies)
+            return ["--cookies", cookie_file]
+        except Exception:
+            return []
+
     def do_download():
         try:
+            cookie_args = ytdlp_cookie_args()
+            extra_args = list(cookie_args)
+
             # 先获取视频标题作为文件名
-            info_cmd = [
-                "yt-dlp", "--no-download", "--print", "title", url
-            ]
+            info_cmd = ["yt-dlp", "--no-download", "--print", "title"] + extra_args + [url]
             info_result = subprocess.run(
                 info_cmd, capture_output=True, text=True, timeout=30
             )
+            if info_result.returncode != 0 and (
+                "Sign in" in info_result.stderr or "cookies" in info_result.stderr
+            ):
+                # YouTube 机器人检测：改用 TV 客户端伪装重试
+                progress_queue.put(("progress", "YouTube 验证拦截，尝试备用通道..."))
+                extra_args = cookie_args + ["--extractor-args", "youtube:player_client=tv,web_embedded"]
+                info_cmd = ["yt-dlp", "--no-download", "--print", "title"] + extra_args + [url]
+                info_result = subprocess.run(
+                    info_cmd, capture_output=True, text=True, timeout=30
+                )
             if info_result.returncode != 0:
-                progress_queue.put(("error", f"无法获取视频信息: {info_result.stderr[-300:]}"))
+                err = info_result.stderr[-300:]
+                if "Sign in" in err or "cookies" in err:
+                    err = "YouTube 阻止了服务器访问（反爬验证）。请改用 TikTok 链接，或联系开发者配置 YouTube cookies。"
+                progress_queue.put(("error", f"无法获取视频信息: {err}"))
                 return
 
             title = info_result.stdout.strip()
@@ -200,7 +227,7 @@ def api_download_video():
 
             progress_queue.put(("progress", f"正在下载: {title}"))
 
-            # 下载视频
+            # 下载视频（沿用信息获取阶段成功的通道参数）
             dl_cmd = [
                 "yt-dlp",
                 "-f", "mp4/best[ext=mp4]/best",
@@ -209,8 +236,7 @@ def api_download_video():
                 "-o", output_path,
                 "--progress",
                 "--newline",
-                url,
-            ]
+            ] + extra_args + [url]
             process = subprocess.Popen(
                 dl_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1,
