@@ -93,10 +93,16 @@ def prepare_script(text, language="th"):
     prompt = (
         f"Analyze this {lang_desc} text for a language-learning audio lesson.\n"
         + lang_line +
-        "1. Split it into short spoken sentences. HARD LIMIT: each item must be at most "
-        "~12 words (or ~60 characters for Thai/Chinese/Japanese). Long passages WITHOUT "
-        "punctuation (common in Thai) MUST still be split at natural clause boundaries "
-        "(e.g. before เพื่อ/และ/ที่/ว่า/ตาม in Thai). Never return one giant sentence.\n"
+        "1. Split it into natural spoken sentences.\n"
+        "   - For Thai: the spaces already present in the source text are the author's "
+        "phrase boundaries — they are the ONLY candidate split points. Split at them to "
+        "form natural sentences, MERGING short fragments (titles, names like "
+        "พล.ต.ต.xxx, connective phrases) with their neighbors so each item is a "
+        "meaningful spoken unit. Do not split inside a space-free run unless it "
+        "exceeds ~60 characters.\n"
+        "   - For other languages: split at sentence punctuation; break overly long "
+        "sentences at natural clause boundaries.\n"
+        "   - Never return the whole passage as one giant sentence.\n"
         "2. Detect if it is a dialogue. If yes, assign speakers \"A\" and \"B\" "
         "(alternating logically). For narration/story use speaker \"N\".\n"
         "3. Determine each speaker's gender from context. For Thai: sentence-final "
@@ -175,8 +181,9 @@ def prepare_script(text, language="th"):
 def _split_long_sentences(script, language):
     """保底拆分：分句结果里仍有超长句时，再让 Gemini 按语义子句强拆。
     拆分后的子句继承原句的说话人/性别/情感；字符级校验失败则保留原句。"""
-    MAX_CHARS = 70   # 无空格文字（泰/中/日）
-    MAX_WORDS = 16   # 有空格文字
+    # 仅兜底极端情况（正常自然长句不拆，避免硬性上限切碎语义）
+    MAX_CHARS = 100  # 无空格文字（泰/中/日）
+    MAX_WORDS = 28   # 有空格文字
 
     def too_long(t):
         if " " in t:
