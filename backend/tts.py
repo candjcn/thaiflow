@@ -28,6 +28,12 @@ AZURE_VOICES = {
            "male_a": "th-TH-NiwatNeural", "male_b": "th-TH-NiwatNeural"},
     "en": {"female_a": "en-US-JennyNeural", "female_b": "en-US-AriaNeural",
            "male_a": "en-US-GuyNeural", "male_b": "en-US-DavisNeural"},
+    "zh": {"female_a": "zh-CN-XiaoxiaoNeural", "female_b": "zh-CN-XiaoyiNeural",
+           "male_a": "zh-CN-YunxiNeural", "male_b": "zh-CN-YunjianNeural"},
+    "ja": {"female_a": "ja-JP-NanamiNeural", "female_b": "ja-JP-MayuNeural",
+           "male_a": "ja-JP-KeitaNeural", "male_b": "ja-JP-DaichiNeural"},
+    "ko": {"female_a": "ko-KR-SunHiNeural", "female_b": "ko-KR-JiMinNeural",
+           "male_a": "ko-KR-InJoonNeural", "male_b": "ko-KR-HyunsuNeural"},
 }
 
 
@@ -75,10 +81,18 @@ def _gemini_request(model, payload, timeout=60, max_retries=4, tag="Gemini"):
 def prepare_script(text, language="th"):
     """用 Gemini 把整段文本拆成句子并标注。
     返回 [{text, speaker: "A"|"B"|"N", gender: "male"|"female", emotion}, ...]
-    泰语性别线索：ครับ=男，ค่ะ/คะ=女。"""
-    lang_name = {"th": "Thai", "en": "English"}.get(language, "Thai")
+    泰语性别线索：ครับ=男，ค่ะ/คะ=女。language="auto" 时自动检测语言。
+    返回 (script, detected_language)"""
+    LANG_NAMES = {"th": "Thai", "en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean"}
+    if language == "auto":
+        lang_line = "0. Detect the main language of the text (two-letter ISO code like th/en/zh/ja/ko).\n"
+        lang_desc = "the following"
+    else:
+        lang_line = ""
+        lang_desc = LANG_NAMES.get(language, "the following")
     prompt = (
-        f"Analyze this {lang_name} text for a language-learning audio lesson.\n"
+        f"Analyze this {lang_desc} text for a language-learning audio lesson.\n"
+        + lang_line +
         "1. Split it into natural sentences (each item should be one spoken sentence, "
         "not too long; split long sentences at natural pauses).\n"
         "2. Detect if it is a dialogue. If yes, assign speakers \"A\" and \"B\" "
@@ -91,8 +105,8 @@ def prepare_script(text, language="th"):
         "\"calm explanation\").\n"
         "Do NOT change, translate, or correct the text itself; strip only redundant "
         "speaker labels like \"A:\" if present.\n"
-        "Return ONLY a JSON array: "
-        '[{"text": "...", "speaker": "A", "gender": "female", "emotion": "..."}]\n\n'
+        "Return ONLY a JSON object: "
+        '{"language": "th", "sentences": [{"text": "...", "speaker": "A", "gender": "female", "emotion": "..."}]}\n\n'
         + text
     )
     model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
@@ -105,7 +119,19 @@ def prepare_script(text, language="th"):
         raw = raw.strip("`")
         if raw.startswith("json"):
             raw = raw[4:]
-    items = json.loads(raw)
+    parsed = json.loads(raw)
+    # 兼容两种返回：对象 {"language", "sentences"} 或纯数组
+    if isinstance(parsed, dict):
+        items = parsed.get("sentences", [])
+        detected = (parsed.get("language") or "")[:2].lower()
+    else:
+        items = parsed
+        detected = ""
+    if language != "auto":
+        detected = language
+    elif detected not in ("th", "en", "zh", "ja", "ko"):
+        detected = "en"  # 检测失败兜底
+
     script = []
     for it in items:
         t = (it.get("text") or "").strip()
@@ -138,7 +164,7 @@ def prepare_script(text, language="th"):
             if it["speaker"] == "A":
                 it["gender"] = ga
 
-    return script
+    return script, detected
 
 
 # ========== 第二步：逐句 TTS ==========
@@ -364,13 +390,13 @@ GAP_SEC = 0.4  # 句间停顿
 
 def generate_audio_lesson(text, language, engine, out_dir, progress=None):
     """完整流程：文本 → 音频文件 + segments。
-    返回 (audio_filename, segments, script)"""
+    返回 (audio_filename, segments, detected_language)"""
     def report(msg):
         if progress:
             progress(msg)
 
     report("正在分析文本、分配角色...")
-    script = prepare_script(text, language)
+    script, language = prepare_script(text, language)  # auto 时得到检测语言
 
     tmpdir = tempfile.mkdtemp(prefix="tts_")
     clips = []
@@ -429,7 +455,7 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None):
         if r.returncode != 0:
             raise RuntimeError("音频拼接失败: " + r.stderr[-200:])
 
-        return audio_name, segments, script
+        return audio_name, segments, language
     finally:
         import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)

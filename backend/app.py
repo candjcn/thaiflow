@@ -521,36 +521,43 @@ def api_tts_generate():
     text = (data.get("text") or "").strip()
     language = data.get("language", "th")
     engine = data.get("engine", "gemini")
-    source_lang_name = {"th": "泰语", "en": "英语"}.get(language, "外语")
 
     if not text:
         return jsonify({"error": "缺少文本内容"}), 400
     if len(text) > 3000:
         return jsonify({"error": "文本过长（最多 3000 字符）"}), 400
-    if language not in ("th", "en"):
-        return jsonify({"error": "暂只支持泰语和英语"}), 400
+    if language not in ("th", "en", "zh", "ja", "ko", "auto"):
+        return jsonify({"error": "不支持的语言"}), 400
     if engine not in ("gemini", "azure", "youdao"):
         return jsonify({"error": "不支持的语音引擎"}), 400
 
     os.makedirs(VIDEOS_DIR, exist_ok=True)
     try:
-        audio_name, segments, script = generate_audio_lesson(
+        # language="auto" 时返回的是检测到的语言
+        audio_name, segments, language = generate_audio_lesson(
             text, language, engine, VIDEOS_DIR
         )
+        source_lang_name = {"th": "泰语", "en": "英语", "zh": "中文",
+                            "ja": "日语", "ko": "韩语"}.get(language, "外语")
 
-        # 翻译（目标语言由前端界面语言决定）
+        # 翻译（目标语言由前端界面语言决定；源语言与目标一致时跳过）
         target_lang = data.get("target_lang", "中文")
-        try:
-            translated = translate_segments(
-                [{"index": s["index"], "text": s["text"]} for s in segments],
-                source_lang_name, target_lang,
-            )
-            for tr in translated:
-                idx = tr.get("index")
-                if idx is not None and 0 <= idx < len(segments):
-                    segments[idx]["translation"] = tr.get("translation", "")
-        except Exception as te:
-            print(f"[TTS] 翻译失败: {te}")
+        same_lang = (language == "zh" and target_lang in ("中文", "繁體中文")) or \
+                    (language == "ja" and target_lang == "日本語") or \
+                    (language == "ko" and target_lang == "한국어") or \
+                    (language == "en" and target_lang == "English")
+        if not same_lang:
+            try:
+                translated = translate_segments(
+                    [{"index": s["index"], "text": s["text"]} for s in segments],
+                    source_lang_name, target_lang,
+                )
+                for tr in translated:
+                    idx = tr.get("index")
+                    if idx is not None and 0 <= idx < len(segments):
+                        segments[idx]["translation"] = tr.get("translation", "")
+            except Exception as te:
+                print(f"[TTS] 翻译失败: {te}")
 
         # 封面插画（卡通风格，根据文本内容生成；失败不影响主流程）
         cover_name = os.path.splitext(audio_name)[0] + ".jpg"
