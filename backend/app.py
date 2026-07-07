@@ -11,7 +11,7 @@ from transcribe import transcribe_video, transcribe_slice, add_word_spacing
 from translate import translate_segments
 from export import export_video_with_subtitles, export_srt
 from pronounce import assess_pronunciation
-from tts import generate_audio_lesson
+from tts import generate_audio_lesson, generate_cover_image
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -507,14 +507,23 @@ def api_tts_generate():
         except Exception as te:
             print(f"[TTS] 翻译失败: {te}")
 
+        # 封面插画（卡通风格，根据文本内容生成；失败不影响主流程）
+        cover_name = os.path.splitext(audio_name)[0] + ".jpg"
+        cover = ""
+        if generate_cover_image(text, language, os.path.join(VIDEOS_DIR, cover_name)):
+            cover = cover_name
+
         # 落盘字幕 JSON（与视频字幕同格式，播放器直接复用）
+        subtitle_data = {"segments": segments, "language": language}
+        if cover:
+            subtitle_data["cover"] = cover
         with open(subtitle_path(audio_name), "w", encoding="utf-8") as f:
-            json.dump({"segments": segments, "language": language}, f,
-                      ensure_ascii=False, indent=2)
+            json.dump(subtitle_data, f, ensure_ascii=False, indent=2)
 
         log_event("tts_generate", engine=engine, language=language,
                   chars=len(text), sentences=len(segments))
-        return jsonify({"name": audio_name, "segments": segments, "language": language})
+        return jsonify({"name": audio_name, "segments": segments,
+                        "language": language, "cover": cover})
     except Exception as e:
         log_event("tts_generate_fail", engine=engine, error=str(e)[:200])
         return jsonify({"error": str(e)}), 502

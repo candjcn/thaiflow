@@ -179,6 +179,44 @@ def _wav_duration(path):
     return data_len / (sr * 2)
 
 
+# ========== 封面插画（Gemini 图片生成） ==========
+
+def generate_cover_image(text, language, out_path):
+    """根据文本内容生成一张卡通风格封面插画。失败时返回 False，不影响主流程。"""
+    model = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+    lang_name = {"th": "Thai", "en": "English"}.get(language, "")
+    prompt = (
+        "Create ONE simple, warm, flat-design cartoon illustration that captures "
+        f"the scene or theme of this {lang_name} text. "
+        "Style: minimalist flat cartoon, soft colors, cozy mood. "
+        "Absolutely NO words, NO letters, NO text in the image.\n\n"
+        + text[:400]
+    )
+    try:
+        resp = requests.post(
+            GEMINI_URL.format(model=model, key=_gemini_key()),
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+            },
+            timeout=90,
+        )
+        if resp.status_code != 200:
+            print(f"[Cover] Gemini 图片生成 {resp.status_code}: {resp.text[:150]}")
+            return False
+        for part in resp.json()["candidates"][0]["content"]["parts"]:
+            inline = part.get("inlineData")
+            if inline and inline.get("mimeType", "").startswith("image/"):
+                with open(out_path, "wb") as f:
+                    f.write(base64.b64decode(inline["data"]))
+                return True
+        print("[Cover] 返回中没有图片")
+        return False
+    except Exception as e:
+        print(f"[Cover] 生成失败: {e}")
+        return False
+
+
 # ========== 第三步：拼接 + 时间戳 ==========
 
 GAP_SEC = 0.4  # 句间停顿

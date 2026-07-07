@@ -707,6 +707,18 @@ video {
     opacity: 0;
 }
 
+/* 朗读课程封面（音频无画面时显示） */
+.lesson-cover {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    z-index: 5;
+    pointer-events: none;
+}
+
 /* 字幕覆盖层 — 宽度由 JS 动态设置为视频实际宽度 */
 .subtitle-overlay {
     position: absolute;

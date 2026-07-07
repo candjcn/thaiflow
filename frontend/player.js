@@ -1076,6 +1076,14 @@ async function saveToLocal(subtitleOnly, interactive, includeSrt) {
         }
     }
 
+    // 朗读课程封面（如有）
+    if (currentCover) {
+        try {
+            const res = await fetch(`/videos/${encodeURIComponent(currentCover)}`);
+            if (res.ok) files.push([currentCover, await res.blob()]);
+        } catch (e) { /* 封面缺失不影响保存 */ }
+    }
+
     // 优先：写入记住的目录（只选一次，之后自动保存）
     const dir = await getSaveDir(interactive === true);
     if (dir) {
@@ -1118,12 +1126,17 @@ async function openLocalFiles() {
 
     let videoFile = null;
     let subtitleFile = null;
+    let coverFile = null;
 
     for (const f of files) {
-        if (f.type.startsWith("video/") || f.name.toLowerCase().endsWith(".mp4")) {
+        const lower = f.name.toLowerCase();
+        if (f.type.startsWith("video/") || f.type.startsWith("audio/") ||
+            lower.endsWith(".mp4") || lower.endsWith(".m4a") || lower.endsWith(".mp3")) {
             videoFile = f;
-        } else if (f.name.toLowerCase().endsWith(".json")) {
+        } else if (lower.endsWith(".json")) {
             subtitleFile = f;
+        } else if (f.type.startsWith("image/")) {
+            coverFile = f;
         }
     }
 
@@ -1144,6 +1157,10 @@ async function openLocalFiles() {
     phaseSelect.style.display = "none";
     phasePlay.style.display = "flex";
     tryMobileFullscreen();
+
+    // 封面：本地选了图片就显示，否则隐藏
+    currentCover = "";
+    setLessonCover(coverFile ? URL.createObjectURL(coverFile) : "");
 
     // 用本地 URL 播放视频（不上传）
     const videoUrl = URL.createObjectURL(videoFile);
@@ -1213,6 +1230,8 @@ function showPlayerWithVideo(videoName) {
     phaseSelect.style.display = "none";
     phasePlay.style.display = "flex";
     tryMobileFullscreen();
+    currentCover = "";
+    setLessonCover("");
 
     // 加载视频（显示首帧）
     video.src = `/videos/${encodeURIComponent(videoName)}`;
@@ -1224,6 +1243,20 @@ function showPlayerWithVideo(videoName) {
     setStep("step2", "");
     setStep("step3", "");
     setTip("");
+}
+
+// ========== 朗读课程封面 ==========
+const lessonCover = document.getElementById("lessonCover");
+let currentCover = ""; // 服务器上的封面文件名
+
+function setLessonCover(src) {
+    if (src) {
+        lessonCover.src = src;
+        lessonCover.style.display = "block";
+    } else {
+        lessonCover.style.display = "none";
+        lessonCover.removeAttribute("src");
+    }
 }
 
 // ========== 加载已保存的字幕 ==========
@@ -1250,6 +1283,9 @@ async function loadSaved(videoName) {
         const data = await subtitlePromise;
         segments = data.segments || [];
         language = data.language || "";
+        // 朗读课程封面
+        currentCover = data.cover || "";
+        setLessonCover(currentCover ? `/videos/${encodeURIComponent(currentCover)}` : "");
     } catch (e) {
         alert(t("status.subtitleFail") + e.message);
         return;
