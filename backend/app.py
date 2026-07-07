@@ -552,6 +552,13 @@ def api_tts_generate():
         source_lang_name = {"th": "泰语", "en": "英语", "zh": "中文",
                             "ja": "日语", "ko": "韩语"}.get(language, "外语")
 
+        # 泰语：显示文本按词加空格（朗读音频已用原文生成，不受影响）
+        if language == "th":
+            texts = [s["text"] for s in segments]
+            spaced = add_word_spacing(texts, "th")
+            for s, sp in zip(segments, spaced):
+                s["text"] = sp
+
         # 翻译（目标语言由前端界面语言决定；源语言与目标一致时跳过）
         target_lang = data.get("target_lang", "中文")
         same_lang = (language == "zh" and target_lang in ("中文", "繁體中文")) or \
