@@ -18,6 +18,18 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 app = Flask(__name__)
 CORS(app)
 
+
+@app.after_request
+def set_cache_headers(response):
+    """HTML/JS/CSS 要求重新验证（防 Cloudflare/浏览器缓存旧版本导致页面与脚本不匹配）；
+    视频/音频/图片可长缓存"""
+    ct = response.content_type or ""
+    if any(t in ct for t in ("text/html", "javascript", "text/css")):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    elif any(t in ct for t in ("video/", "audio/", "image/")):
+        response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
+
 VIDEOS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "videos")
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 
