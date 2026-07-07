@@ -179,6 +179,85 @@ def _wav_duration(path):
     return data_len / (sr * 2)
 
 
+# ========== 有道 Confucius TTS（Gradio 会话协议 + 声音克隆） ==========
+
+YOUDAO_BASE = "https://confucius4-tts.youdao.com/gradio"
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+YOUDAO_REFS = {"male": "ref_thai_male.wav", "female": "ref_thai_female.wav"}
+
+
+class YoudaoTTS:
+    """有道子曰 TTS 演示端点。声音克隆：按性别用预置参考音频建会话，
+    参考音频预处理一次后同会话内逐句合成。"""
+
+    def __init__(self):
+        self.sessions = {}  # gender -> (session_hash, file_data)
+
+    def _run(self, session, fn_index, trigger_id, data, timeout=300):
+        import secrets
+        r = requests.post(f"{YOUDAO_BASE}/queue/join", json={
+            "data": data, "event_data": None, "fn_index": fn_index,
+            "trigger_id": trigger_id, "session_hash": session,
+        }, timeout=30)
+        if r.status_code != 200:
+            raise RuntimeError(f"有道 TTS 排队失败 {r.status_code}")
+        with requests.get(f"{YOUDAO_BASE}/queue/data?session_hash={session}",
+                          stream=True, timeout=timeout) as resp:
+            for line in resp.iter_lines():
+                if not line or not line.startswith(b"data:"):
+                    continue
+                msg = json.loads(line[5:].strip())
+                if msg.get("msg") == "process_completed":
+                    out = msg.get("output") or {}
+                    if out.get("error"):
+                        raise RuntimeError(f"有道 TTS 出错: {str(out['error'])[:150]}")
+                    return out
+        raise RuntimeError("有道 TTS 无响应（演示端点可能繁忙，请换 Gemini/Azure 引擎）")
+
+    def _ensure_session(self, gender):
+        import secrets
+        if gender in self.sessions:
+            return
+        ref_file = os.path.join(ASSETS_DIR, YOUDAO_REFS.get(gender, YOUDAO_REFS["female"]))
+        if not os.path.exists(ref_file):
+            raise RuntimeError(f"缺少参考音频: {ref_file}")
+        with open(ref_file, "rb") as f:
+            r = requests.post(f"{YOUDAO_BASE}/upload",
+                              files={"files": ("ref.wav", f, "audio/wav")}, timeout=60)
+        if r.status_code != 200:
+            raise RuntimeError(f"参考音频上传失败 {r.status_code}")
+        path = r.json()[0]
+        fdata = {
+            "path": path, "url": f"{YOUDAO_BASE}/file={path}",
+            "orig_name": "ref.wav", "size": os.path.getsize(ref_file),
+            "mime_type": "audio/wav", "meta": {"_type": "gradio.FileData"},
+        }
+        session = secrets.token_hex(8)
+        self._run(session, 0, 6, [fdata], timeout=120)  # 触发参考音频预处理
+        self.sessions[gender] = (session, fdata)
+
+    def tts_sentence(self, text, language, gender, out_path):
+        self._ensure_session(gender)
+        session, fdata = self.sessions[gender]
+        out = self._run(session, 1, 9, [text, language, fdata, None])
+        data = out.get("data")
+        if not data or not data[0]:
+            raise RuntimeError(f"有道 TTS 合成失败: {str(data)[:120]}")
+        audio = requests.get(data[0]["url"], timeout=60).content
+        tmp = out_path + ".dl"
+        with open(tmp, "wb") as f:
+            f.write(audio)
+        # 统一转 24kHz 单声道 16-bit WAV（便于拼接和时长计算）
+        r = subprocess.run(
+            ["ffmpeg", "-y", "-i", tmp, "-ar", "24000", "-ac", "1",
+             "-sample_fmt", "s16", out_path],
+            capture_output=True, text=True,
+        )
+        os.remove(tmp)
+        if r.returncode != 0:
+            raise RuntimeError("有道音频转换失败: " + r.stderr[-150:])
+
+
 # ========== 封面插画（Gemini 图片生成） ==========
 
 def generate_cover_image(text, language, out_path):
@@ -234,6 +313,7 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None):
 
     tmpdir = tempfile.mkdtemp(prefix="tts_")
     clips = []
+    youdao = YoudaoTTS() if engine == "youdao" else None
     try:
         for i, item in enumerate(script):
             report(f"正在生成语音 {i + 1}/{len(script)}...")
@@ -241,6 +321,8 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None):
             clip = os.path.join(tmpdir, f"clip_{i:03d}.wav")
             if engine == "azure":
                 azure_tts_sentence(item["text"], slot, language, clip)
+            elif engine == "youdao":
+                youdao.tts_sentence(item["text"], language, item["gender"], clip)
             else:
                 gemini_tts_sentence(item["text"], slot, item["emotion"], clip)
             clips.append(clip)

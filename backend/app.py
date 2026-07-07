@@ -484,7 +484,7 @@ def api_tts_generate():
         return jsonify({"error": "文本过长（最多 3000 字符）"}), 400
     if language not in ("th", "en"):
         return jsonify({"error": "暂只支持泰语和英语"}), 400
-    if engine not in ("gemini", "azure"):
+    if engine not in ("gemini", "azure", "youdao"):
         return jsonify({"error": "不支持的语音引擎"}), 400
 
     os.makedirs(VIDEOS_DIR, exist_ok=True)
