@@ -126,6 +126,7 @@ const btnDirCancel = document.getElementById("btnDirCancel");
 
 // ========== 初始化 ==========
 loadVideoList();
+loadLocalVideoList();
 
 btnPrev.addEventListener("click", prevSentence);
 btnNext.addEventListener("click", nextSentence);
@@ -1185,6 +1186,7 @@ async function saveToLocal(subtitleOnly, interactive, includeSrt) {
                 await writeFileToDir(dir, name, blob);
             }
             showToast(t("save.savedToDir", { n: files.length, dir: dir.name }));
+            loadLocalVideoList();
             return;
         } catch (e) {
             console.log("[Save] 目录写入失败，回退下载:", e);
@@ -1205,6 +1207,154 @@ async function saveToLocal(subtitleOnly, interactive, includeSrt) {
         link.download = name;
         setTimeout(() => link.click(), delay + i * 500);
     });
+}
+
+// ========== 播放本地视频+字幕（公共入口：文件选择器 / 本地列表） ==========
+async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
+    currentVideoName = videoFile.name;
+    localVideoFile = videoFile; // 供波形编辑器解码音频用
+
+    // 先隐藏所有遮罩，再显示播放界面，避免一闪而过
+    loadingOverlay.style.display = "none";
+    exportOverlay.style.display = "none";
+    followReadPanel.style.display = "none";
+
+    phaseSelect.style.display = "none";
+    phasePlay.style.display = "flex";
+    tryMobileFullscreen();
+
+    // 封面：有图片就显示，否则隐藏
+    currentCover = "";
+    setLessonCover(coverFile ? URL.createObjectURL(coverFile) : "");
+
+    // 用本地 URL 播放（不上传）
+    video.src = URL.createObjectURL(videoFile);
+    video.load();
+
+    try {
+        const text = await subtitleFile.text();
+        const data = JSON.parse(text);
+        segments = data.segments || [];
+        language = data.language || "";
+    } catch (e) {
+        alert(t("status.subtitleParseFail") + e.message);
+        return;
+    }
+
+    await waitForVideo();
+    isLoading = false;
+    btnTranslate.disabled = false;
+    renderSentenceList();
+    sentenceMode = true;
+    jumpToSentence(0);
+    video.play();
+    initMobileOverlays();
+    openDrawerIfDesktop();
+}
+
+// ========== 本地视频列表（枚举记忆的保存目录） ==========
+async function loadLocalVideoList() {
+    const section = document.getElementById("localVideosSection");
+    const listEl = document.getElementById("localVideoList");
+    if (!window.showDirectoryPicker) return; // Safari 等不支持
+
+    const handle = await fsIdb("get", "saveDir");
+    if (!handle) return;
+
+    let perm;
+    try {
+        perm = await handle.queryPermission({ mode: "read" });
+    } catch (e) {
+        return; // handle 失效
+    }
+
+    listEl.innerHTML = "";
+    section.style.display = "block";
+
+    if (perm !== "granted") {
+        // 需要用户手势授权才能读取目录
+        const btn = document.createElement("button");
+        btn.className = "btn-local-play";
+        btn.textContent = t("app.locallist.load");
+        btn.addEventListener("click", async () => {
+            const req = await handle.requestPermission({ mode: "read" });
+            if (req === "granted") loadLocalVideoList();
+        });
+        listEl.appendChild(btn);
+        return;
+    }
+
+    // 枚举目录：视频/音频 + 同名 JSON（识别过的才展示）
+    const media = {};   // base -> {name, handle, mtime}
+    const jsons = {};   // base -> handle
+    const images = {};  // base -> handle
+    try {
+        for await (const entry of handle.values()) {
+            if (entry.kind !== "file") continue;
+            const name = entry.name;
+            const lower = name.toLowerCase();
+            const base = name.replace(/\.[^.]+$/, "");
+            if (/\.(mp4|m4a|mp3|mov|webm)$/.test(lower)) {
+                media[base] = { name, handle: entry };
+            } else if (lower.endsWith(".json")) {
+                jsons[base] = entry;
+            } else if (/\.(jpg|jpeg|png|webp)$/.test(lower)) {
+                images[base] = entry;
+            }
+        }
+    } catch (e) {
+        console.log("[LocalList] 枚举目录失败:", e);
+        section.style.display = "none";
+        return;
+    }
+
+    const bases = Object.keys(media).filter(b => jsons[b]);
+    if (bases.length === 0) {
+        section.style.display = "none";
+        return;
+    }
+
+    // 按文件修改时间倒序（最近的在前）
+    const items = [];
+    for (const b of bases) {
+        let mtime = 0;
+        try {
+            const f = await media[b].handle.getFile();
+            mtime = f.lastModified;
+        } catch (e) { /* ignore */ }
+        items.push({ base: b, mtime });
+    }
+    items.sort((a, b) => b.mtime - a.mtime);
+
+    for (const { base } of items) {
+        const item = document.createElement("div");
+        item.className = "video-item ready";
+        item.style.cursor = "pointer";
+
+        const info = document.createElement("div");
+        info.className = "video-info";
+        const name = document.createElement("div");
+        name.className = "video-name";
+        name.textContent = base;
+        const status = document.createElement("div");
+        status.className = "video-status";
+        status.textContent = t("status.ready");
+        info.appendChild(name);
+        info.appendChild(status);
+        item.appendChild(info);
+
+        item.addEventListener("click", async () => {
+            try {
+                const videoFile = await media[base].handle.getFile();
+                const subtitleFile = await jsons[base].getFile();
+                const coverFile = images[base] ? await images[base].getFile() : null;
+                playLocalWithSubtitle(videoFile, subtitleFile, coverFile);
+            } catch (e) {
+                alert(t("status.subtitleFail") + e.message);
+            }
+        });
+        listEl.appendChild(item);
+    }
 }
 
 // ========== 打开本地文件（直接播放，不上传） ==========
@@ -1234,51 +1384,22 @@ async function openLocalFiles() {
         return;
     }
 
-    // 切换到播放界面
-    currentVideoName = videoFile.name;
-    localVideoFile = videoFile; // 供波形编辑器解码音频用
-
-    // 先隐藏所有遮罩，再显示播放界面，避免一闪而过
-    loadingOverlay.style.display = "none";
-    exportOverlay.style.display = "none";
-    followReadPanel.style.display = "none";
-
-    phaseSelect.style.display = "none";
-    phasePlay.style.display = "flex";
-    tryMobileFullscreen();
-
-    // 封面：本地选了图片就显示，否则隐藏
-    currentCover = "";
-    setLessonCover(coverFile ? URL.createObjectURL(coverFile) : "");
-
-    // 用本地 URL 播放视频（不上传）
-    const videoUrl = URL.createObjectURL(videoFile);
-    video.src = videoUrl;
-    video.load();
-
     if (subtitleFile) {
-
-        try {
-            const text = await subtitleFile.text();
-            const data = JSON.parse(text);
-            segments = data.segments || [];
-            language = data.language || "";
-        } catch (e) {
-            alert(t("status.subtitleParseFail") + e.message);
-            return;
-        }
-
-        await waitForVideo();
-        isLoading = false;
-        btnTranslate.disabled = false;
-        renderSentenceList();
-        sentenceMode = true;
-        jumpToSentence(0);
-        video.play();
-        initMobileOverlays();
-        openDrawerIfDesktop();
+        await playLocalWithSubtitle(videoFile, subtitleFile, coverFile);
     } else {
         // 没有字幕文件：先上传到服务器，再走与"粘贴链接"完全一致的识别翻译流程
+        currentVideoName = videoFile.name;
+        localVideoFile = videoFile;
+        exportOverlay.style.display = "none";
+        followReadPanel.style.display = "none";
+        phaseSelect.style.display = "none";
+        phasePlay.style.display = "flex";
+        tryMobileFullscreen();
+        currentCover = "";
+        setLessonCover("");
+        video.src = URL.createObjectURL(videoFile);
+        video.load();
+
         isLoading = true;
         loadingOverlay.style.display = "flex";
         setStep("step1", "active");
@@ -1560,6 +1681,7 @@ function backToSelect() {
     mOverlaysInitialized = false;
     hideMobileOverlays();
     loadVideoList();
+    loadLocalVideoList();
 }
 
 // ========== 句子列表抽屉 ==========
