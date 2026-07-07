@@ -93,6 +93,25 @@ def prepare_script(text, language="th"):
         })
     if not script:
         raise RuntimeError("分句结果为空")
+
+    # 对话场景：强制 A/B 一男一女，便于区分学习
+    # （保留 A 检测到的性别，B 取相反性别）
+    speakers = {it["speaker"] for it in script}
+    if "A" in speakers and "B" in speakers:
+        a_genders = [it["gender"] for it in script if it["speaker"] == "A"]
+        b_genders = [it["gender"] for it in script if it["speaker"] == "B"]
+        ga = max(set(a_genders), key=a_genders.count)
+        gb = max(set(b_genders), key=b_genders.count)
+        if ga == gb:
+            flipped = "male" if ga == "female" else "female"
+            for it in script:
+                if it["speaker"] == "B":
+                    it["gender"] = flipped
+        # 同一说话人内部保持一致
+        for it in script:
+            if it["speaker"] == "A":
+                it["gender"] = ga
+
     return script
 
 
