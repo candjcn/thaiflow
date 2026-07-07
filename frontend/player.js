@@ -923,6 +923,39 @@ document.getElementById("btnTtsToggle").addEventListener("click", () => {
     ttsContent.style.display = ttsContent.style.display === "none" ? "flex" : "none";
 });
 
+// 隐藏测试功能：文本框里直接粘贴图片 → OCR 识别成文字
+document.getElementById("ttsText").addEventListener("paste", async (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    const imgItem = Array.from(items).find(it => it.type.startsWith("image/"));
+    if (!imgItem) return; // 纯文字粘贴走默认行为
+
+    e.preventDefault();
+    const blob = imgItem.getAsFile();
+    ttsStatus.textContent = "识别图片文字中...";
+    ttsStatus.className = "url-status";
+    try {
+        const formData = new FormData();
+        formData.append("image", blob, "paste.png");
+        formData.append("language", document.getElementById("ttsLang").value);
+        const res = await fetch("/api/ocr", { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.error) {
+            ttsStatus.textContent = "图片识别失败: " + data.error;
+            ttsStatus.className = "url-status error";
+            return;
+        }
+        const ta = document.getElementById("ttsText");
+        // 插入到光标处（已有文字则追加）
+        ta.value = ta.value ? ta.value + "\n" + (data.text || "") : (data.text || "");
+        ttsStatus.textContent = data.text ? "" : "图片中没有识别到文字";
+        ttsStatus.className = "url-status";
+    } catch (err) {
+        ttsStatus.textContent = "图片识别失败: " + err.message;
+        ttsStatus.className = "url-status error";
+    }
+});
+
 btnTtsGenerate.addEventListener("click", async () => {
     const text = document.getElementById("ttsText").value.trim();
     if (!text) {

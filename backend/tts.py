@@ -300,6 +300,32 @@ class YoudaoTTS:
             raise RuntimeError("有道音频转换失败: " + r.stderr[-150:])
 
 
+# ========== 图片 OCR（Gemini 视觉，测试功能） ==========
+
+def ocr_image(image_bytes, mime_type="image/png", language=""):
+    """识别图片中的文字（隐藏测试功能：粘贴文本框支持直接贴图）"""
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    lang_name = {"th": "Thai", "en": "English"}.get((language or "")[:2].lower(), "")
+    lang_hint = f"The text is mainly in {lang_name}. " if lang_name else ""
+    prompt = (
+        f"{lang_hint}Extract ALL text from this image verbatim, preserving line breaks "
+        "and dialogue structure. Output ONLY the extracted text, no explanations, "
+        "no labels. If there is no text, output nothing."
+    )
+    result = _gemini_request(model, {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": mime_type,
+                                 "data": base64.b64encode(image_bytes).decode()}},
+            ]
+        }],
+        "generationConfig": {"temperature": 0},
+    }, timeout=60, tag="OCR")
+    parts = result["candidates"][0]["content"]["parts"]
+    return "".join(p.get("text", "") for p in parts).strip()
+
+
 # ========== 封面插画（Gemini 图片生成） ==========
 
 def generate_cover_image(text, language, out_path):

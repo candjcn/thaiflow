@@ -11,7 +11,7 @@ from transcribe import transcribe_video, transcribe_slice, add_word_spacing
 from translate import translate_segments
 from export import export_video_with_subtitles, export_srt
 from pronounce import assess_pronunciation
-from tts import generate_audio_lesson, generate_cover_image
+from tts import generate_audio_lesson, generate_cover_image, ocr_image
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -493,6 +493,25 @@ def api_retranscribe_audio():
         for p in (raw_path, wav_path):
             if os.path.exists(p):
                 os.remove(p)
+
+
+@app.route("/api/ocr", methods=["POST"])
+def api_ocr():
+    """图片文字识别（隐藏测试功能：粘贴文本框直接贴图）"""
+    if "image" not in request.files:
+        return jsonify({"error": "缺少图片"}), 400
+    img = request.files["image"]
+    data = img.read()
+    if len(data) > 10 * 1024 * 1024:
+        return jsonify({"error": "图片过大（最多 10MB）"}), 400
+    mime = img.mimetype or "image/png"
+    language = request.form.get("language", "")
+    try:
+        text = ocr_image(data, mime, language)
+        log_event("ocr", language=language, chars=len(text))
+        return jsonify({"text": text})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
 
 
 @app.route("/api/tts-generate", methods=["POST"])
