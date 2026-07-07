@@ -266,9 +266,7 @@ document.addEventListener("webkitfullscreenchange", () => {
 /// Overlay controls: play/pause, prev, next
 mCenterPlayBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (isAtEnd) {
-        togglePause(); // 重播
-    } else if (followReadPanel.style.display !== "none") {
+    if (followReadPanel.style.display !== "none") {
         toggleShadowRead();
     } else {
         togglePause();
@@ -427,13 +425,9 @@ function showMobileOverlays() {
     resetOverlayTimer();
 }
 
-let isAtEnd = false; // 是否播放到最后一句结束
-
 function syncOverlayPlayState() {
     mCenterPlayBtn.classList.remove("paused", "playing", "ended");
-    if (isAtEnd) {
-        mCenterPlayBtn.classList.add("ended");
-    } else if (video.paused) {
+    if (video.paused) {
         mCenterPlayBtn.classList.add("paused");
     } else {
         mCenterPlayBtn.classList.add("playing");
@@ -517,13 +511,10 @@ video.addEventListener("ended", () => {
         }
     }
 
-    // 所有句子、所有遍数都播完，显示重播按钮
-    isAtEnd = true;
-    syncOverlayPlayState();
-    if (isMobile()) {
-        mOverlayControls.classList.add("visible");
-        mOverlayControls.classList.remove("fading");
-        clearTimeout(mOverlayTimer);
+    // 所有句子、所有遍数都播完：自动从第一句重新开始（无限循环）
+    if (sentenceMode && segments.length > 0) {
+        jumpToSentence(0);
+        video.play();
     }
 });
 
@@ -707,24 +698,6 @@ document.addEventListener("fullscreenchange", () => {
 // ========== 暂停/播放 ==========
 function togglePause() {
     if (isLoading) return;
-    if (isAtEnd) {
-        // 播完最后一句，重新从第一句开始
-        isAtEnd = false;
-        sentenceMode = true;
-        repeatCount = 0;
-        currentIndex = 0;
-        const seg = segments[0];
-        video.currentTime = seg.start;
-        const maxRepeat = parseInt(repeatCountSelect.value) || 3;
-        updateRepeatInfo(maxRepeat);
-        updateSubtitle(seg);
-        highlightSentence(0);
-        video.play();
-        syncOverlayPlayState();
-        showMobileOverlays();
-        showPauseIcon("▶");
-        return;
-    }
     if (video.paused) {
         // 播放完毕后再次点击，从头开始
         if (!sentenceMode && segments.length > 0) {
@@ -1693,11 +1666,9 @@ function onTimeUpdate() {
                     video.play();
                 }
             } else {
-                // 最后一句播完，暂停并显示重播标志
-                video.pause();
-                isAtEnd = true;
-                syncOverlayPlayState();
-                showMobileOverlays();
+                // 最后一句播完：自动从第一句重新开始（无限循环）
+                jumpToSentence(0);
+                video.play();
             }
         }
     }
@@ -1705,7 +1676,6 @@ function onTimeUpdate() {
 
 function jumpToSentence(index) {
     if (index < 0 || index >= segments.length) return;
-    isAtEnd = false;
     currentIndex = index;
     repeatCount = 0;
     const seg = segments[index];
