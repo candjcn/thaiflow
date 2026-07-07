@@ -708,7 +708,11 @@ function updateSubtitleWidth() {
     }
 }
 
-video.addEventListener("loadedmetadata", updateSubtitleWidth);
+video.addEventListener("loadedmetadata", () => {
+    // 纯音频（朗读课程）：切换到"字幕为主角"的呈现模式
+    videoContainer.classList.toggle("lesson-mode", video.videoWidth === 0);
+    updateSubtitleWidth();
+});
 video.addEventListener("resize", updateSubtitleWidth);
 window.addEventListener("resize", updateSubtitleWidth);
 document.addEventListener("fullscreenchange", () => {

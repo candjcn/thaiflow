@@ -786,6 +786,36 @@ video {
     pointer-events: none;
 }
 
+/* ==========================================
+   朗读课程模式：字幕是主角（纯音频时自动启用）
+   ========================================== */
+/* 封面压暗，退为氛围背景 */
+.video-container.lesson-mode .lesson-cover {
+    filter: brightness(0.55);
+}
+
+/* 字幕移到画面中部，像绘本/歌词卡 */
+.video-container.lesson-mode .subtitle-overlay {
+    bottom: auto;
+    top: 45%;
+    transform: translate(-50%, -50%);
+}
+
+.video-container.lesson-mode .subtitle-original {
+    font-size: 32px;
+    line-height: 1.7;
+    padding: 10px 24px;
+    border-radius: 10px;
+}
+
+.video-container.lesson-mode .subtitle-translation {
+    font-size: 20px;
+    line-height: 1.6;
+    padding: 8px 20px;
+    margin-top: 10px;
+    border-radius: 8px;
+}
+
 /* 字幕覆盖层 — 宽度由 JS 动态设置为视频实际宽度 */
 .subtitle-overlay {
     position: absolute;
@@ -2092,6 +2122,17 @@ label {
 
     .subtitle-translation {
         font-size: 16px;
+    }
+
+    /* 朗读课程模式：手机端字号 */
+    .video-container.lesson-mode .subtitle-original {
+        font-size: 26px;
+        padding: 8px 16px;
+    }
+
+    .video-container.lesson-mode .subtitle-translation {
+        font-size: 18px;
+        padding: 6px 14px;
     }
 
     /* 隐藏桌面控件，显示移动端控件 */
