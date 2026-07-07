@@ -673,19 +673,39 @@ video.addEventListener("pause", () => {
     if (!isLoading) btnPause.classList.remove("playing");
 });
 
-// 字幕宽度跟随视频实际渲染宽度
+// 字幕宽度跟随视频实际渲染宽度；纯音频课程跟随封面图宽度
 function updateSubtitleWidth() {
-    if (video.videoWidth === 0) return;
-    const videoRect = video.getBoundingClientRect();
     const containerRect = videoContainer.getBoundingClientRect();
-    const videoDisplayWidth = videoRect.width;
-    subtitleOverlay.style.width = (videoDisplayWidth * 0.92) + "px";
-    // 确保字幕水平居中于视频而非容器
-    const videoLeft = videoRect.left - containerRect.left;
-    const videoCenter = videoLeft + videoDisplayWidth / 2;
-    const containerCenter = containerRect.width / 2;
-    const offset = videoCenter - containerCenter;
-    subtitleOverlay.style.left = `calc(50% + ${offset}px)`;
+
+    if (video.videoWidth > 0) {
+        // 有视频画面：按视频渲染宽度
+        const videoRect = video.getBoundingClientRect();
+        const videoDisplayWidth = videoRect.width;
+        subtitleOverlay.style.width = (videoDisplayWidth * 0.92) + "px";
+        // 确保字幕水平居中于视频而非容器
+        const videoLeft = videoRect.left - containerRect.left;
+        const videoCenter = videoLeft + videoDisplayWidth / 2;
+        const containerCenter = containerRect.width / 2;
+        const offset = videoCenter - containerCenter;
+        subtitleOverlay.style.left = `calc(50% + ${offset}px)`;
+        return;
+    }
+
+    // 纯音频课程：按封面图实际渲染宽度的 80% 折行
+    subtitleOverlay.style.left = "50%";
+    const coverVisible = lessonCover.style.display !== "none" && lessonCover.naturalWidth > 0;
+    if (coverVisible) {
+        // object-fit: contain 的实际显示尺寸
+        const scale = Math.min(
+            containerRect.width / lessonCover.naturalWidth,
+            containerRect.height / lessonCover.naturalHeight
+        );
+        const coverDisplayWidth = lessonCover.naturalWidth * scale;
+        subtitleOverlay.style.width = (coverDisplayWidth * 0.8) + "px";
+    } else {
+        // 无封面：容器宽度的 80%
+        subtitleOverlay.style.width = (containerRect.width * 0.8) + "px";
+    }
 }
 
 video.addEventListener("loadedmetadata", updateSubtitleWidth);
@@ -1322,7 +1342,11 @@ function setLessonCover(src) {
         lessonCover.style.display = "none";
         lessonCover.removeAttribute("src");
     }
+    updateSubtitleWidth();
 }
+
+// 封面图加载完成后按其实际宽度重排字幕
+lessonCover.addEventListener("load", updateSubtitleWidth);
 
 // ========== 加载已保存的字幕 ==========
 async function loadSaved(videoName) {
