@@ -324,7 +324,7 @@ def transcribe_gemini_slice(wav_path, language=None):
     with open(wav_path, "rb") as f:
         audio_b64 = base64.b64encode(f.read()).decode()
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    from tts import _gemini_request
     payload = {
         "contents": [{
             "parts": [
@@ -339,11 +339,7 @@ def transcribe_gemini_slice(wav_path, language=None):
         "generationConfig": {"temperature": 0},
     }
 
-    resp = requests.post(url, json=payload, timeout=60)
-    if resp.status_code != 200:
-        raise RuntimeError(f"Gemini API 错误 {resp.status_code}: {resp.text[:200]}")
-
-    data = resp.json()
+    data = _gemini_request(model, payload, timeout=60, tag="Gemini识别")
     try:
         text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
     except (KeyError, IndexError):
@@ -380,17 +376,14 @@ def add_word_spacing(texts, language="th"):
         + numbered
     )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0},
     }
     try:
-        resp = requests.post(url, json=payload, timeout=60)
-        if resp.status_code != 200:
-            print(f"[WordSpacing] Gemini {resp.status_code}: {resp.text[:150]}")
-            return texts
-        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        from tts import _gemini_request
+        resp_json = _gemini_request(model, payload, timeout=60, max_retries=3, tag="分词")
+        raw = resp_json["candidates"][0]["content"]["parts"][0]["text"].strip()
         # 去掉可能的 markdown 代码块包裹
         if raw.startswith("```"):
             raw = raw.strip("`")

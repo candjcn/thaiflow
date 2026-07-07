@@ -38,6 +38,38 @@ def _gemini_key():
     return key
 
 
+def _gemini_request(model, payload, timeout=60, max_retries=4, tag="Gemini"):
+    """统一的 Gemini 调用：429 限流和 503 高负载自动退避重试"""
+    import time
+
+    last_err = ""
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(
+                GEMINI_URL.format(model=model, key=_gemini_key()),
+                json=payload, timeout=timeout,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            last_err = f"{resp.status_code}: {resp.text[:150]}"
+            if resp.status_code == 429:
+                wait = 15 * (attempt + 1)
+                print(f"[{tag}] 限流，{wait}s 后重试（{attempt + 1}/{max_retries}）")
+                time.sleep(wait)
+                continue
+            if resp.status_code >= 500:
+                wait = 5 * (attempt + 1)
+                print(f"[{tag}] 服务繁忙 {resp.status_code}，{wait}s 后重试（{attempt + 1}/{max_retries}）")
+                time.sleep(wait)
+                continue
+            break  # 其他 4xx 不重试
+        except requests.RequestException as e:
+            last_err = str(e)[:150]
+            time.sleep(3 * (attempt + 1))
+
+    raise RuntimeError(f"{tag} 失败（已重试 {max_retries} 次）{last_err}")
+
+
 # ========== 第一步：分句 + 说话人/性别/情感标注 ==========
 
 def prepare_script(text, language="th"):
@@ -64,17 +96,11 @@ def prepare_script(text, language="th"):
         + text
     )
     model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-    resp = requests.post(
-        GEMINI_URL.format(model=model, key=_gemini_key()),
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0},
-        },
-        timeout=60,
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f"Gemini 分句失败 {resp.status_code}: {resp.text[:200]}")
-    raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    result = _gemini_request(model, {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0},
+    }, timeout=60, tag="Gemini分句")
+    raw = result["candidates"][0]["content"]["parts"][0]["text"].strip()
     if raw.startswith("```"):
         raw = raw.strip("`")
         if raw.startswith("json"):
@@ -135,15 +161,12 @@ def _pcm_to_wav(pcm_bytes, sample_rate=24000):
     return header + pcm_bytes
 
 
-def gemini_tts_sentence(text, voice_slot, emotion, out_path, max_retries=4):
-    """Gemini TTS 生成单句，带情感指令。
-    免费额度有每分钟请求数限制（429）且预览版偶发 5xx，必须带重试退避。"""
-    import time
-
+def gemini_tts_sentence(text, voice_slot, emotion, out_path):
+    """Gemini TTS 生成单句，带情感指令（内置限流/高负载重试）"""
     model = os.environ.get("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
     voice = GEMINI_VOICES.get(voice_slot, "Kore")
     styled = f"Say in a {emotion} tone: {text}" if emotion else text
-    payload = {
+    result = _gemini_request(model, {
         "contents": [{"parts": [{"text": styled}]}],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
@@ -151,40 +174,14 @@ def gemini_tts_sentence(text, voice_slot, emotion, out_path, max_retries=4):
                 "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}
             },
         },
-    }
-
-    last_err = ""
-    for attempt in range(max_retries):
-        try:
-            resp = requests.post(
-                GEMINI_URL.format(model=model, key=_gemini_key()),
-                json=payload, timeout=120,
-            )
-            if resp.status_code == 200:
-                parts = resp.json()["candidates"][0]["content"]["parts"]
-                inline = next((p["inlineData"] for p in parts if "inlineData" in p), None)
-                if inline is None:
-                    raise RuntimeError("返回中没有音频")
-                pcm = base64.b64decode(inline["data"])
-                with open(out_path, "wb") as f:
-                    f.write(_pcm_to_wav(pcm, 24000))
-                return
-            last_err = f"{resp.status_code}: {resp.text[:150]}"
-            if resp.status_code == 429:
-                # 限流：按建议或指数退避等待后重试
-                wait = 15 * (attempt + 1)
-                print(f"[TTS] Gemini 限流，{wait}s 后重试（{attempt + 1}/{max_retries}）")
-                time.sleep(wait)
-                continue
-            if resp.status_code >= 500:
-                time.sleep(3 * (attempt + 1))
-                continue
-            break  # 4xx 非限流错误不重试
-        except requests.RequestException as e:
-            last_err = str(e)[:150]
-            time.sleep(3 * (attempt + 1))
-
-    raise RuntimeError(f"Gemini TTS 失败（已重试 {max_retries} 次）{last_err}")
+    }, timeout=120, tag="GeminiTTS")
+    parts = result["candidates"][0]["content"]["parts"]
+    inline = next((p["inlineData"] for p in parts if "inlineData" in p), None)
+    if inline is None:
+        raise RuntimeError("Gemini TTS 返回中没有音频")
+    pcm = base64.b64decode(inline["data"])
+    with open(out_path, "wb") as f:
+        f.write(_pcm_to_wav(pcm, 24000))
 
 
 def azure_tts_sentence(text, voice_slot, language, out_path):
@@ -317,18 +314,11 @@ def generate_cover_image(text, language, out_path):
         + text[:400]
     )
     try:
-        resp = requests.post(
-            GEMINI_URL.format(model=model, key=_gemini_key()),
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
-            },
-            timeout=90,
-        )
-        if resp.status_code != 200:
-            print(f"[Cover] Gemini 图片生成 {resp.status_code}: {resp.text[:150]}")
-            return False
-        for part in resp.json()["candidates"][0]["content"]["parts"]:
+        result = _gemini_request(model, {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+        }, timeout=90, max_retries=2, tag="Cover")
+        for part in result["candidates"][0]["content"]["parts"]:
             inline = part.get("inlineData")
             if inline and inline.get("mimeType", "").startswith("image/"):
                 with open(out_path, "wb") as f:
