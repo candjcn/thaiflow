@@ -239,6 +239,56 @@ html, body {
     line-height: 1.5;
 }
 
+/* 粘贴文本生成朗读课程 */
+.tts-section {
+    margin-bottom: 20px;
+}
+
+.tts-content {
+    margin-top: 12px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tts-content textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #eee;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 10px 12px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.tts-content .provider-row {
+    font-size: 13px;
+    color: #aaa;
+}
+
+.btn-tts-generate {
+    padding: 11px;
+    font-size: 14px;
+    font-weight: 600;
+    background: #e94560;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+}
+
+.btn-tts-generate:disabled {
+    opacity: 0.5;
+}
+
 /* 我的视频区域 */
 .my-videos-section {
     margin-bottom: 20px;

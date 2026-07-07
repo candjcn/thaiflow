@@ -11,6 +11,7 @@ from transcribe import transcribe_video, transcribe_slice, add_word_spacing
 from translate import translate_segments
 from export import export_video_with_subtitles, export_srt
 from pronounce import assess_pronunciation
+from tts import generate_audio_lesson
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -466,6 +467,57 @@ def api_retranscribe_audio():
         for p in (raw_path, wav_path):
             if os.path.exists(p):
                 os.remove(p)
+
+
+@app.route("/api/tts-generate", methods=["POST"])
+def api_tts_generate():
+    """粘贴文本 → 生成语音课程（音频 + 逐句时间戳字幕）"""
+    data = request.get_json()
+    text = (data.get("text") or "").strip()
+    language = data.get("language", "th")
+    engine = data.get("engine", "gemini")
+    source_lang_name = {"th": "泰语", "en": "英语"}.get(language, "外语")
+
+    if not text:
+        return jsonify({"error": "缺少文本内容"}), 400
+    if len(text) > 3000:
+        return jsonify({"error": "文本过长（最多 3000 字符）"}), 400
+    if language not in ("th", "en"):
+        return jsonify({"error": "暂只支持泰语和英语"}), 400
+    if engine not in ("gemini", "azure"):
+        return jsonify({"error": "不支持的语音引擎"}), 400
+
+    os.makedirs(VIDEOS_DIR, exist_ok=True)
+    try:
+        audio_name, segments, script = generate_audio_lesson(
+            text, language, engine, VIDEOS_DIR
+        )
+
+        # 翻译（目标语言由前端界面语言决定）
+        target_lang = data.get("target_lang", "中文")
+        try:
+            translated = translate_segments(
+                [{"index": s["index"], "text": s["text"]} for s in segments],
+                source_lang_name, target_lang,
+            )
+            for tr in translated:
+                idx = tr.get("index")
+                if idx is not None and 0 <= idx < len(segments):
+                    segments[idx]["translation"] = tr.get("translation", "")
+        except Exception as te:
+            print(f"[TTS] 翻译失败: {te}")
+
+        # 落盘字幕 JSON（与视频字幕同格式，播放器直接复用）
+        with open(subtitle_path(audio_name), "w", encoding="utf-8") as f:
+            json.dump({"segments": segments, "language": language}, f,
+                      ensure_ascii=False, indent=2)
+
+        log_event("tts_generate", engine=engine, language=language,
+                  chars=len(text), sentences=len(segments))
+        return jsonify({"name": audio_name, "segments": segments, "language": language})
+    except Exception as e:
+        log_event("tts_generate_fail", engine=engine, error=str(e)[:200])
+        return jsonify({"error": str(e)}), 502
 
 
 @app.route("/api/translate", methods=["POST"])

@@ -914,6 +914,58 @@ videoUrlInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") downloadFromUrl();
 });
 
+// ========== 粘贴文本生成朗读课程 ==========
+const ttsContent = document.getElementById("ttsContent");
+const ttsStatus = document.getElementById("ttsStatus");
+const btnTtsGenerate = document.getElementById("btnTtsGenerate");
+
+document.getElementById("btnTtsToggle").addEventListener("click", () => {
+    ttsContent.style.display = ttsContent.style.display === "none" ? "flex" : "none";
+});
+
+btnTtsGenerate.addEventListener("click", async () => {
+    const text = document.getElementById("ttsText").value.trim();
+    if (!text) {
+        ttsStatus.textContent = t("tts.needText");
+        ttsStatus.className = "url-status error";
+        return;
+    }
+
+    btnTtsGenerate.disabled = true;
+    ttsStatus.textContent = t("tts.generating");
+    ttsStatus.className = "url-status";
+
+    try {
+        const res = await fetch("/api/tts-generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                text,
+                language: document.getElementById("ttsLang").value,
+                engine: document.getElementById("ttsEngine").value,
+                target_lang: getTargetLang(),
+            }),
+        });
+        const data = await res.json();
+        if (data.error) {
+            ttsStatus.textContent = t("tts.fail") + data.error;
+            ttsStatus.className = "url-status error";
+            return;
+        }
+        ttsStatus.textContent = "";
+        document.getElementById("ttsText").value = "";
+        // 进入播放器（音频 + 字幕 JSON 已在服务器）
+        await loadSaved(data.name);
+        // 自动保存到本地（音频 + JSON；手机端含 SRT）
+        saveToLocal(false, false, isMobile());
+    } catch (e) {
+        ttsStatus.textContent = t("tts.fail") + e.message;
+        ttsStatus.className = "url-status error";
+    } finally {
+        btnTtsGenerate.disabled = false;
+    }
+});
+
 // ========== 保存到本地 ==========
 // SRT 时间格式：00:00:01,000
 function toSrtTime(sec) {
