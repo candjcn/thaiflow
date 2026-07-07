@@ -923,7 +923,22 @@ document.getElementById("btnTtsToggle").addEventListener("click", () => {
     ttsContent.style.display = ttsContent.style.display === "none" ? "flex" : "none";
 });
 
-// 隐藏测试功能：文本框里直接粘贴图片 → OCR 识别成文字
+// 隐藏测试功能：文本框里直接粘贴图片 → 预览 + 转圈 → OCR 识别成文字
+const ttsImgPreview = document.getElementById("ttsImgPreview");
+const ttsImgThumb = document.getElementById("ttsImgThumb");
+const ttsImgClose = document.getElementById("ttsImgClose");
+let ttsImgAutoCloseTimer = null;
+
+function closeTtsImgPreview() {
+    clearTimeout(ttsImgAutoCloseTimer);
+    ttsImgPreview.style.display = "none";
+    ttsImgPreview.classList.remove("loading");
+    if (ttsImgThumb.src.startsWith("blob:")) URL.revokeObjectURL(ttsImgThumb.src);
+    ttsImgThumb.removeAttribute("src");
+}
+
+ttsImgClose.addEventListener("click", closeTtsImgPreview);
+
 document.getElementById("ttsText").addEventListener("paste", async (e) => {
     const items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
@@ -932,25 +947,42 @@ document.getElementById("ttsText").addEventListener("paste", async (e) => {
 
     e.preventDefault();
     const blob = imgItem.getAsFile();
+
+    // 1. 显示图片预览 + 转圈（识别中）
+    closeTtsImgPreview();
+    ttsImgThumb.src = URL.createObjectURL(blob);
+    ttsImgPreview.style.display = "block";
+    ttsImgPreview.classList.add("loading");
     ttsStatus.textContent = "识别图片文字中...";
     ttsStatus.className = "url-status";
+
     try {
         const formData = new FormData();
         formData.append("image", blob, "paste.png");
         formData.append("language", document.getElementById("ttsLang").value);
         const res = await fetch("/api/ocr", { method: "POST", body: formData });
         const data = await res.json();
+
+        ttsImgPreview.classList.remove("loading");
+
         if (data.error) {
             ttsStatus.textContent = "图片识别失败: " + data.error;
             ttsStatus.className = "url-status error";
-            return;
+            return; // 保留预览，手动关闭
         }
+
+        // 2. 识别结果填入文本框（已有文字则追加）
         const ta = document.getElementById("ttsText");
-        // 插入到光标处（已有文字则追加）
         ta.value = ta.value ? ta.value + "\n" + (data.text || "") : (data.text || "");
         ttsStatus.textContent = data.text ? "" : "图片中没有识别到文字";
         ttsStatus.className = "url-status";
+
+        // 3. 成功后 2 秒自动关闭预览（也可手动点 ✕）
+        if (data.text) {
+            ttsImgAutoCloseTimer = setTimeout(closeTtsImgPreview, 2000);
+        }
     } catch (err) {
+        ttsImgPreview.classList.remove("loading");
         ttsStatus.textContent = "图片识别失败: " + err.message;
         ttsStatus.className = "url-status error";
     }

@@ -69,6 +69,12 @@
                 <div class="tts-section">
                     <button class="btn-local-play" id="btnTtsToggle" data-i18n="tts.toggle">粘贴文本，生成朗读课程</button>
                     <div class="tts-content" id="ttsContent" style="display:none;">
+                        <!-- 图片粘贴预览（OCR 识别中） -->
+                        <div class="tts-img-preview" id="ttsImgPreview" style="display:none;">
+                            <img id="ttsImgThumb" alt="">
+                            <div class="tts-img-spinner" id="ttsImgSpinner"></div>
+                            <button class="tts-img-close" id="ttsImgClose" type="button">✕</button>
+                        </div>
                         <textarea id="ttsText" rows="5" data-i18n-placeholder="tts.placeholder" placeholder="粘贴一段文章或对话（泰语/英语）。对话会自动用两个声音朗读..."></textarea>
                         <div class="provider-row">
                             <label data-i18n="tts.lang">文本语言：</label>
