@@ -1925,19 +1925,97 @@ function getSubtitleMode() {
     return "both";
 }
 
-function updateSubtitle(seg) {
-    subtitleOriginal.textContent = seg.text || "";
-    subtitleTranslation.textContent = seg.translation || "";
-    // 调试：确认翻译数据
-    if (!seg.translation) {
-        console.warn("字幕缺少翻译:", seg.index, seg.text);
+// ========== 卡拉OK逐词高亮（原文字幕） ==========
+// 词级时间按字符数比例在句子时长内插值（无需词级时间戳，任何语言/引擎通用）
+let kwSegKey = null;   // 当前已渲染句子的标识
+let kwSpans = [];      // 词 span 元素
+let kwBounds = [];     // 每词归一化结束位置 (0,1]
+let kwActive = -1;
+let kwRaf = null;
+
+function renderKaraoke(seg) {
+    const text = seg.text || "";
+    const key = `${seg.index ?? -1}|${text}`;
+    if (kwSegKey === key) return; // 同句复读时不重建
+    kwSegKey = key;
+    kwActive = -1;
+    kwSpans = [];
+    kwBounds = [];
+    subtitleOriginal.textContent = "";
+
+    if (!text) return;
+
+    // 分词：有空格按词分（英/泰-已分词等）；无空格按字符分（中/日等）
+    const tokens = text.includes(" ")
+        ? text.split(/\s+/).filter(Boolean)
+        : Array.from(text);
+    const spaced = text.includes(" ");
+
+    const weights = tokens.map(tk => Math.max(1, tk.length));
+    const total = weights.reduce((a, b) => a + b, 0);
+
+    let cum = 0;
+    tokens.forEach((tk, i) => {
+        const span = document.createElement("span");
+        span.className = "kw";
+        span.textContent = tk;
+        subtitleOriginal.appendChild(span);
+        if (spaced && i < tokens.length - 1) {
+            subtitleOriginal.appendChild(document.createTextNode(" "));
+        }
+        cum += weights[i];
+        kwSpans.push(span);
+        kwBounds.push(cum / total);
+    });
+}
+
+function updateKaraoke() {
+    if (currentIndex < 0 || !segments[currentIndex] || kwSpans.length === 0) return;
+    if (subtitleOriginal.style.display === "none") return;
+    const seg = segments[currentIndex];
+    const dur = seg.end - seg.start;
+    if (dur <= 0) return;
+
+    let p = (video.currentTime - seg.start) / dur;
+    if (p < 0) p = 0;
+    if (p >= 1) p = 0.999;
+
+    let idx = kwBounds.findIndex(b => p < b);
+    if (idx === -1) idx = kwSpans.length - 1;
+
+    if (idx !== kwActive) {
+        if (kwActive >= 0 && kwSpans[kwActive]) kwSpans[kwActive].classList.remove("kw-active");
+        kwSpans[idx].classList.add("kw-active");
+        kwActive = idx;
     }
+}
+
+function kwLoop() {
+    updateKaraoke();
+    kwRaf = requestAnimationFrame(kwLoop);
+}
+
+video.addEventListener("play", () => {
+    cancelAnimationFrame(kwRaf);
+    kwLoop();
+});
+video.addEventListener("pause", () => {
+    cancelAnimationFrame(kwRaf);
+});
+
+function updateSubtitle(seg) {
+    renderKaraoke(seg);
+    subtitleTranslation.textContent = seg.translation || "";
     updateSubtitleVisibility();
 }
 
 function clearSubtitle() {
     subtitleOriginal.textContent = "";
     subtitleTranslation.textContent = "";
+    kwSegKey = null;
+    kwSpans = [];
+    kwBounds = [];
+    kwActive = -1;
 }
 
 function updateSubtitleVisibility() {
