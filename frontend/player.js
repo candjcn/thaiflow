@@ -153,7 +153,7 @@ btnDirSelect.addEventListener("click", () => {
 });
 btnDirCancel.addEventListener("click", () => { dirBrowser.style.display = "none"; });
 btnFollowRead.addEventListener("click", openFollowRead);
-document.getElementById("btnSaveLocal").addEventListener("click", () => saveToLocal(false, true));
+document.getElementById("btnSaveLocal").addEventListener("click", () => saveToLocal(false, true, true));
 btnDownloadUrl.addEventListener("click", downloadFromUrl);
 document.getElementById("localFiles").addEventListener("change", openLocalFiles);
 btnFrClose.addEventListener("click", closeFollowRead);
@@ -167,7 +167,7 @@ btnCloseDrawer.addEventListener("click", () => {
 
 // 句子列表：下载字幕到本地（JSON + SRT）
 document.getElementById("btnDrawerSave").addEventListener("click", () => {
-    saveToLocal(true, true); // 用户点击：可弹目录选择
+    saveToLocal(true, true, true); // 用户点击保存：JSON + 两个 SRT，可弹目录选择
 });
 
 playbackRateSelect.addEventListener("change", () => {
@@ -1030,7 +1030,8 @@ function showToast(text) {
 
 // subtitleOnly: 为 true 时只保存字幕（用户本地已有视频文件时）
 // interactive: 是否由用户点击触发（首次可弹目录选择框）
-async function saveToLocal(subtitleOnly, interactive) {
+// includeSrt: 是否包含 SRT 字幕（自动保存时桌面端只存视频+JSON，减少下载打扰）
+async function saveToLocal(subtitleOnly, interactive, includeSrt) {
     if (!currentVideoName || segments.length === 0) return;
 
     const baseName = currentVideoName.replace(/\.[^.]+$/, "");
@@ -1039,13 +1040,15 @@ async function saveToLocal(subtitleOnly, interactive) {
     // 1. JSON（本应用回放用：含译文和语言信息）
     files.push([baseName + ".json",
         new Blob([JSON.stringify({ segments, language }, null, 2)], { type: "application/json" })]);
-    // 2. SRT 原文（可导入剪映等编辑软件）
-    files.push([baseName + "_原文.srt",
-        new Blob([generateSrt("text")], { type: "text/plain" })]);
-    // 3. SRT 中文译文（如果有翻译）
-    if (segments.some(s => s.translation)) {
-        files.push([baseName + "_中文.srt",
-            new Blob([generateSrt("translation")], { type: "text/plain" })]);
+    if (includeSrt !== false) {
+        // 2. SRT 原文（可导入剪映等编辑软件）
+        files.push([baseName + "_原文.srt",
+            new Blob([generateSrt("text")], { type: "text/plain" })]);
+        // 3. SRT 中文译文（如果有翻译）
+        if (segments.some(s => s.translation)) {
+            files.push([baseName + "_中文.srt",
+                new Blob([generateSrt("translation")], { type: "text/plain" })]);
+        }
     }
 
     // 优先：写入记住的目录（只选一次，之后自动保存）
@@ -1318,7 +1321,8 @@ async function startLoading(videoName, subtitleOnly) {
     finishLoading();
 
     // 处理完成后自动下载到本地（subtitleOnly: 用户本地已有视频，只下字幕）
-    saveToLocal(subtitleOnly === true, false); // 自动保存：已授权目录则静默写入，否则回退下载
+    // 自动保存：手机端保持原样（全部文件）；桌面端只存视频+JSON，SRT 由句子列表"保存"按钮获取
+    saveToLocal(subtitleOnly === true, false, isMobile());
 }
 
 // ========== 等待视频可播放 ==========
