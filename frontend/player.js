@@ -795,6 +795,15 @@ function setTip(text) {
     loadingTip.textContent = text;
 }
 
+// ========== 空状态提示 ==========
+function updateEmptyState() {
+    const el = document.getElementById("emptyState");
+    if (!el) return;
+    const hasLocal = document.getElementById("localVideosSection").style.display !== "none";
+    const hasServer = document.getElementById("myVideosSection").style.display !== "none";
+    el.style.display = (hasLocal || hasServer) ? "none" : "";
+}
+
 // ========== 视频列表 ==========
 const myVideosSection = document.getElementById("myVideosSection");
 
@@ -806,6 +815,7 @@ async function loadVideoList() {
 
         if (data.videos.length === 0) {
             myVideosSection.style.display = "none";
+            updateEmptyState();
             return;
         }
 
@@ -869,8 +879,10 @@ async function loadVideoList() {
             item.appendChild(actions);
             videoListEl.appendChild(item);
         });
+        updateEmptyState();
     } catch (e) {
         console.error("加载视频列表失败:", e);
+        updateEmptyState();
     }
 }
 
@@ -1469,6 +1481,7 @@ async function loadLessonLibraryList(section, listEl) {
     }
     if (all.length === 0) {
         section.style.display = "none";
+        updateEmptyState();
         return;
     }
     all.sort((a, b) => b.savedAt - a.savedAt);
@@ -1533,6 +1546,7 @@ async function loadLessonLibraryList(section, listEl) {
         });
         listEl.appendChild(item);
     }
+    updateEmptyState();
 }
 
 // ========== 本地视频列表 ==========
@@ -1650,6 +1664,7 @@ async function loadLocalVideoList() {
         });
         listEl.appendChild(item);
     }
+    updateEmptyState();
 }
 
 // 桌面目录列表缩略图：同名图片优先，否则视频截帧（结果缓存到 IndexedDB）

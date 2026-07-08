@@ -48,9 +48,32 @@
                     </div>
                 </div>
 
-                <!-- 粘贴文本生成朗读课程 -->
+                <!-- 次级入口：两张卡片并排 -->
+                <div class="entry-cards">
+                    <!-- 粘贴文本生成朗读课程 -->
+                    <div class="entry-card" id="btnTtsToggle">
+                        <div class="entry-card-icon">
+                            <svg viewBox="0 0 24 24" fill="none"><path d="M4 5h16M4 9h10M4 13h12M4 17h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M19 13l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 17h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </div>
+                        <div class="entry-card-text">
+                            <span class="entry-card-title" data-i18n="tts.card.title">粘贴文本</span>
+                            <span class="entry-card-desc" data-i18n="tts.card.desc">课文或对话，AI 朗读成课</span>
+                        </div>
+                    </div>
+                    <label class="entry-card" for="localFiles">
+                        <div class="entry-card-icon">
+                            <svg viewBox="0 0 24 24" fill="none"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 11v6M9 14h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </div>
+                        <div class="entry-card-text">
+                            <span class="entry-card-title" data-i18n="app.local.card.title">本地文件</span>
+                            <span class="entry-card-desc" data-i18n="app.local.card.desc">打开视频或音频文件</span>
+                        </div>
+                    </label>
+                    <input type="file" id="localFiles" multiple accept="video/*,audio/*,.json,image/*" style="display:none;">
+                </div>
+
+                <!-- TTS 展开区（点击卡片后显示） -->
                 <div class="tts-section">
-                    <button class="btn-local-play" id="btnTtsToggle" data-i18n="tts.toggle">粘贴文本，生成朗读课程</button>
                     <div class="tts-content" id="ttsContent" style="display:none;">
                         <!-- 图片粘贴预览（OCR 识别中） -->
                         <div class="tts-img-preview" id="ttsImgPreview" style="display:none;">
@@ -83,22 +106,23 @@
                     </div>
                 </div>
 
-                <!-- 打开本地文件 -->
-                <div class="local-play-section">
-                    <label class="btn-local-play" for="localFiles" data-i18n="app.local.btn">打开本地视频</label>
-                    <input type="file" id="localFiles" multiple accept="video/*,audio/*,.json,image/*" style="display:none;">
-                    <p class="local-play-hint" data-i18n="app.local.desc">已有字幕：同时选择视频和字幕文件 · 没有字幕：自动识别翻译生成</p>
-                    <!-- 本地已识别视频列表（读取记忆的保存目录） -->
-                    <div class="my-videos-section" id="localVideosSection" style="display:none;">
-                        <h2 class="section-heading" data-i18n="app.locallist.title">本地视频</h2>
-                        <div id="localVideoList" class="video-list"></div>
-                    </div>
+                <!-- 课程列表区 -->
+                <div class="my-videos-section" id="localVideosSection" style="display:none;">
+                    <h2 class="section-label" data-i18n="app.locallist.title">本地视频</h2>
+                    <div id="localVideoList" class="video-list"></div>
                 </div>
 
-                <!-- 服务器上的视频列表 -->
                 <div class="my-videos-section" id="myVideosSection">
-                    <h2 class="section-heading" data-i18n="app.server.title">服务器视频</h2>
+                    <h2 class="section-label" data-i18n="app.server.title">服务器视频</h2>
                     <div id="videoList" class="video-list"></div>
+                </div>
+
+                <!-- 空状态提示 -->
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-state-icon">
+                        <svg viewBox="0 0 48 48" fill="none"><rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" stroke-width="1.5"/><polygon points="20,18 32,24 20,30" fill="currentColor" opacity="0.3"/><polygon points="20,18 32,24 20,30" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" fill="none"/></svg>
+                    </div>
+                    <p class="empty-state-text" data-i18n="app.empty.hint">你学过的课程会出现在这里</p>
                 </div>
             </div>
         </div>
