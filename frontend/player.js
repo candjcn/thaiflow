@@ -1247,11 +1247,201 @@ async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
     openDrawerIfDesktop();
 }
 
-// ========== 本地视频列表（枚举记忆的保存目录） ==========
+// ========== 浏览器内置课程库（IndexedDB，手机端本地列表数据源） ==========
+const LESSON_DB = "reelspeak-lessons";
+const MAX_LESSONS = 20; // 超出后删最旧的，控制存储占用
+
+function lessonsStore(mode) {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(LESSON_DB, 1);
+        req.onupgradeneeded = () => {
+            req.result.createObjectStore("lessons", { keyPath: "name" });
+        };
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            const tx = req.result.transaction("lessons", mode);
+            resolve(tx.objectStore("lessons"));
+        };
+    });
+}
+
+function lessonsGetAll() {
+    return lessonsStore("readonly").then(store => new Promise((resolve) => {
+        const r = store.getAll();
+        r.onsuccess = () => resolve(r.result || []);
+        r.onerror = () => resolve([]);
+    })).catch(() => []);
+}
+
+function lessonsPut(record) {
+    return lessonsStore("readwrite").then(store => new Promise((resolve, reject) => {
+        const r = store.put(record);
+        r.onsuccess = () => resolve(true);
+        r.onerror = () => reject(r.error);
+    }));
+}
+
+function lessonsDelete(name) {
+    return lessonsStore("readwrite").then(store => new Promise((resolve) => {
+        const r = store.delete(name);
+        r.onsuccess = () => resolve(true);
+        r.onerror = () => resolve(false);
+    })).catch(() => false);
+}
+
+// 截取当前视频画面做缩略图（纯音频返回 null，改用封面）
+function captureVideoThumb() {
+    return new Promise((resolve) => {
+        if (video.videoWidth === 0) { resolve(null); return; }
+        try {
+            const canvas = document.createElement("canvas");
+            const w = 320;
+            const h = Math.round(w * video.videoHeight / video.videoWidth);
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext("2d").drawImage(video, 0, 0, w, h);
+            canvas.toBlob(b => resolve(b), "image/jpeg", 0.7);
+        } catch (e) {
+            resolve(null); // 异常时无缩略图
+        }
+    });
+}
+
+// 课程完成/打开后存入浏览器课程库（手机端专用；桌面用文件夹列表）
+async function saveLessonToLibrary() {
+    if (!isMobile() || !currentVideoName || segments.length === 0) return;
+    try {
+        // 已存在则复用大文件，只更新字幕
+        const existing = await new Promise((resolve) => {
+            lessonsStore("readonly").then(store => {
+                const r = store.get(currentVideoName);
+                r.onsuccess = () => resolve(r.result);
+                r.onerror = () => resolve(null);
+            }).catch(() => resolve(null));
+        });
+
+        let videoBlob = existing && existing.videoBlob;
+        if (!videoBlob) {
+            const res = await fetch(`/videos/${encodeURIComponent(currentVideoName)}`);
+            if (!res.ok) return;
+            videoBlob = await res.blob();
+        }
+
+        let coverBlob = existing && existing.coverBlob;
+        if (!coverBlob && currentCover) {
+            try {
+                const res = await fetch(`/videos/${encodeURIComponent(currentCover)}`);
+                if (res.ok) coverBlob = await res.blob();
+            } catch (e) { /* 无封面 */ }
+        }
+
+        // 缩略图：视频截帧，音频用封面
+        let thumbBlob = existing && existing.thumbBlob;
+        if (!thumbBlob) {
+            await delay(600); // 等首帧渲染
+            thumbBlob = await captureVideoThumb() || coverBlob || null;
+        }
+
+        await lessonsPut({
+            name: currentVideoName,
+            coverName: currentCover || "",
+            videoBlob,
+            coverBlob: coverBlob || null,
+            thumbBlob: thumbBlob || null,
+            subtitle: { segments, language },
+            savedAt: Date.now(),
+        });
+
+        // 超量清理：删最旧
+        const all = await lessonsGetAll();
+        if (all.length > MAX_LESSONS) {
+            all.sort((a, b) => a.savedAt - b.savedAt);
+            for (const old of all.slice(0, all.length - MAX_LESSONS)) {
+                await lessonsDelete(old.name);
+            }
+        }
+        loadLocalVideoList();
+    } catch (e) {
+        console.log("[Library] 入库失败:", e);
+    }
+}
+
+// 手机端：从课程库渲染本地列表（带缩略图，点击直接播放）
+async function loadLessonLibraryList(section, listEl) {
+    const all = await lessonsGetAll();
+    if (all.length === 0) {
+        section.style.display = "none";
+        return;
+    }
+    all.sort((a, b) => b.savedAt - a.savedAt);
+    listEl.innerHTML = "";
+    section.style.display = "block";
+
+    for (const rec of all) {
+        const item = document.createElement("div");
+        item.className = "video-item ready";
+        item.style.cursor = "pointer";
+
+        if (rec.thumbBlob) {
+            const img = document.createElement("img");
+            img.className = "video-thumb";
+            img.src = URL.createObjectURL(rec.thumbBlob);
+            item.appendChild(img);
+        }
+
+        const info = document.createElement("div");
+        info.className = "video-info";
+        const name = document.createElement("div");
+        name.className = "video-name";
+        name.textContent = rec.name.replace(/\.[^.]+$/, "");
+        const status = document.createElement("div");
+        status.className = "video-status";
+        status.textContent = t("status.ready");
+        info.appendChild(name);
+        info.appendChild(status);
+        item.appendChild(info);
+
+        // 删除按钮
+        const actions = document.createElement("div");
+        actions.className = "video-actions";
+        const btnDel = document.createElement("button");
+        btnDel.textContent = "✕";
+        btnDel.className = "btn-lesson-del";
+        btnDel.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            await lessonsDelete(rec.name);
+            loadLocalVideoList();
+        });
+        actions.appendChild(btnDel);
+        item.appendChild(actions);
+
+        item.addEventListener("click", () => {
+            const ext = rec.name.split(".").pop();
+            const mime = ext === "m4a" ? "audio/mp4" : "video/mp4";
+            const videoFile = new File([rec.videoBlob], rec.name, { type: mime });
+            const subtitleFile = new File(
+                [JSON.stringify(rec.subtitle)], rec.name.replace(/\.[^.]+$/, "") + ".json",
+                { type: "application/json" });
+            const coverFile = rec.coverBlob
+                ? new File([rec.coverBlob], rec.coverName || "cover.jpg", { type: "image/jpeg" })
+                : null;
+            playLocalWithSubtitle(videoFile, subtitleFile, coverFile);
+        });
+        listEl.appendChild(item);
+    }
+}
+
+// ========== 本地视频列表 ==========
+// 桌面：枚举记忆的保存目录；手机：读取浏览器课程库
 async function loadLocalVideoList() {
     const section = document.getElementById("localVideosSection");
     const listEl = document.getElementById("localVideoList");
-    if (!window.showDirectoryPicker) return; // Safari 等不支持
+
+    // 手机端（或不支持目录 API 的浏览器）：用浏览器课程库
+    if (isMobile() || !window.showDirectoryPicker) {
+        loadLessonLibraryList(section, listEl);
+        return;
+    }
 
     const handle = await fsIdb("get", "saveDir");
     if (!handle) return;
@@ -1326,6 +1516,12 @@ async function loadLocalVideoList() {
         item.className = "video-item ready";
         item.style.cursor = "pointer";
 
+        // 缩略图占位（异步填充）
+        const img = document.createElement("img");
+        img.className = "video-thumb";
+        item.appendChild(img);
+        fillDirThumb(img, base, media, images);
+
         const info = document.createElement("div");
         info.className = "video-info";
         const name = document.createElement("div");
@@ -1350,6 +1546,70 @@ async function loadLocalVideoList() {
         });
         listEl.appendChild(item);
     }
+}
+
+// 桌面目录列表缩略图：同名图片优先，否则视频截帧（结果缓存到 IndexedDB）
+async function fillDirThumb(img, base, media, images) {
+    try {
+        // 1. 同名封面图片
+        if (images[base]) {
+            const f = await images[base].getFile();
+            img.src = URL.createObjectURL(f);
+            return;
+        }
+        // 2. 缓存的截帧
+        const cached = await fsIdb("get", "thumb:" + base);
+        if (cached instanceof Blob) {
+            img.src = URL.createObjectURL(cached);
+            return;
+        }
+        // 3. 从视频截帧并缓存
+        const f = await media[base].handle.getFile();
+        if (!f.type.startsWith("video/") && !/\.(mp4|mov|webm)$/i.test(f.name)) {
+            img.style.display = "none"; // 纯音频且无封面
+            return;
+        }
+        const blob = await thumbFromVideoFile(f);
+        if (blob) {
+            img.src = URL.createObjectURL(blob);
+            fsIdb("put", "thumb:" + base, blob);
+        } else {
+            img.style.display = "none";
+        }
+    } catch (e) {
+        img.style.display = "none";
+    }
+}
+
+// 从视频文件截取一帧生成缩略图 blob
+function thumbFromVideoFile(file) {
+    return new Promise((resolve) => {
+        const v = document.createElement("video");
+        v.muted = true;
+        v.preload = "metadata";
+        v.src = URL.createObjectURL(file);
+        const cleanup = (result) => {
+            URL.revokeObjectURL(v.src);
+            v.removeAttribute("src");
+            resolve(result);
+        };
+        v.addEventListener("loadeddata", () => { v.currentTime = 0.5; });
+        v.addEventListener("seeked", () => {
+            try {
+                const canvas = document.createElement("canvas");
+                const w = 320;
+                const h = Math.round(w * v.videoHeight / v.videoWidth) || 180;
+                canvas.width = w;
+                canvas.height = h;
+                canvas.getContext("2d").drawImage(v, 0, 0, w, h);
+                canvas.toBlob(b => cleanup(b), "image/jpeg", 0.7);
+            } catch (e) {
+                cleanup(null);
+            }
+        }, { once: true });
+        v.addEventListener("error", () => cleanup(null));
+        setTimeout(() => cleanup(null), 8000); // 超时保底
+    });
 }
 
 // ========== 打开本地文件（直接播放，不上传） ==========
@@ -1508,6 +1768,8 @@ async function loadSaved(videoName) {
     video.play();
     initMobileOverlays();
     openDrawerIfDesktop();
+    // 手机端：存入浏览器课程库（服务器被清空后仍可重播）
+    saveLessonToLibrary();
 }
 
 // ========== 完整加载流程 ==========
@@ -1594,6 +1856,8 @@ async function startLoading(videoName, subtitleOnly) {
     // 自动保存只下 2 个文件：视频 + JSON（本地回放学习用，两端一致）
     // SRT 等其余字幕格式由句子列表"保存"按钮获取
     saveToLocal(subtitleOnly === true, false, "json");
+    // 手机端：同时存入浏览器课程库（首页"本地视频"列表，点击即播）
+    saveLessonToLibrary();
 }
 
 // ========== 等待视频可播放 ==========

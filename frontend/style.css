@@ -356,6 +356,31 @@ html, body {
     opacity: 0.5;
 }
 
+/* 本地列表缩略图 */
+.video-thumb {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-lesson-del {
+    background: transparent;
+    border: none;
+    color: #555;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+}
+
+.btn-lesson-del:hover {
+    color: #e94560;
+    background: rgba(233, 69, 96, 0.1);
+}
+
 /* 我的视频区域 */
 .my-videos-section {
     margin-bottom: 20px;
