@@ -1,4 +1,4 @@
-const APP_REV = "20260708h"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260708i"; // 与 index.html 的 ?v= 同步更新
 
 // ========== i18n 初始化 ==========
 I18N.init();
@@ -128,7 +128,8 @@ const btnDirCancel = document.getElementById("btnDirCancel");
 
 // ========== 初始化 ==========
 loadVideoList();
-loadLocalVideoList();
+// 注意：loadLocalVideoList() 的启动调用在文件末尾——
+// 它依赖后面声明的 const（LESSON_DB 等），在这里调用会踩 TDZ
 // 页面版本标识（排查缓存问题用）
 (() => {
     const rev = document.createElement("div");
@@ -3841,3 +3842,6 @@ async function getLocalAudioSliceWav(startSec, endSec) {
         actx.close().catch(() => {});
     }
 }
+
+// 启动时加载本地视频列表（必须在所有声明之后执行）
+loadLocalVideoList();
