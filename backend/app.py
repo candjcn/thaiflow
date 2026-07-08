@@ -400,8 +400,10 @@ def api_transcribe():
         if lang == "th" or lang_full == "thai":
             texts = [s["text"] for s in result["segments"]]
             spaced = add_word_spacing(texts, "th")
-            for s, sp in zip(result["segments"], spaced):
-                s["text"] = sp
+            for s, item in zip(result["segments"], spaced):
+                s["text"] = item["text"]
+                if item["weights"]:
+                    s["wordWeights"] = item["weights"]
 
         log_event("transcribe", video=video_name, provider=provider,
                   language=result.get("language", ""),
@@ -459,9 +461,12 @@ def api_retranscribe():
         result = transcribe_slice(wav_path, provider, language=language)
         text = result["text"]
 
-        # 泰语：按词加空格
+        # 泰语：按词加空格 + 发音时长权重
+        word_weights = None
         if (language or "")[:2].lower() == "th" and text:
-            text = add_word_spacing([text], "th")[0]
+            item = add_word_spacing([text], "th")[0]
+            text = item["text"]
+            word_weights = item["weights"]
 
         translation = ""
         if do_translate and text:
@@ -474,7 +479,10 @@ def api_retranscribe():
 
         log_event("retranscribe", video=video_name, provider=provider,
                   range=f"{start:.1f}-{end:.1f}", language=language)
-        return jsonify({"text": text, "translation": translation})
+        resp = {"text": text, "translation": translation}
+        if word_weights:
+            resp["wordWeights"] = word_weights
+        return jsonify(resp)
     except Exception as e:
         return jsonify({"error": str(e)}), 502
     finally:
@@ -517,9 +525,12 @@ def api_retranscribe_audio():
         result = transcribe_slice(wav_path, provider, language=language)
         text = result["text"]
 
-        # 泰语：按词加空格
+        # 泰语：按词加空格 + 发音时长权重
+        word_weights = None
         if (language or "")[:2].lower() == "th" and text:
-            text = add_word_spacing([text], "th")[0]
+            item = add_word_spacing([text], "th")[0]
+            text = item["text"]
+            word_weights = item["weights"]
 
         translation = ""
         if do_translate and text:
@@ -531,7 +542,10 @@ def api_retranscribe_audio():
                 print(f"[RetranscribeAudio] 翻译失败: {te}")
 
         log_event("retranscribe_audio", provider=provider, language=language)
-        return jsonify({"text": text, "translation": translation})
+        resp = {"text": text, "translation": translation}
+        if word_weights:
+            resp["wordWeights"] = word_weights
+        return jsonify(resp)
     except Exception as e:
         return jsonify({"error": str(e)}), 502
     finally:
@@ -585,12 +599,14 @@ def api_tts_generate():
         source_lang_name = {"th": "泰语", "en": "英语", "zh": "中文",
                             "ja": "日语", "ko": "韩语"}.get(language, "外语")
 
-        # 泰语：显示文本按词加空格（朗读音频已用原文生成，不受影响）
+        # 泰语：显示文本按词加空格 + 发音时长权重（朗读音频已用原文生成，不受影响）
         if language == "th":
             texts = [s["text"] for s in segments]
             spaced = add_word_spacing(texts, "th")
-            for s, sp in zip(segments, spaced):
-                s["text"] = sp
+            for s, item in zip(segments, spaced):
+                s["text"] = item["text"]
+                if item["weights"]:
+                    s["wordWeights"] = item["weights"]
 
         # 翻译（目标语言由前端界面语言决定；源语言与目标一致时跳过）
         target_lang = data.get("target_lang", "中文")

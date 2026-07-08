@@ -352,14 +352,14 @@ def transcribe_gemini_slice(wav_path, language=None):
 
 
 def add_word_spacing(texts, language="th"):
-    """用 Gemini 给无空格语言（如泰语）的文本按词加空格，方便学习者阅读。
-    只插入空格，不改动任何字符；失败时原样返回。"""
+    """用 Gemini 给无空格语言（如泰语）的文本按词加空格，并估算每词发音时长权重。
+    返回 list of dict: [{"text": "สวัสดี ค่ะ", "weights": [3, 1.5]}, ...]
+    失败时返回 [{"text": orig, "weights": None}, ...]。"""
     import json as _json
-    import requests
 
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key or not texts:
-        return texts
+        return [{"text": t, "weights": None} for t in texts]
 
     model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     lang_name = {"th": "Thai", "ja": "Japanese", "km": "Khmer", "lo": "Lao", "my": "Burmese"}.get(
@@ -367,12 +367,19 @@ def add_word_spacing(texts, language="th"):
 
     numbered = "\n".join(f"{i}\t{t}" for i, t in enumerate(texts))
     prompt = (
-        f"The following numbered lines are {lang_name} sentences (index TAB text).\n"
-        f"Task: insert a single space between every {lang_name} word "
-        "(word segmentation to help language learners read).\n"
-        "Rules: do NOT change, add, remove, or reorder any characters — "
-        "only insert spaces. Keep existing spaces/punctuation as-is.\n"
-        "Return ONLY a JSON array of strings in the same order, no explanations, no markdown.\n\n"
+        f"The following numbered lines are {lang_name} sentences (index TAB text).\n\n"
+        "Do TWO things for each sentence:\n"
+        f"1. **Word segmentation**: insert a single space between every {lang_name} word.\n"
+        "2. **Pronunciation duration weight**: for each segmented word, estimate its "
+        "relative spoken duration as a number (1 = one short syllable). "
+        "Consider: number of syllables, long vs short vowels, "
+        "silent/unpronounced letters (e.g. การันต์), consonant clusters.\n\n"
+        "Rules for segmentation: do NOT change, add, remove, or reorder any characters — "
+        "only insert spaces. Keep existing spaces/punctuation as-is.\n\n"
+        "Return ONLY a JSON array of objects in the same order:\n"
+        '[{"text": "segmented text", "w": [1.5, 1, 2, ...]}, ...]\n'
+        "The w array length MUST equal the number of space-separated words in text.\n"
+        "No explanations, no markdown.\n\n"
         + numbered
     )
 
@@ -389,21 +396,40 @@ def add_word_spacing(texts, language="th"):
             raw = raw.strip("`")
             if raw.startswith("json"):
                 raw = raw[4:]
-        spaced = _json.loads(raw)
-        if not isinstance(spaced, list) or len(spaced) != len(texts):
+        parsed = _json.loads(raw)
+        if not isinstance(parsed, list) or len(parsed) != len(texts):
             print("[WordSpacing] 返回数量不匹配，放弃")
-            return texts
-        # 安全校验：除空格外内容必须完全一致，否则该句保留原文
+            return [{"text": t, "weights": None} for t in texts]
+
         result = []
-        for orig, sp in zip(texts, spaced):
-            if isinstance(sp, str) and sp.replace(" ", "") == orig.replace(" ", ""):
-                result.append(sp.strip())
+        for orig, item in zip(texts, parsed):
+            # 兼容旧格式（纯字符串）和新格式（对象）
+            if isinstance(item, str):
+                sp = item
+                weights = None
+            elif isinstance(item, dict):
+                sp = item.get("text", orig)
+                weights = item.get("w")
             else:
-                result.append(orig)
+                sp = orig
+                weights = None
+
+            # 安全校验：除空格外内容必须完全一致
+            if isinstance(sp, str) and sp.replace(" ", "") == orig.replace(" ", ""):
+                word_count = len(sp.split())
+                # 校验权重数组与词数一致
+                if isinstance(weights, list) and len(weights) == word_count:
+                    # 确保每个权重是正数
+                    weights = [max(0.5, float(w)) for w in weights]
+                else:
+                    weights = None
+                result.append({"text": sp.strip(), "weights": weights})
+            else:
+                result.append({"text": orig, "weights": None})
         return result
     except Exception as e:
         print(f"[WordSpacing] 失败: {e}")
-        return texts
+        return [{"text": t, "weights": None} for t in texts]
 
 
 AZURE_LOCALE_MAP = {

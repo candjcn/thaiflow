@@ -2452,7 +2452,11 @@ function renderKaraoke(seg) {
         : Array.from(text);
     const spaced = text.includes(" ");
 
-    const weights = tokens.map(tk => Math.max(1, tk.length));
+    // 优先使用后端提供的发音时长权重（泰语 Gemini 估算），否则按字符数等比
+    const ww = seg.wordWeights;
+    const weights = (Array.isArray(ww) && ww.length === tokens.length)
+        ? ww.map(w => Math.max(0.5, w))
+        : tokens.map(tk => Math.max(1, tk.length));
     const total = weights.reduce((a, b) => a + b, 0);
 
     let cum = 0;
@@ -3802,6 +3806,8 @@ weBtnRetrans.addEventListener("click", async () => {
         const seg = segments[we.idx];
         if (data.text) seg.text = data.text;
         if (data.translation) seg.translation = data.translation;
+        if (data.wordWeights) seg.wordWeights = data.wordWeights;
+        else delete seg.wordWeights;
         renderSentenceList();
         if (we.idx === currentIndex) updateSubtitle(seg);
         weStatus.textContent = "✓ " + (data.text || "");
