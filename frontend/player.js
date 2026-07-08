@@ -683,6 +683,7 @@ function updateSubtitleWidth() {
         const videoRect = video.getBoundingClientRect();
         const videoDisplayWidth = videoRect.width;
         subtitleOverlay.style.width = (videoDisplayWidth * 0.92) + "px";
+        subtitleOverlay.style.top = ""; // 清理课程模式的残留定位
         // 确保字幕水平居中于视频而非容器
         const videoLeft = videoRect.left - containerRect.left;
         const videoCenter = videoLeft + videoDisplayWidth / 2;
@@ -692,7 +693,8 @@ function updateSubtitleWidth() {
         return;
     }
 
-    // 纯音频课程：按封面图实际渲染宽度的 80% 折行
+    // 纯音频课程：字幕卡放在封面下方的空白区（画归画，字归字），
+    // 宽度为封面实际渲染宽度的 80%
     subtitleOverlay.style.left = "50%";
     const coverVisible = lessonCover.style.display !== "none" && lessonCover.naturalWidth > 0;
     if (coverVisible) {
@@ -702,10 +704,21 @@ function updateSubtitleWidth() {
             containerRect.height / lessonCover.naturalHeight
         );
         const coverDisplayWidth = lessonCover.naturalWidth * scale;
+        const coverDisplayHeight = lessonCover.naturalHeight * scale;
         subtitleOverlay.style.width = (coverDisplayWidth * 0.8) + "px";
+
+        // 封面下边缘以下的空白区居中放字幕卡；空间不足时退到画面下部 72%
+        const coverBottom = (containerRect.height + coverDisplayHeight) / 2;
+        const spaceBelow = containerRect.height - coverBottom;
+        if (spaceBelow >= 150) {
+            subtitleOverlay.style.top = (coverBottom + spaceBelow / 2) + "px";
+        } else {
+            subtitleOverlay.style.top = (containerRect.height * 0.72) + "px";
+        }
     } else {
-        // 无封面：容器宽度的 80%
+        // 无封面：容器宽度的 80%，垂直居中
         subtitleOverlay.style.width = (containerRect.width * 0.8) + "px";
+        subtitleOverlay.style.top = (containerRect.height * 0.5) + "px";
     }
 }
 
@@ -2402,15 +2415,19 @@ function clearSubtitle() {
 
 function updateSubtitleVisibility() {
     const mode = getSubtitleMode();
+    // 课程模式下原文/译文是统一卡片内的整行（block），视频模式是独立药丸（inline-block）
+    const shown = videoContainer.classList.contains("lesson-mode") ? "block" : "inline-block";
+    // 盲听遍：课程模式下连卡片背景一起隐藏
+    subtitleOverlay.classList.toggle("sub-empty", mode === "none");
     if (mode === "none") {
         subtitleOriginal.style.display = "none";
         subtitleTranslation.style.display = "none";
     } else if (mode === "original") {
-        subtitleOriginal.style.display = "inline-block";
+        subtitleOriginal.style.display = shown;
         subtitleTranslation.style.display = "none";
     } else {
-        subtitleOriginal.style.display = "inline-block";
-        subtitleTranslation.style.display = "inline-block";
+        subtitleOriginal.style.display = shown;
+        subtitleTranslation.style.display = shown;
     }
     // 同步勾选框状态作为视觉反馈
     chkOriginal.checked = (mode !== "none");

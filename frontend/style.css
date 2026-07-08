@@ -812,33 +812,43 @@ video {
 }
 
 /* ==========================================
-   朗读课程模式：字幕是主角（纯音频时自动启用）
+   朗读课程模式：画归画，字归字（纯音频时自动启用）
+   字幕卡位于插画下方空白区（JS 计算 top），插画保持原亮度
    ========================================== */
-/* 封面压暗，退为氛围背景 */
-.video-container.lesson-mode .lesson-cover {
-    filter: brightness(0.55);
-}
-
-/* 字幕移到画面中部，像绘本/歌词卡 */
 .video-container.lesson-mode .subtitle-overlay {
     bottom: auto;
-    top: 45%;
+    top: 72%; /* JS 会按封面实际位置覆盖 */
     transform: translate(-50%, -50%);
+    /* 统一字幕卡：原文+译文共用一张卡片 */
+    background: rgba(13, 13, 26, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    padding: 16px 22px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+.video-container.lesson-mode .subtitle-original,
+.video-container.lesson-mode .subtitle-translation {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+}
+
+/* 盲听遍：卡片整体隐藏 */
+.video-container.lesson-mode .subtitle-overlay.sub-empty {
+    opacity: 0;
 }
 
 .video-container.lesson-mode .subtitle-original {
     font-size: 32px;
     line-height: 1.7;
-    padding: 10px 24px;
-    border-radius: 10px;
 }
 
 .video-container.lesson-mode .subtitle-translation {
     font-size: 20px;
     line-height: 1.6;
-    padding: 8px 20px;
-    margin-top: 10px;
-    border-radius: 8px;
+    margin-top: 12px;
+    color: rgba(255, 255, 255, 0.85);
 }
 
 /* 字幕覆盖层 — 宽度由 JS 动态设置为视频实际宽度 */
@@ -886,17 +896,17 @@ video {
     display: none;
 }
 
-/* 卡拉OK逐词高亮（仅原文） */
+/* 卡拉OK逐词高亮（仅原文）：变白 + 红色下划线 + 轻微发光，
+   引导视线但不打断阅读连续性 */
 .subtitle-original .kw {
-    border-radius: 4px;
-    padding: 0 2px;
-    margin: 0 -2px;
-    transition: color 0.12s, background 0.12s;
+    padding: 0 1px 3px;
+    transition: color 0.15s, box-shadow 0.15s, text-shadow 0.15s;
 }
 
 .subtitle-original .kw-active {
     color: #fff;
-    background: rgba(233, 69, 96, 0.6);
+    box-shadow: 0 3px 0 0 #e94560;
+    text-shadow: 0 0 14px rgba(233, 69, 96, 0.55);
 }
 
 /* ==========================================
@@ -2163,14 +2173,19 @@ label {
     }
 
     /* 朗读课程模式：手机端字号 */
+    .video-container.lesson-mode .subtitle-overlay {
+        padding: 12px 16px;
+        border-radius: 14px;
+    }
+
     .video-container.lesson-mode .subtitle-original {
         font-size: 26px;
-        padding: 8px 16px;
+        padding: 0;
     }
 
     .video-container.lesson-mode .subtitle-translation {
         font-size: 18px;
-        padding: 6px 14px;
+        padding: 0;
     }
 
     /* 隐藏桌面控件，显示移动端控件 */
