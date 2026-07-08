@@ -1035,8 +1035,8 @@ btnTtsGenerate.addEventListener("click", async () => {
         document.getElementById("ttsText").value = "";
         // 进入播放器（音频 + 字幕 JSON 已在服务器）
         await loadSaved(data.name);
-        // 自动保存到本地：桌面=音频+JSON，手机=音频+原文SRT
-        saveToLocal(false, false, isMobile() ? "srt" : "json");
+        // 自动保存到本地：音频 + JSON（本地回放学习用）
+        saveToLocal(false, false, "json");
     } catch (e) {
         ttsStatus.textContent = t("tts.fail") + e.message;
         ttsStatus.className = "url-status error";
@@ -1591,9 +1591,9 @@ async function startLoading(videoName, subtitleOnly) {
     finishLoading();
 
     // 处理完成后自动下载到本地（subtitleOnly: 用户本地已有视频，只下字幕）
-    // 自动保存只下 2 个文件：桌面=视频+JSON（回放用），手机=视频+原文SRT（剪映用）
-    // 其余字幕格式由句子列表"保存"按钮获取
-    saveToLocal(subtitleOnly === true, false, isMobile() ? "srt" : "json");
+    // 自动保存只下 2 个文件：视频 + JSON（本地回放学习用，两端一致）
+    // SRT 等其余字幕格式由句子列表"保存"按钮获取
+    saveToLocal(subtitleOnly === true, false, "json");
 }
 
 // ========== 等待视频可播放 ==========
