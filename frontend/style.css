@@ -45,6 +45,25 @@ html, body {
     margin-bottom: 30px;
 }
 
+.brand-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #f5f5f7;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+}
+
+.brand-accent {
+    color: #e94560;
+}
+
+.brand-subtitle {
+    font-size: 14px;
+    color: #86868b;
+    font-weight: 400;
+    margin-bottom: 24px;
+}
+
 .header-lang {
     margin-bottom: 30px;
 }
@@ -2173,6 +2192,15 @@ label {
 @media (max-width: 1024px), (pointer: coarse) {
     .header h1 {
         font-size: 18px;
+    }
+
+    .brand-title {
+        font-size: 22px;
+    }
+
+    .brand-subtitle {
+        font-size: 12px;
+        margin-bottom: 18px;
     }
 
     .subtitle-original {

@@ -60,6 +60,7 @@ const I18N = {
 
             // ---- App 页 ----
             "app.title": "短视频外语学习播放器",
+            "app.subtitle": "用短视频学外语",
             "app.local.btn": "打开本地视频",
             "app.local.desc": "已有字幕：同时选择视频和字幕文件 · 没有字幕：自动识别翻译生成",
             "app.local.hint": "选择同名的视频文件和字幕文件，直接播放，无需上传",
@@ -289,6 +290,7 @@ const I18N = {
 
             // ---- App 頁 ----
             "app.title": "短視頻外語學習播放器",
+            "app.subtitle": "用短視頻學外語",
             "app.local.btn": "打開本地視頻",
             "app.local.desc": "已有字幕：同時選擇視頻和字幕檔案 · 沒有字幕：自動識別翻譯生成",
             "app.local.hint": "選擇同名的視頻檔案和字幕檔案，直接播放，無需上傳",
@@ -511,6 +513,7 @@ const I18N = {
 
             // ---- App page ----
             "app.title": "Short Video Language Player",
+            "app.subtitle": "Learn languages with short videos",
             "app.local.btn": "Open Local Video",
             "app.local.desc": "With subtitles: select both video and subtitle file · Without: auto-recognize and translate",
             "app.local.hint": "Select video and subtitle files with matching names for direct playback, no upload needed",
@@ -733,6 +736,7 @@ const I18N = {
 
             // ---- App page ----
             "app.title": "ショート動画語学プレーヤー",
+            "app.subtitle": "ショート動画で外国語を学ぶ",
             "app.local.btn": "ローカル動画を開く",
             "app.local.desc": "字幕あり：動画と字幕ファイルを同時に選択 · 字幕なし：自動認識・翻訳",
             "app.local.hint": "同名の動画と字幕ファイルを選択すると、アップロード不要で再生できます",
@@ -955,6 +959,7 @@ const I18N = {
 
             // ---- App page ----
             "app.title": "짧은 영상 어학 플레이어",
+            "app.subtitle": "짧은 영상으로 외국어 배우기",
             "app.local.btn": "로컬 영상 열기",
             "app.local.desc": "자막 있음: 영상과 자막 파일을 함께 선택 · 자막 없음: 자동 인식·번역",
             "app.local.hint": "같은 이름의 영상과 자막 파일을 선택하면 업로드 없이 바로 재생됩니다",
