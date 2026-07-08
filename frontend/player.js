@@ -154,7 +154,7 @@ btnDirSelect.addEventListener("click", () => {
 });
 btnDirCancel.addEventListener("click", () => { dirBrowser.style.display = "none"; });
 btnFollowRead.addEventListener("click", openFollowRead);
-document.getElementById("btnSaveLocal").addEventListener("click", () => saveToLocal(false, true, true));
+document.getElementById("btnSaveLocal").addEventListener("click", () => saveToLocal(false, true, "all"));
 btnDownloadUrl.addEventListener("click", downloadFromUrl);
 document.getElementById("localFiles").addEventListener("change", openLocalFiles);
 btnFrClose.addEventListener("click", closeFollowRead);
@@ -168,7 +168,7 @@ btnCloseDrawer.addEventListener("click", () => {
 
 // 句子列表：下载字幕到本地（JSON + SRT）
 document.getElementById("btnDrawerSave").addEventListener("click", () => {
-    saveToLocal(true, true, true); // 用户点击保存：JSON + 两个 SRT，可弹目录选择
+    saveToLocal(true, true, "all"); // 用户点击保存：JSON + 两个 SRT + 封面
 });
 
 playbackRateSelect.addEventListener("change", () => {
@@ -1035,8 +1035,8 @@ btnTtsGenerate.addEventListener("click", async () => {
         document.getElementById("ttsText").value = "";
         // 进入播放器（音频 + 字幕 JSON 已在服务器）
         await loadSaved(data.name);
-        // 自动保存到本地（音频 + JSON；手机端含 SRT）
-        saveToLocal(false, false, isMobile());
+        // 自动保存到本地：桌面=音频+JSON，手机=音频+原文SRT
+        saveToLocal(false, false, isMobile() ? "srt" : "json");
     } catch (e) {
         ttsStatus.textContent = t("tts.fail") + e.message;
         ttsStatus.className = "url-status error";
@@ -1134,29 +1134,35 @@ function showToast(text) {
 
 // subtitleOnly: 为 true 时只保存字幕（用户本地已有视频文件时）
 // interactive: 是否由用户点击触发（首次可弹目录选择框）
-// includeSrt: 是否包含 SRT 字幕（自动保存时桌面端只存视频+JSON，减少下载打扰）
-async function saveToLocal(subtitleOnly, interactive, includeSrt) {
+// mode: 字幕文件范围
+//   "all"  — JSON + 原文SRT + 中文SRT + 封面（句子列表"保存"按钮）
+//   "json" — 仅 JSON（桌面端自动保存：本应用回放用）
+//   "srt"  — 仅原文 SRT（手机端自动保存：可直接导入剪映）
+async function saveToLocal(subtitleOnly, interactive, mode) {
     if (!currentVideoName || segments.length === 0) return;
+    mode = mode || "all";
 
     const baseName = currentVideoName.replace(/\.[^.]+$/, "");
     const files = [];
 
-    // 1. JSON（本应用回放用：含译文和语言信息）
-    files.push([baseName + ".json",
-        new Blob([JSON.stringify({ segments, language }, null, 2)], { type: "application/json" })]);
-    if (includeSrt !== false) {
-        // 2. SRT 原文（可导入剪映等编辑软件）
+    if (mode === "all" || mode === "json") {
+        // JSON（本应用回放用：含译文和语言信息）
+        files.push([baseName + ".json",
+            new Blob([JSON.stringify({ segments, language }, null, 2)], { type: "application/json" })]);
+    }
+    if (mode === "all" || mode === "srt") {
+        // SRT 原文（可导入剪映等编辑软件）
         files.push([baseName + "_原文.srt",
             new Blob([generateSrt("text")], { type: "text/plain" })]);
-        // 3. SRT 中文译文（如果有翻译）
-        if (segments.some(s => s.translation)) {
-            files.push([baseName + "_中文.srt",
-                new Blob([generateSrt("translation")], { type: "text/plain" })]);
-        }
+    }
+    if (mode === "all" && segments.some(s => s.translation)) {
+        // SRT 中文译文
+        files.push([baseName + "_中文.srt",
+            new Blob([generateSrt("translation")], { type: "text/plain" })]);
     }
 
-    // 朗读课程封面（如有）
-    if (currentCover) {
+    // 朗读课程封面（仅完整保存时附带）
+    if (mode === "all" && currentCover) {
         try {
             const res = await fetch(`/videos/${encodeURIComponent(currentCover)}`);
             if (res.ok) files.push([currentCover, await res.blob()]);
@@ -1585,8 +1591,9 @@ async function startLoading(videoName, subtitleOnly) {
     finishLoading();
 
     // 处理完成后自动下载到本地（subtitleOnly: 用户本地已有视频，只下字幕）
-    // 自动保存：手机端保持原样（全部文件）；桌面端只存视频+JSON，SRT 由句子列表"保存"按钮获取
-    saveToLocal(subtitleOnly === true, false, isMobile());
+    // 自动保存只下 2 个文件：桌面=视频+JSON（回放用），手机=视频+原文SRT（剪映用）
+    // 其余字幕格式由句子列表"保存"按钮获取
+    saveToLocal(subtitleOnly === true, false, isMobile() ? "srt" : "json");
 }
 
 // ========== 等待视频可播放 ==========
