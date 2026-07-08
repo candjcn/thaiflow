@@ -1258,6 +1258,8 @@ async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
     video.play();
     initMobileOverlays();
     openDrawerIfDesktop();
+    // 手机端：手动打开的本地文件也存入课程库（下次列表直接点开，不用再翻文件夹）
+    saveLessonToLibrary(videoFile, coverFile || null);
 }
 
 // ========== 浏览器内置课程库（IndexedDB，手机端本地列表数据源） ==========
@@ -1321,7 +1323,8 @@ function captureVideoThumb() {
 }
 
 // 课程完成/打开后存入浏览器课程库（手机端专用；桌面用文件夹列表）
-async function saveLessonToLibrary() {
+// localVideoBlob/localCoverBlob：本地播放场景直接用手里的文件，不走服务器
+async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
     if (!isMobile() || !currentVideoName || segments.length === 0) return;
     try {
         // 已存在则复用大文件，只更新字幕
@@ -1333,14 +1336,14 @@ async function saveLessonToLibrary() {
             }).catch(() => resolve(null));
         });
 
-        let videoBlob = existing && existing.videoBlob;
+        let videoBlob = (existing && existing.videoBlob) || localVideoBlob;
         if (!videoBlob) {
             const res = await fetch(`/videos/${encodeURIComponent(currentVideoName)}`);
             if (!res.ok) return;
             videoBlob = await res.blob();
         }
 
-        let coverBlob = existing && existing.coverBlob;
+        let coverBlob = (existing && existing.coverBlob) || localCoverBlob;
         if (!coverBlob && currentCover) {
             try {
                 const res = await fetch(`/videos/${encodeURIComponent(currentCover)}`);
