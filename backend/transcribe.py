@@ -172,12 +172,20 @@ def transcribe_groq(video_path):
 
     segments = []
     for i, seg in enumerate(result.segments):
-        segments.append({
+        s = {
             "index": i,
             "text": (seg.text if hasattr(seg, "text") else seg["text"]).strip(),
             "start": round(seg.start if hasattr(seg, "start") else seg["start"], 2),
             "end": round(seg.end if hasattr(seg, "end") else seg["end"], 2),
-        })
+        }
+        # Whisper 置信度指标
+        logprob = getattr(seg, "avg_logprob", None) or (seg.get("avg_logprob") if isinstance(seg, dict) else None)
+        no_speech = getattr(seg, "no_speech_prob", None) or (seg.get("no_speech_prob") if isinstance(seg, dict) else None)
+        if logprob is not None:
+            s["_logprob"] = round(logprob, 4)
+        if no_speech is not None:
+            s["_no_speech"] = round(no_speech, 4)
+        segments.append(s)
 
     # 词级时间戳（如果 API 返回了）
     words = []
@@ -234,6 +242,7 @@ def transcribe_azure(video_path):
         speech_config = speechsdk.SpeechConfig(
             subscription=speech_key, region=speech_region
         )
+        speech_config.output_format = speechsdk.OutputFormat.Detailed
         auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(
             languages=["th-TH", "en-US", "ja-JP", "ko-KR", "fr-FR", "de-DE", "es-ES", "pt-BR", "ru-RU", "it-IT"]
         )
@@ -250,6 +259,7 @@ def transcribe_azure(video_path):
         detected_lang = "unknown"
 
         def on_recognized(evt):
+            import json as _json
             nonlocal detected_lang
             if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
                 text = evt.result.text.strip()
@@ -257,11 +267,20 @@ def transcribe_azure(video_path):
                     return
                 offset_s = evt.result.offset / 10_000_000
                 duration_s = evt.result.duration / 10_000_000
-                segments.append({
+                seg = {
                     "text": text,
                     "start": round(offset_s, 2),
                     "end": round(offset_s + duration_s, 2),
-                })
+                }
+                # 从详细 JSON 提取置信度
+                try:
+                    detail = _json.loads(evt.result.json)
+                    nbest = detail.get("NBest", [])
+                    if nbest:
+                        seg["_confidence"] = round(nbest[0].get("Confidence", 0), 4)
+                except Exception:
+                    pass
+                segments.append(seg)
                 lang_result = speechsdk.AutoDetectSourceLanguageResult(evt.result)
                 lang = lang_result.language
                 if lang and lang != "Unknown":
@@ -626,20 +645,31 @@ def _approx_alignment(src, tgt):
     return pairs
 
 
-def align_and_calibrate(groq_segments, azure_full_text):
-    """
-    用 Azure 的完整文本校准 Groq 的逐句文本。
-    保留 Groq 的时间戳和断句结构，用 Azure 的文字替换。
+def _groq_confidence(seg):
+    """将 Whisper 的 avg_logprob 转为 0-1 置信度。
+    logprob 通常在 -1.0（差）到 0（完美）之间。"""
+    lp = seg.get("_logprob")
+    if lp is None:
+        return 0.5  # 无数据时取中性值
+    # no_speech_prob 高说明可能不是语音
+    ns = seg.get("_no_speech", 0)
+    if ns > 0.5:
+        return 0.1
+    # logprob → confidence: -1.0 映射到 0.0, 0.0 映射到 1.0
+    conf = max(0.0, min(1.0, 1.0 + lp))
+    return round(conf, 4)
 
-    算法：
-    1. 拼接 Groq 全部句子文本
-    2. 用 LCS 对齐 Groq 全文 ↔ Azure 全文，建立字符映射
-    3. 根据每句在 Groq 全文中的起止位置，找到对应的 Azure 文本区间
-    4. 用 Azure 区间的文本替换该句内容
+
+def align_and_calibrate(groq_segments, azure_full_text, azure_segments=None):
+    """
+    逐句择优校准：对每句 Groq 文本，找到对应的 Azure 文本区间，
+    比较两边置信度，取更可信的一方。
+
+    保留 Groq 的时间戳和断句结构。
     """
     # 拼接 Groq 全文，记录每句的字符起止位置
     groq_full = ""
-    seg_ranges = []  # [(start_in_full, end_in_full), ...]
+    seg_ranges = []
     for seg in groq_segments:
         start = len(groq_full)
         groq_full += seg["text"]
@@ -651,16 +681,14 @@ def align_and_calibrate(groq_segments, azure_full_text):
 
     # LCS 对齐
     pairs = lcs_alignment(groq_full, azure_full_text)
-
     if not pairs:
         return groq_segments
 
-    # 建立 groq_idx → azure_idx 的映射
     groq_to_azure = {}
     for g_idx, a_idx in pairs:
         groq_to_azure[g_idx] = a_idx
 
-    # 对每句，找到对应的 Azure 文本区间的起点
+    # 对每句找 Azure 文本区间
     seg_azure_starts = []
     for i, seg in enumerate(groq_segments):
         seg_start, seg_end = seg_ranges[i]
@@ -671,15 +699,37 @@ def align_and_calibrate(groq_segments, azure_full_text):
                 break
         seg_azure_starts.append(first_azure)
 
-    # 用下一句的起点作为当前句的终点，最后一句延伸到 Azure 全文末尾
+    # 为 Azure segments 建立时间→置信度索引
+    az_conf_by_time = []
+    if azure_segments:
+        for az in azure_segments:
+            az_conf_by_time.append({
+                "start": az["start"],
+                "end": az["end"],
+                "conf": az.get("_confidence", 0.5),
+            })
+
+    def get_azure_conf_for_range(t_start, t_end):
+        """找时间范围内重叠的 Azure segments，取平均置信度"""
+        if not az_conf_by_time:
+            return 0.5
+        confs = []
+        for az in az_conf_by_time:
+            overlap = min(t_end, az["end"]) - max(t_start, az["start"])
+            if overlap > 0:
+                confs.append(az["conf"])
+        return sum(confs) / len(confs) if confs else 0.5
+
     calibrated = []
     for i, seg in enumerate(groq_segments):
         a_start = seg_azure_starts[i]
         if a_start is None:
+            seg = dict(seg)
+            seg["_conf"] = round(_groq_confidence(seg), 4)
+            seg["_source"] = "groq"
             calibrated.append(seg)
             continue
 
-        # 找下一句的 Azure 起点作为当前句的终点
         a_end = len(azure_full_text)
         for j in range(i + 1, len(groq_segments)):
             if seg_azure_starts[j] is not None:
@@ -687,9 +737,42 @@ def align_and_calibrate(groq_segments, azure_full_text):
                 break
 
         azure_slice = azure_full_text[a_start:a_end].strip()
-        if azure_slice:
+        if not azure_slice:
             seg = dict(seg)
+            seg["_conf"] = round(_groq_confidence(seg), 4)
+            seg["_source"] = "groq"
+            calibrated.append(seg)
+            continue
+
+        # 计算两边置信度
+        groq_conf = _groq_confidence(seg)
+        azure_conf = get_azure_conf_for_range(seg["start"], seg["end"])
+
+        # LCS 相似度作为辅助判断：如果两边文本非常相似就不换
+        groq_text = seg["text"]
+        lcs_pairs = lcs_alignment(groq_text, azure_slice)
+        lcs_ratio = len(lcs_pairs) / max(len(groq_text), len(azure_slice), 1)
+
+        seg = dict(seg)
+        if lcs_ratio > 0.9:
+            # 两边几乎一样，用置信度更高的
+            if azure_conf >= groq_conf:
+                seg["text"] = azure_slice
+                seg["_conf"] = round(azure_conf, 4)
+                seg["_source"] = "azure"
+            else:
+                seg["_conf"] = round(groq_conf, 4)
+                seg["_source"] = "groq"
+        elif azure_conf > groq_conf + 0.1:
+            # Azure 明显更好
             seg["text"] = azure_slice
+            seg["_conf"] = round(azure_conf, 4)
+            seg["_source"] = "azure"
+        else:
+            # Groq 更好或差不多，保留 Groq
+            seg["_conf"] = round(groq_conf, 4)
+            seg["_source"] = "groq"
+
         calibrated.append(seg)
 
     return calibrated
@@ -778,9 +861,9 @@ def transcribe_combined(video_path):
     if azure_segments[0]:
         azure_full_text = "".join(seg["text"] for seg in azure_segments[0])
 
-        # 文本校准
+        # 逐句置信度择优校准
         result["segments"] = align_and_calibrate(
-            result["segments"], azure_full_text
+            result["segments"], azure_full_text, azure_segments[0]
         )
 
         # 间隔填补

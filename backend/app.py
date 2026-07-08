@@ -407,6 +407,16 @@ def api_transcribe():
                 align_word_timestamps(result["segments"], result["words"])
                 del result["words"]  # 不传给前端（已合入 wordTimings）
 
+        # 清理内部字段，保留前端需要的置信度信息
+        for s in result.get("segments", []):
+            if "_conf" in s:
+                s["confidence"] = s.pop("_conf")
+            if "_source" in s:
+                s["source"] = s.pop("_source")
+            s.pop("_logprob", None)
+            s.pop("_no_speech", None)
+        result.pop("words", None)
+
         log_event("transcribe", video=video_name, provider=provider,
                   language=result.get("language", ""),
                   segments=len(result.get("segments", [])))

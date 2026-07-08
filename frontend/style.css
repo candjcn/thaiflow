@@ -1034,6 +1034,18 @@ video {
         0 0 14px rgba(233, 69, 96, 0.55);
 }
 
+/* 低置信度提示 */
+.subtitle-original.low-confidence {
+    border-left: 3px solid rgba(255, 180, 0, 0.7);
+    padding-left: 6px;
+}
+
+.conf-dot {
+    color: #ffb400;
+    font-size: 8px;
+    vertical-align: middle;
+}
+
 /* ==========================================
    桌面控制栏：键盘优先，控件带键帽标注
    ========================================== */

@@ -2089,9 +2089,11 @@ function renderSentenceList() {
                    </svg>
                </button>`
             : "";
+        const lowConf = typeof seg.confidence === "number" && seg.confidence < 0.6;
+        if (lowConf) div.classList.add("low-conf");
         div.innerHTML = `
             <div class="sentence-content">
-                <span class="seq">${i + 1}</span>
+                <span class="seq">${lowConf ? '<span class="conf-dot" title="置信度低">●</span> ' : ''}${i + 1}</span>
                 <div class="text-group">
                     <div class="time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
                     <div class="original">${escapeHtml(seg.text)}</div>
@@ -2528,6 +2530,9 @@ video.addEventListener("pause", () => {
 function updateSubtitle(seg) {
     renderKaraoke(seg);
     subtitleTranslation.textContent = seg.translation || "";
+    // 低置信度视觉提示
+    const conf = seg.confidence;
+    subtitleOriginal.classList.toggle("low-confidence", typeof conf === "number" && conf < 0.6);
     updateSubtitleVisibility();
 }
 
