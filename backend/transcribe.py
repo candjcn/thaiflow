@@ -216,22 +216,46 @@ def transcribe_groq(video_path):
 
 # ========== OpenAI (gpt-4o-transcribe) ==========
 
+def _extract_audio_mp3(video_path):
+    """从视频提取 MP3 音频（压缩后体积小，适合 OpenAI 25MB 限制）"""
+    mp3_path = video_path + ".tmp_openai.mp3"
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-vn",             # 去掉视频轨
+        "-ar", "16000",
+        "-ac", "1",
+        "-b:a", "64k",    # 64kbps 够用，大幅减小体积
+        mp3_path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"音频提取失败: {result.stderr[-300:]}")
+    return mp3_path
+
+
 def transcribe_openai(video_path):
-    """使用 OpenAI 官方 API 进行语音识别（gpt-4o-transcribe 模型）。
-    接口格式与 Groq 完全一致（都是 OpenAI SDK），但模型更准。"""
+    """使用 OpenAI 官方 Whisper-1 模型进行语音识别。
+    先提取音频 MP3（避免视频文件超 25MB 限制），再调 API。"""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("未配置 OPENAI_API_KEY")
 
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key, timeout=300)
 
-    with open(video_path, "rb") as f:
-        result = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=f,
-            response_format="verbose_json",
-            timestamp_granularities=["segment", "word"],
-        )
+    # 提取音频（MP3 压缩后通常 <5MB）
+    mp3_path = _extract_audio_mp3(video_path)
+    try:
+        with open(mp3_path, "rb") as f:
+            result = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f,
+                response_format="verbose_json",
+                timestamp_granularities=["segment", "word"],
+            )
+    finally:
+        if os.path.exists(mp3_path):
+            os.remove(mp3_path)
 
     segments = []
     for i, seg in enumerate(result.segments):
