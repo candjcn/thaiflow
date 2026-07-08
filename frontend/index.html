@@ -38,7 +38,8 @@
                          将来做 APP 设置页时再暴露 -->
                     <div style="display:none;">
                         <select id="transcribeProvider">
-                            <option value="combined" selected>智能校准 (Groq+Azure)</option>
+                            <option value="openai" selected>OpenAI (gpt-4o-transcribe)</option>
+                            <option value="combined">智能校准 (Groq+Azure)</option>
                             <option value="groq">Groq Whisper</option>
                             <option value="azure">Azure Speech</option>
                         </select>
@@ -361,6 +362,7 @@
                         <span class="we-btn-label" data-i18n="we.play">试听</span>
                     </button>
                     <select id="weEngine" class="we-engine">
+                        <option value="openai">OpenAI</option>
                         <option value="groq">Groq</option>
                         <option value="azure">Azure</option>
                         <option value="gemini">Gemini</option>

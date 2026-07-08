@@ -7,13 +7,15 @@ from openai import OpenAI
 def transcribe_video(video_path, provider="groq", segment_target=None):
     """
     对视频进行语音识别和断句。
-    provider: "groq" | "azure" | "combined"
+    provider: "groq" | "azure" | "combined" | "openai"
     segment_target: 目标句子长度（字符数），None 表示不调整
     """
     if provider == "azure":
         result = transcribe_azure(video_path)
     elif provider == "combined":
         result = transcribe_combined(video_path)
+    elif provider == "openai":
+        result = transcribe_openai(video_path)
     else:
         result = transcribe_groq(video_path)
 
@@ -212,6 +214,56 @@ def transcribe_groq(video_path):
     return out
 
 
+# ========== OpenAI (gpt-4o-transcribe) ==========
+
+def transcribe_openai(video_path):
+    """使用 OpenAI 官方 API 进行语音识别（gpt-4o-transcribe 模型）。
+    接口格式与 Groq 完全一致（都是 OpenAI SDK），但模型更准。"""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("未配置 OPENAI_API_KEY")
+
+    client = OpenAI(api_key=api_key)
+
+    with open(video_path, "rb") as f:
+        result = client.audio.transcriptions.create(
+            model="gpt-4o-transcribe",
+            file=f,
+            response_format="verbose_json",
+            timestamp_granularities=["segment", "word"],
+        )
+
+    segments = []
+    for i, seg in enumerate(result.segments):
+        s = {
+            "index": i,
+            "text": (seg.text if hasattr(seg, "text") else seg["text"]).strip(),
+            "start": round(seg.start if hasattr(seg, "start") else seg["start"], 2),
+            "end": round(seg.end if hasattr(seg, "end") else seg["end"], 2),
+        }
+        segments.append(s)
+
+    words = []
+    if hasattr(result, "words") and result.words:
+        for w in result.words:
+            word_text = w.word if hasattr(w, "word") else w.get("word", "")
+            word_start = w.start if hasattr(w, "start") else w.get("start", 0)
+            word_end = w.end if hasattr(w, "end") else w.get("end", 0)
+            words.append({
+                "word": word_text.strip(),
+                "start": round(word_start, 3),
+                "end": round(word_end, 3),
+            })
+
+    out = {
+        "segments": segments,
+        "language": getattr(result, "language", "unknown"),
+    }
+    if words:
+        out["words"] = words
+    return out
+
+
 # ========== Azure Speech ==========
 
 def extract_audio_wav(video_path):
@@ -332,6 +384,8 @@ def transcribe_slice(audio_path, provider="groq", language=None):
         result = transcribe_azure_slice(audio_path, language)
     elif provider == "gemini":
         result = transcribe_gemini_slice(audio_path, language)
+    elif provider == "openai":
+        result = transcribe_openai(audio_path)
     else:
         result = transcribe_groq(audio_path)
     text = " ".join(seg["text"] for seg in result["segments"]).strip()

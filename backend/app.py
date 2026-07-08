@@ -442,7 +442,7 @@ def api_retranscribe():
     except (TypeError, ValueError):
         return jsonify({"error": "时间参数无效"}), 400
 
-    if provider not in ("groq", "azure", "gemini"):
+    if provider not in ("groq", "azure", "gemini", "openai"):
         return jsonify({"error": "不支持的识别引擎"}), 400
     if not (0 <= start < end):
         return jsonify({"error": "时间范围无效"}), 400
@@ -507,7 +507,7 @@ def api_retranscribe_audio():
     source_lang = request.form.get("source_lang", "泰语")
     language = request.form.get("language", "")
 
-    if provider not in ("groq", "azure", "gemini"):
+    if provider not in ("groq", "azure", "gemini", "openai"):
         return jsonify({"error": "不支持的识别引擎"}), 400
 
     audio_file = request.files["audio"]
