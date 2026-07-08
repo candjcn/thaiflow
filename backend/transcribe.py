@@ -216,37 +216,23 @@ def transcribe_groq(video_path):
 
 # ========== OpenAI (gpt-4o-transcribe) ==========
 
-def _extract_audio_mp3(video_path):
-    """从视频提取 MP3 音频（压缩后体积小，适合 OpenAI 25MB 限制）"""
-    mp3_path = video_path + ".tmp_openai.mp3"
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", video_path,
-        "-vn",             # 去掉视频轨
-        "-ar", "16000",
-        "-ac", "1",
-        "-b:a", "64k",    # 64kbps 够用，大幅减小体积
-        mp3_path,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"音频提取失败: {result.stderr[-300:]}")
-    return mp3_path
-
-
 def transcribe_openai(video_path):
     """使用 OpenAI 官方 Whisper-1 模型进行语音识别。
-    先提取音频 MP3（避免视频文件超 25MB 限制），再调 API。"""
+    提取 WAV 音频（16kHz 单声道，通常 <10MB）避免超 OpenAI 25MB 限制。"""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("未配置 OPENAI_API_KEY")
 
-    client = OpenAI(api_key=api_key, timeout=300)
+    client = OpenAI(api_key=api_key, timeout=300.0)
 
-    # 提取音频（MP3 压缩后通常 <5MB）
-    mp3_path = _extract_audio_mp3(video_path)
+    # 提取 WAV 音频（16kHz 单声道，用独立 tmp 路径避免与 Azure 冲突）
+    wav_path = video_path + ".tmp_openai.wav"
+    cmd = ["ffmpeg", "-y", "-i", video_path, "-ar", "16000", "-ac", "1", "-sample_fmt", "s16", wav_path]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"音频提取失败: {r.stderr[-300:]}")
     try:
-        with open(mp3_path, "rb") as f:
+        with open(wav_path, "rb") as f:
             result = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=f,
@@ -254,8 +240,8 @@ def transcribe_openai(video_path):
                 timestamp_granularities=["segment", "word"],
             )
     finally:
-        if os.path.exists(mp3_path):
-            os.remove(mp3_path)
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
 
     segments = []
     for i, seg in enumerate(result.segments):
