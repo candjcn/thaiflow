@@ -819,12 +819,11 @@ video {
     bottom: auto;
     top: 72%; /* JS 会按封面实际位置覆盖 */
     transform: translate(-50%, -50%);
-    /* 统一字幕卡：原文+译文共用一张卡片 */
-    background: rgba(13, 13, 26, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 16px;
-    padding: 16px 22px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    /* 无底色设计：文字靠描边+投影保证任意画面上的可读性 */
+    background: none;
+    border: none;
+    padding: 0;
+    box-shadow: none;
 }
 
 .video-container.lesson-mode .subtitle-original,
@@ -832,6 +831,15 @@ video {
     background: none;
     padding: 0;
     border-radius: 0;
+    /* 多层深色描边 + 柔和落影：任何背景色上都可读 */
+    text-shadow:
+        0 0 3px rgba(0, 0, 0, 0.95),
+        1px 1px 0 rgba(0, 0, 0, 0.85),
+        -1px 1px 0 rgba(0, 0, 0, 0.85),
+        1px -1px 0 rgba(0, 0, 0, 0.85),
+        -1px -1px 0 rgba(0, 0, 0, 0.85),
+        0 3px 10px rgba(0, 0, 0, 0.6);
+    font-weight: 600;
 }
 
 /* 盲听遍：卡片整体隐藏 */
@@ -906,7 +914,13 @@ video {
 .subtitle-original .kw-active {
     color: #fff;
     box-shadow: 0 3px 0 0 #e94560;
-    text-shadow: 0 0 14px rgba(233, 69, 96, 0.55);
+    text-shadow:
+        0 0 3px rgba(0, 0, 0, 0.95),
+        1px 1px 0 rgba(0, 0, 0, 0.85),
+        -1px 1px 0 rgba(0, 0, 0, 0.85),
+        1px -1px 0 rgba(0, 0, 0, 0.85),
+        -1px -1px 0 rgba(0, 0, 0, 0.85),
+        0 0 14px rgba(233, 69, 96, 0.55);
 }
 
 /* ==========================================
@@ -2174,8 +2188,7 @@ label {
 
     /* 朗读课程模式：手机端字号 */
     .video-container.lesson-mode .subtitle-overlay {
-        padding: 12px 16px;
-        border-radius: 14px;
+        padding: 0;
     }
 
     .video-container.lesson-mode .subtitle-original {
