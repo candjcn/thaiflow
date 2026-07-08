@@ -1266,7 +1266,9 @@ async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
 const LESSON_DB = "reelspeak-lessons";
 const MAX_LESSONS = 20; // 超出后删最旧的，控制存储占用
 
-function lessonsStore(mode) {
+// 严格的 IndexedDB 操作：请求在事务同一 tick 内发起，
+// 且等待 transaction.oncomplete（真正落盘提交）才算成功
+function lessonsOp(mode, fn) {
     return new Promise((resolve, reject) => {
         const req = indexedDB.open(LESSON_DB, 1);
         req.onupgradeneeded = () => {
@@ -1274,34 +1276,46 @@ function lessonsStore(mode) {
         };
         req.onerror = () => reject(req.error);
         req.onsuccess = () => {
-            const tx = req.result.transaction("lessons", mode);
-            resolve(tx.objectStore("lessons"));
+            const db = req.result;
+            let result;
+            try {
+                const tx = db.transaction("lessons", mode);
+                const r = fn(tx.objectStore("lessons"));
+                if (r) r.onsuccess = () => { result = r.result; };
+                tx.oncomplete = () => { db.close(); resolve(result); };
+                tx.onerror = () => { db.close(); reject(tx.error); };
+                tx.onabort = () => { db.close(); reject(tx.error || new Error("tx aborted")); };
+            } catch (e) {
+                db.close();
+                reject(e);
+            }
         };
     });
 }
 
 function lessonsGetAll() {
-    return lessonsStore("readonly").then(store => new Promise((resolve) => {
-        const r = store.getAll();
-        r.onsuccess = () => resolve(r.result || []);
-        r.onerror = () => resolve([]);
-    })).catch(() => []);
+    return lessonsOp("readonly", s => s.getAll())
+        .then(r => r || [])
+        .catch(e => { console.log("[Library] 读取失败:", e); return []; });
+}
+
+function lessonsGet(name) {
+    return lessonsOp("readonly", s => s.get(name)).catch(() => null);
 }
 
 function lessonsPut(record) {
-    return lessonsStore("readwrite").then(store => new Promise((resolve, reject) => {
-        const r = store.put(record);
-        r.onsuccess = () => resolve(true);
-        r.onerror = () => reject(r.error);
-    }));
+    return lessonsOp("readwrite", s => s.put(record));
 }
 
 function lessonsDelete(name) {
-    return lessonsStore("readwrite").then(store => new Promise((resolve) => {
-        const r = store.delete(name);
-        r.onsuccess = () => resolve(true);
-        r.onerror = () => resolve(false);
-    })).catch(() => false);
+    return lessonsOp("readwrite", s => s.delete(name)).catch(() => false);
+}
+
+// 申请持久化存储：阻止浏览器在存储压力下清除课程库
+if (isMobile() && navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().then(granted => {
+        console.log("[Library] 持久化存储:", granted ? "已授予" : "尽力而为模式");
+    });
 }
 
 // 截取当前视频画面做缩略图（纯音频返回 null，改用封面）
@@ -1328,13 +1342,7 @@ async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
     if (!isMobile() || !currentVideoName || segments.length === 0) return;
     try {
         // 已存在则复用大文件，只更新字幕
-        const existing = await new Promise((resolve) => {
-            lessonsStore("readonly").then(store => {
-                const r = store.get(currentVideoName);
-                r.onsuccess = () => resolve(r.result);
-                r.onerror = () => resolve(null);
-            }).catch(() => resolve(null));
-        });
+        const existing = await lessonsGet(currentVideoName);
 
         let videoBlob = (existing && existing.videoBlob) || localVideoBlob;
         if (!videoBlob) {
