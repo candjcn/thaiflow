@@ -1,3 +1,5 @@
+const APP_REV = "20260708h"; // 与 index.html 的 ?v= 同步更新
+
 // ========== i18n 初始化 ==========
 I18N.init();
 document.querySelectorAll(".lang-switcher-select").forEach(sel => {
@@ -127,6 +129,13 @@ const btnDirCancel = document.getElementById("btnDirCancel");
 // ========== 初始化 ==========
 loadVideoList();
 loadLocalVideoList();
+// 页面版本标识（排查缓存问题用）
+(() => {
+    const rev = document.createElement("div");
+    rev.style.cssText = "text-align:center;font-size:10px;color:#333;padding:8px;";
+    rev.textContent = "rev " + APP_REV;
+    document.getElementById("videoListPanel").appendChild(rev);
+})();
 
 btnPrev.addEventListener("click", prevSentence);
 btnNext.addEventListener("click", nextSentence);
@@ -1270,7 +1279,12 @@ const MAX_LESSONS = 20; // 超出后删最旧的，控制存储占用
 // 列表只读 meta，避免冷启动一次性载入几百 MB 大文件导致读取失败。
 function lessonsOp(stores, mode, fn) {
     return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("IndexedDB 超时")), 8000);
+        const done = (fnDone) => (...a) => { clearTimeout(timer); fnDone(...a); };
+        resolve = done(resolve);
+        reject = done(reject);
         const req = indexedDB.open(LESSON_DB, 2);
+        req.onblocked = () => reject(new Error("数据库被其他页面占用"));
         req.onupgradeneeded = () => {
             const db = req.result;
             const tx = req.transaction;
@@ -1320,8 +1334,7 @@ function lessonsOp(stores, mode, fn) {
 
 function metaGetAll() {
     return lessonsOp(["meta"], "readonly", tx => tx.objectStore("meta").getAll())
-        .then(r => r || [])
-        .catch(e => { console.log("[Library] 列表读取失败:", e); return []; });
+        .then(r => r || []);
 }
 
 function metaGet(name) {
@@ -1440,7 +1453,19 @@ async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
 
 // 手机端：从课程库渲染本地列表（只读轻量 meta，点击时才取大文件）
 async function loadLessonLibraryList(section, listEl) {
-    const all = await metaGetAll();
+    let all;
+    try {
+        all = await metaGetAll();
+    } catch (e) {
+        // 读取失败：可见地显示错误（便于排查），不再静默隐藏
+        section.style.display = "block";
+        listEl.innerHTML = "";
+        const err = document.createElement("div");
+        err.className = "local-play-hint";
+        err.textContent = "本地列表读取失败: " + (e && e.message || e);
+        listEl.appendChild(err);
+        return;
+    }
     if (all.length === 0) {
         section.style.display = "none";
         return;
