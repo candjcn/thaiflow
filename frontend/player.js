@@ -2527,8 +2527,155 @@ video.addEventListener("pause", () => {
     cancelAnimationFrame(kwRaf);
 });
 
+// ========== 点击查词 ==========
+let wordPopup = null;
+let wordPopupTimer = null;
+const wordDefineCache = {};   // 缓存已查过的释义
+
+function createWordPopup() {
+    if (wordPopup) return wordPopup;
+    const el = document.createElement("div");
+    el.className = "word-popup";
+    el.innerHTML = `
+        <div class="word-popup-header">
+            <span class="word-popup-word"></span>
+            <button class="word-popup-play" title="播放原声">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="6,4 20,12 6,20"/></svg>
+            </button>
+            <button class="word-popup-close">×</button>
+        </div>
+        <div class="word-popup-body">
+            <span class="word-popup-pos"></span>
+            <span class="word-popup-meaning"></span>
+        </div>`;
+    document.body.appendChild(el);
+    el.querySelector(".word-popup-close").addEventListener("click", hideWordPopup);
+    el.querySelector(".word-popup-play").addEventListener("click", () => {
+        const start = parseFloat(el.dataset.wordStart);
+        const end = parseFloat(el.dataset.wordEnd);
+        if (!isNaN(start) && !isNaN(end)) {
+            video.currentTime = start;
+            video.play();
+            const onTime = () => {
+                if (video.currentTime >= end) {
+                    video.pause();
+                    video.removeEventListener("timeupdate", onTime);
+                }
+            };
+            video.addEventListener("timeupdate", onTime);
+        }
+    });
+    wordPopup = el;
+    return el;
+}
+
+function showWordPopup(span, wordIdx) {
+    const seg = segments[currentIndex];
+    if (!seg) return;
+    const word = span.textContent.trim();
+    if (!word) return;
+
+    const popup = createWordPopup();
+    popup.querySelector(".word-popup-word").textContent = word;
+    popup.querySelector(".word-popup-pos").textContent = "";
+    popup.querySelector(".word-popup-meaning").textContent = "...";
+
+    // 词级时间戳：用于播放原声
+    let hasAudio = false;
+    if (kwTimings && kwTimings[wordIdx]) {
+        popup.dataset.wordStart = kwTimings[wordIdx].start;
+        popup.dataset.wordEnd = kwTimings[wordIdx].end;
+        hasAudio = true;
+    } else {
+        // fallback：用等比估算
+        const dur = seg.end - seg.start;
+        if (dur > 0 && kwBounds.length > 0) {
+            const bStart = wordIdx === 0 ? 0 : kwBounds[wordIdx - 1];
+            const bEnd = kwBounds[wordIdx] || 1;
+            popup.dataset.wordStart = seg.start + bStart * dur;
+            popup.dataset.wordEnd = seg.start + bEnd * dur;
+            hasAudio = true;
+        }
+    }
+    popup.querySelector(".word-popup-play").style.display = hasAudio ? "" : "none";
+
+    // 定位：在单词上方
+    const rect = span.getBoundingClientRect();
+    popup.style.display = "block";
+    const popW = popup.offsetWidth;
+    let left = rect.left + rect.width / 2 - popW / 2;
+    if (left < 8) left = 8;
+    if (left + popW > window.innerWidth - 8) left = window.innerWidth - 8 - popW;
+    popup.style.left = left + "px";
+    popup.style.top = (rect.top - popup.offsetHeight - 8 + window.scrollY) + "px";
+
+    // 如果气泡超出顶部，放到单词下方
+    if (rect.top - popup.offsetHeight - 8 < 0) {
+        popup.style.top = (rect.bottom + 8 + window.scrollY) + "px";
+    }
+
+    // 查释义（带缓存）
+    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语" };
+    const sourceLang = langMap[language] || "外语";
+    const targetLang = getTargetLang();
+    const cacheKey = `${word}|${sourceLang}|${targetLang}`;
+
+    if (wordDefineCache[cacheKey]) {
+        const c = wordDefineCache[cacheKey];
+        popup.querySelector(".word-popup-pos").textContent = c.pos || "";
+        popup.querySelector(".word-popup-meaning").textContent = c.meaning || "";
+        return;
+    }
+
+    fetch("/api/word-define", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            word,
+            source_lang: sourceLang,
+            target_lang: targetLang,
+            context: seg.text || "",
+        }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            popup.querySelector(".word-popup-meaning").textContent = "查询失败";
+            return;
+        }
+        wordDefineCache[cacheKey] = data;
+        popup.querySelector(".word-popup-pos").textContent = data.pos || "";
+        popup.querySelector(".word-popup-meaning").textContent = data.meaning || "";
+    })
+    .catch(() => {
+        popup.querySelector(".word-popup-meaning").textContent = "网络错误";
+    });
+}
+
+function hideWordPopup() {
+    if (wordPopup) wordPopup.style.display = "none";
+}
+
+// 事件委托：点击字幕词
+subtitleOriginal.addEventListener("click", (e) => {
+    const span = e.target.closest(".kw");
+    if (!span) return;
+    e.stopPropagation();
+    const idx = kwSpans.indexOf(span);
+    if (idx < 0) return;
+    showWordPopup(span, idx);
+});
+
+// 点击其他区域关闭气泡
+document.addEventListener("click", (e) => {
+    if (wordPopup && !wordPopup.contains(e.target) && !e.target.closest(".kw")) {
+        hideWordPopup();
+    }
+});
+
 function updateSubtitle(seg) {
     renderKaraoke(seg);
+    hideWordPopup();
     subtitleTranslation.textContent = seg.translation || "";
     // 低置信度视觉提示
     const conf = seg.confidence;

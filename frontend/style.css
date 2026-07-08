@@ -1003,6 +1003,7 @@ video {
     color: #ffd700;
     font-size: 22px;
     font-weight: 500;
+    pointer-events: auto;
 }
 
 .subtitle-translation {
@@ -1020,6 +1021,8 @@ video {
 .subtitle-original .kw {
     padding: 0 1px 3px;
     transition: color 0.15s, box-shadow 0.15s, text-shadow 0.15s;
+    pointer-events: auto;
+    cursor: pointer;
 }
 
 .subtitle-original .kw-active {
@@ -1032,6 +1035,72 @@ video {
         1px -1px 0 rgba(0, 0, 0, 0.85),
         -1px -1px 0 rgba(0, 0, 0, 0.85),
         0 0 14px rgba(233, 69, 96, 0.55);
+}
+
+/* 点击查词气泡 */
+.word-popup {
+    display: none;
+    position: absolute;
+    z-index: 9999;
+    background: #1e1e2e;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 10px 14px;
+    min-width: 160px;
+    max-width: 300px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 400;
+    text-shadow: none;
+    line-height: 1.4;
+}
+.word-popup-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.word-popup-word {
+    font-size: 18px;
+    font-weight: 600;
+    color: #ffd700;
+    flex: 1;
+}
+.word-popup-play {
+    background: none;
+    border: none;
+    color: #e94560;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+}
+.word-popup-play:active {
+    transform: scale(0.9);
+}
+.word-popup-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0 2px;
+    line-height: 1;
+}
+.word-popup-body {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+}
+.word-popup-pos {
+    color: #e94560;
+    font-size: 12px;
+    font-style: italic;
+    white-space: nowrap;
+}
+.word-popup-meaning {
+    color: rgba(255, 255, 255, 0.9);
 }
 
 /* 低置信度提示 */

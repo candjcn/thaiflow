@@ -665,6 +665,51 @@ def api_translate():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/word-define", methods=["POST"])
+def api_word_define():
+    """查询单词释义（DeepSeek）"""
+    data = request.get_json()
+    word = (data.get("word") or "").strip()
+    source_lang = data.get("source_lang", "泰语")
+    target_lang = data.get("target_lang", "中文")
+    context = (data.get("context") or "").strip()
+
+    if not word:
+        return jsonify({"error": "缺少 word 参数"}), 400
+
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        return jsonify({"error": "未配置 DEEPSEEK_API_KEY"}), 500
+
+    ctx_hint = f'\n该词出现在以下句子中："{context}"' if context else ""
+    prompt = (
+        f"请用{target_lang}简洁解释以下{source_lang}单词的含义。{ctx_hint}\n"
+        f"单词：{word}\n\n"
+        f"严格按 JSON 返回，格式：{{\"meaning\": \"释义\", \"pos\": \"词性\"}}\n"
+        f"释义不超过15个字，词性用缩写（n./v./adj./adv./conj./prep./pron./interj.）。\n"
+        f"只返回 JSON，不要其他文字。"
+    )
+
+    try:
+        import requests as req
+        resp = req.post(
+            "https://api.deepseek.com/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.2},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"].strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+        import json as _json
+        result = _json.loads(content)
+        return jsonify(result)
+    except Exception as e:
+        print(f"[WordDefine] 失败: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 EXPORT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "exports")
 
 
