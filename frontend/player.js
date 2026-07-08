@@ -557,6 +557,7 @@ video.addEventListener("timeupdate", () => {
 videoContainer.addEventListener("click", (e) => {
     if (isLoading) return;
     if (e.target.closest(".subtitle-overlay")) return;
+    if (e.target.closest(".word-popup")) return;
     if (e.target.closest(".m-top-btn")) return;
     if (e.target.closest(".m-ov-btn")) return;
     if (isMobile()) {
@@ -2529,8 +2530,8 @@ video.addEventListener("pause", () => {
 
 // ========== 点击查词 ==========
 let wordPopup = null;
-let wordPopupTimer = null;
-const wordDefineCache = {};   // 缓存已查过的释义
+let wordPopupPlaying = false;  // 正在播放单词原声时阻止气泡消失
+const wordDefineCache = {};    // 缓存已查过的释义
 
 function createWordPopup() {
     if (wordPopup) return wordPopup;
@@ -2549,17 +2550,23 @@ function createWordPopup() {
             <span class="word-popup-meaning"></span>
         </div>`;
     document.body.appendChild(el);
-    el.querySelector(".word-popup-close").addEventListener("click", hideWordPopup);
-    el.querySelector(".word-popup-play").addEventListener("click", () => {
+    el.querySelector(".word-popup-close").addEventListener("click", (e) => {
+        e.stopPropagation();
+        hideWordPopup();
+    });
+    el.querySelector(".word-popup-play").addEventListener("click", (e) => {
+        e.stopPropagation();
         const start = parseFloat(el.dataset.wordStart);
         const end = parseFloat(el.dataset.wordEnd);
         if (!isNaN(start) && !isNaN(end)) {
+            wordPopupPlaying = true;  // 标记：正在播放单词片段
             video.currentTime = start;
             video.play();
             const onTime = () => {
                 if (video.currentTime >= end) {
                     video.pause();
                     video.removeEventListener("timeupdate", onTime);
+                    wordPopupPlaying = false;
                 }
             };
             video.addEventListener("timeupdate", onTime);
@@ -2656,26 +2663,35 @@ function hideWordPopup() {
     if (wordPopup) wordPopup.style.display = "none";
 }
 
-// 事件委托：点击字幕词
+// 事件委托：点击字幕词（暂停视频 + 弹出释义）
 subtitleOriginal.addEventListener("click", (e) => {
     const span = e.target.closest(".kw");
     if (!span) return;
     e.stopPropagation();
+    e.preventDefault();
     const idx = kwSpans.indexOf(span);
     if (idx < 0) return;
+    if (!video.paused) video.pause();
     showWordPopup(span, idx);
 });
+// 触摸事件也拦截，防止手机上穿透到 videoContainer
+subtitleOriginal.addEventListener("touchend", (e) => {
+    if (e.target.closest(".kw")) {
+        e.stopPropagation();
+    }
+});
 
-// 点击其他区域关闭气泡
+// 点击其他区域关闭气泡（但不在播放单词原声时关闭）
 document.addEventListener("click", (e) => {
-    if (wordPopup && !wordPopup.contains(e.target) && !e.target.closest(".kw")) {
+    if (wordPopup && wordPopup.style.display !== "none"
+        && !wordPopup.contains(e.target) && !e.target.closest(".kw")) {
         hideWordPopup();
     }
 });
 
 function updateSubtitle(seg) {
     renderKaraoke(seg);
-    hideWordPopup();
+    if (!wordPopupPlaying) hideWordPopup();
     subtitleTranslation.textContent = seg.translation || "";
     // 低置信度视觉提示
     const conf = seg.confidence;
