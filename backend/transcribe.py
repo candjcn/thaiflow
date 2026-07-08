@@ -178,13 +178,16 @@ def transcribe_groq(video_path):
             "start": round(seg.start if hasattr(seg, "start") else seg["start"], 2),
             "end": round(seg.end if hasattr(seg, "end") else seg["end"], 2),
         }
-        # Whisper 置信度指标
-        logprob = getattr(seg, "avg_logprob", None) or (seg.get("avg_logprob") if isinstance(seg, dict) else None)
-        no_speech = getattr(seg, "no_speech_prob", None) or (seg.get("no_speech_prob") if isinstance(seg, dict) else None)
+        # Whisper 置信度指标（兼容 SDK 对象和 dict）
+        seg_dict = seg if isinstance(seg, dict) else (vars(seg) if hasattr(seg, "__dict__") else {})
+        logprob = seg_dict.get("avg_logprob")
+        no_speech = seg_dict.get("no_speech_prob")
+        if i == 0:
+            print(f"[Groq] segment fields: {list(seg_dict.keys())}")
         if logprob is not None:
-            s["_logprob"] = round(logprob, 4)
+            s["_logprob"] = round(float(logprob), 4)
         if no_speech is not None:
-            s["_no_speech"] = round(no_speech, 4)
+            s["_no_speech"] = round(float(no_speech), 4)
         segments.append(s)
 
     # 词级时间戳（如果 API 返回了）
@@ -645,6 +648,25 @@ def _approx_alignment(src, tgt):
     return pairs
 
 
+import re
+
+# 泰语上方符号（元音、声调、各种标记）— 这些不能连续出现超过 2 个
+_THAI_ABOVE = set("่้๊๋ิีึืุูัํ็์ำ")
+
+def _thai_text_valid(text):
+    """检测泰语文本是否有无效的字符序列（如重复声调符号）。
+    返回 True 表示文本看起来合理。"""
+    consecutive = 0
+    for ch in text:
+        if ch in _THAI_ABOVE:
+            consecutive += 1
+            if consecutive > 2:
+                return False
+        else:
+            consecutive = 0
+    return True
+
+
 def _groq_confidence(seg):
     """将 Whisper 的 avg_logprob 转为 0-1 置信度。
     logprob 通常在 -1.0（差）到 0（完美）之间。"""
@@ -744,17 +766,43 @@ def align_and_calibrate(groq_segments, azure_full_text, azure_segments=None):
             calibrated.append(seg)
             continue
 
+        groq_text = seg["text"]
+
+        # 泰语安全检查：如果 Azure 文本含无效字符序列（如重复声调符号），拒绝替换
+        if not _thai_text_valid(azure_slice):
+            print(f"[Calibrate] #{i} Azure 文本含无效泰语序列，保留 Groq: {azure_slice[:40]}")
+            seg = dict(seg)
+            seg["_conf"] = round(_groq_confidence(seg), 4)
+            seg["_source"] = "groq"
+            calibrated.append(seg)
+            continue
+
+        # Groq 文本也检查
+        if not _thai_text_valid(groq_text):
+            print(f"[Calibrate] #{i} Groq 文本含无效泰语序列，用 Azure: {groq_text[:40]}")
+            seg = dict(seg)
+            seg["text"] = azure_slice
+            seg["_conf"] = round(get_azure_conf_for_range(seg["start"], seg["end"]), 4)
+            seg["_source"] = "azure"
+            calibrated.append(seg)
+            continue
+
         # 计算两边置信度
         groq_conf = _groq_confidence(seg)
         azure_conf = get_azure_conf_for_range(seg["start"], seg["end"])
 
-        # LCS 相似度作为辅助判断：如果两边文本非常相似就不换
-        groq_text = seg["text"]
+        # LCS 相似度
         lcs_pairs = lcs_alignment(groq_text, azure_slice)
         lcs_ratio = len(lcs_pairs) / max(len(groq_text), len(azure_slice), 1)
 
         seg = dict(seg)
-        if lcs_ratio > 0.9:
+
+        if lcs_ratio < 0.3:
+            # 两边差异太大，不可靠的对齐——保留 Groq（时间戳匹配更好）
+            print(f"[Calibrate] #{i} 差异过大(lcs={lcs_ratio:.2f})，保留 Groq")
+            seg["_conf"] = round(groq_conf, 4)
+            seg["_source"] = "groq"
+        elif lcs_ratio > 0.9:
             # 两边几乎一样，用置信度更高的
             if azure_conf >= groq_conf:
                 seg["text"] = azure_slice
@@ -860,6 +908,11 @@ def transcribe_combined(video_path):
     # 如果 Azure 也成功了，执行校准 + 间隔填补
     if azure_segments[0]:
         azure_full_text = "".join(seg["text"] for seg in azure_segments[0])
+        groq_full = "".join(seg["text"] for seg in result["segments"])
+        print(f"[Combined] Groq {len(result['segments'])} segs, "
+              f"Azure {len(azure_segments[0])} segs")
+        print(f"[Combined] Groq text: {groq_full[:100]}")
+        print(f"[Combined] Azure text: {azure_full_text[:100]}")
 
         # 逐句置信度择优校准
         result["segments"] = align_and_calibrate(
