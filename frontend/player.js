@@ -774,14 +774,6 @@ function setTip(text) {
 
 // ========== 视频列表 ==========
 const myVideosSection = document.getElementById("myVideosSection");
-const btnAddVideo = document.getElementById("btnAddVideo");
-const addVideoContent = document.getElementById("addVideoContent");
-
-btnAddVideo.addEventListener("click", () => {
-    const isOpen = addVideoContent.style.display !== "none";
-    addVideoContent.style.display = isOpen ? "none" : "block";
-    btnAddVideo.textContent = isOpen ? t("app.add.toggle") : t("app.add.collapse");
-});
 
 async function loadVideoList() {
     try {
@@ -791,9 +783,6 @@ async function loadVideoList() {
 
         if (data.videos.length === 0) {
             myVideosSection.style.display = "none";
-            // 没有视频时自动展开添加区域
-            addVideoContent.style.display = "block";
-            btnAddVideo.textContent = t("app.add.collapse");
             return;
         }
 

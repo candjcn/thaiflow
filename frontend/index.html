@@ -33,28 +33,17 @@
                         <button id="btnDownloadUrl" class="hero-url-btn" data-i18n="app.add.url.btn">下载</button>
                     </div>
                     <div class="url-status" id="urlStatus"></div>
-                    <!-- 更多选项（识别设置）折叠 -->
-                    <button class="more-options-toggle" id="btnAddVideo" data-i18n="app.add.more">更多方式...</button>
-                    <div class="more-options-content" id="addVideoContent" style="display:none;">
-                        <div class="provider-select">
-                            <div class="provider-row">
-                                <label data-i18n="app.add.engine.label">识别引擎：</label>
-                                <select id="transcribeProvider">
-                                    <option value="combined" data-i18n="app.add.engine.combined">智能校准 (Groq+Azure)</option>
-                                    <option value="groq">Groq Whisper</option>
-                                    <option value="azure">Azure Speech</option>
-                                </select>
-                            </div>
-                            <div class="provider-row">
-                                <label data-i18n="app.add.segment.label">断句：</label>
-                                <select id="segmentTarget">
-                                    <option value="" data-i18n="app.add.segment.auto">自动</option>
-                                    <option value="15" data-i18n="app.add.segment.short">短句</option>
-                                    <option value="30" data-i18n="app.add.segment.medium">中等</option>
-                                    <option value="50" data-i18n="app.add.segment.long">长句</option>
-                                </select>
-                            </div>
-                        </div>
+                    <!-- 识别设置（界面已隐藏，用默认值：智能校准引擎 + 自动断句。
+                         将来做 APP 设置页时再暴露 -->
+                    <div style="display:none;">
+                        <select id="transcribeProvider">
+                            <option value="combined" selected>智能校准 (Groq+Azure)</option>
+                            <option value="groq">Groq Whisper</option>
+                            <option value="azure">Azure Speech</option>
+                        </select>
+                        <select id="segmentTarget">
+                            <option value="" selected>自动</option>
+                        </select>
                     </div>
                 </div>
 
