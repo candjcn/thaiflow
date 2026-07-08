@@ -62,6 +62,32 @@ def log_event(kind, **data):
         pass
 
 
+def normalize_audio(video_path):
+    """响度归一化（-14 LUFS，对齐 TikTok 播放标准）+ 轻度语音降噪。
+    源片音量低的视频下载后会明显变小声，统一拉到学习友好的响度。
+    视频流直接拷贝（快），失败时保留原文件。"""
+    tmp_path = video_path + ".norm.mp4"
+    cmd = [
+        "ffmpeg", "-y", "-i", video_path,
+        "-c:v", "copy",
+        "-af", "afftdn=nr=10:nf=-25,loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-c:a", "aac", "-b:a", "128k",
+        tmp_path,
+    ]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if r.returncode == 0 and os.path.getsize(tmp_path) > 0:
+            os.replace(tmp_path, video_path)
+            return True
+        print(f"[Normalize] 失败: {r.stderr[-200:]}")
+    except Exception as e:
+        print(f"[Normalize] 异常: {e}")
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    return False
+
+
 @app.route("/api/admin/logs")
 def admin_logs():
     """开发者查看使用日志（需要 ADMIN_KEY）"""
@@ -157,6 +183,9 @@ def api_upload_video():
             sub_path = subtitle_path(safe_name)
             sub_file.save(sub_path)
             has_subtitle = True
+
+    # 响度归一化 + 降噪（与链接下载路径一致）
+    normalize_audio(save_path)
 
     log_event("upload", video=safe_name, has_subtitle=has_subtitle)
 
@@ -277,6 +306,10 @@ def api_download_video():
                         break
 
             if os.path.exists(output_path):
+                # 响度归一化 + 降噪（源片音量低时对齐 TikTok 播放响度）
+                progress_queue.put(("progress", "正在优化音质（响度归一化 + 降噪）..."))
+                normalize_audio(output_path)
+
                 progress_queue.put(("done", {
                     "name": safe_title + ".mp4",
                     "message": "下载完成",
