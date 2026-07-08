@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import threading
 from openai import OpenAI
@@ -172,9 +173,12 @@ def transcribe_groq(video_path):
 
     segments = []
     for i, seg in enumerate(result.segments):
+        raw_text = (seg.text if hasattr(seg, "text") else seg["text"]).strip()
+        # 去除 Whisper 内部特殊标记，如 <|ar|>, <|en|>, <|0.00|> 等
+        raw_text = re.sub(r'<\|[^|]*\|>', '', raw_text).strip()
         s = {
             "index": i,
-            "text": (seg.text if hasattr(seg, "text") else seg["text"]).strip(),
+            "text": raw_text,
             "start": round(seg.start if hasattr(seg, "start") else seg["start"], 2),
             "end": round(seg.end if hasattr(seg, "end") else seg["end"], 2),
         }
@@ -434,7 +438,16 @@ def add_word_spacing(texts, language="th"):
         result = []
         for orig, sp in zip(texts, spaced):
             if isinstance(sp, str) and sp.replace(" ", "") == orig.replace(" ", ""):
-                result.append(sp.strip())
+                # 修复分词误切：泰语组合字符（声调/元音标记）不能独立成词，
+                # 如果某个 token 以组合字符开头，合并回前一个词
+                tokens = sp.strip().split(" ")
+                merged = []
+                for tk in tokens:
+                    if tk and tk[0] in _THAI_ABOVE and merged:
+                        merged[-1] += tk
+                    else:
+                        merged.append(tk)
+                result.append(" ".join(merged))
             else:
                 result.append(orig)
         return result
