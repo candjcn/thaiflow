@@ -227,7 +227,7 @@ def transcribe_openai(video_path):
 
     with open(video_path, "rb") as f:
         result = client.audio.transcriptions.create(
-            model="gpt-4o-transcribe",
+            model="whisper-1",
             file=f,
             response_format="verbose_json",
             timestamp_granularities=["segment", "word"],
