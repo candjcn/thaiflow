@@ -828,18 +828,7 @@ video {
 
 .video-container.lesson-mode .subtitle-original,
 .video-container.lesson-mode .subtitle-translation {
-    background: none;
     padding: 0;
-    border-radius: 0;
-    /* 多层深色描边 + 柔和落影：任何背景色上都可读 */
-    text-shadow:
-        0 0 3px rgba(0, 0, 0, 0.95),
-        1px 1px 0 rgba(0, 0, 0, 0.85),
-        -1px 1px 0 rgba(0, 0, 0, 0.85),
-        1px -1px 0 rgba(0, 0, 0, 0.85),
-        -1px -1px 0 rgba(0, 0, 0, 0.85),
-        0 3px 10px rgba(0, 0, 0, 0.6);
-    font-weight: 600;
 }
 
 /* 盲听遍：卡片整体隐藏 */
@@ -878,14 +867,22 @@ video {
 
 .subtitle-original,
 .subtitle-translation {
-    background: rgba(0, 0, 0, 0.8);
-    padding: 6px 18px;
-    border-radius: 6px;
+    background: none;
+    padding: 2px 4px;
     display: inline-block;
     max-width: 100%;
-    line-height: 1.4;
+    line-height: 1.5;
     word-break: break-word;
     white-space: pre-wrap;
+    font-weight: 600;
+    /* 多层深色描边 + 柔和落影：任何画面上都可读（与朗读课程一致） */
+    text-shadow:
+        0 0 3px rgba(0, 0, 0, 0.95),
+        1px 1px 0 rgba(0, 0, 0, 0.85),
+        -1px 1px 0 rgba(0, 0, 0, 0.85),
+        1px -1px 0 rgba(0, 0, 0, 0.85),
+        -1px -1px 0 rgba(0, 0, 0, 0.85),
+        0 3px 10px rgba(0, 0, 0, 0.6);
 }
 
 .subtitle-original {
@@ -2316,12 +2313,10 @@ label {
 @media (max-width: 480px) {
     .subtitle-original {
         font-size: 22px;
-        padding: 4px 10px;
     }
 
     .subtitle-translation {
         font-size: 16px;
-        padding: 3px 10px;
     }
 
     .step {
