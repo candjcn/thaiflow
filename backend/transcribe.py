@@ -167,7 +167,7 @@ def transcribe_groq(video_path):
             model="whisper-large-v3",
             file=f,
             response_format="verbose_json",
-            timestamp_granularities=["segment"],
+            timestamp_granularities=["segment", "word"],
         )
 
     segments = []
@@ -179,10 +179,26 @@ def transcribe_groq(video_path):
             "end": round(seg.end if hasattr(seg, "end") else seg["end"], 2),
         })
 
-    return {
+    # 词级时间戳（如果 API 返回了）
+    words = []
+    if hasattr(result, "words") and result.words:
+        for w in result.words:
+            word_text = w.word if hasattr(w, "word") else w.get("word", "")
+            word_start = w.start if hasattr(w, "start") else w.get("start", 0)
+            word_end = w.end if hasattr(w, "end") else w.get("end", 0)
+            words.append({
+                "word": word_text.strip(),
+                "start": round(word_start, 3),
+                "end": round(word_end, 3),
+            })
+
+    out = {
         "segments": segments,
         "language": getattr(result, "language", "unknown"),
     }
+    if words:
+        out["words"] = words
+    return out
 
 
 # ========== Azure Speech ==========
@@ -430,6 +446,69 @@ def add_word_spacing(texts, language="th"):
     except Exception as e:
         print(f"[WordSpacing] 失败: {e}")
         return [{"text": t, "weights": None} for t in texts]
+
+
+def align_word_timestamps(segments, groq_words):
+    """把 Groq word-level timestamps 对齐到 Gemini 分词后的每个句子。
+
+    Groq 的 word 和 Gemini 分词边界可能不一致（如 Groq 把"สวัสดีค่ะ"当一个 word，
+    Gemini 分成"สวัสดี ค่ะ"两个词）。用字符级匹配做对齐。
+
+    写入每个 segment 的 wordTimings: [{start, end}, ...] 与分词后的词一一对应。
+    """
+    if not groq_words:
+        return
+
+    for seg in segments:
+        text = seg.get("text", "")
+        if not text or " " not in text:
+            continue
+
+        gemini_words = text.split()
+        seg_start = seg["start"]
+        seg_end = seg["end"]
+
+        # 找出时间上落在这个 segment 内的 Groq words
+        seg_gwords = [w for w in groq_words
+                      if w["start"] >= seg_start - 0.05 and w["end"] <= seg_end + 0.05]
+        if not seg_gwords:
+            continue
+
+        # 字符级对齐：拼接两边的纯文本（去空格），用 LCS 建立映射
+        gemini_chars = list(text.replace(" ", ""))
+        groq_chars = []
+        groq_char_times = []  # 每个 groq 字符的 (start, end)
+        for gw in seg_gwords:
+            for ch in gw["word"]:
+                groq_chars.append(ch)
+                groq_char_times.append((gw["start"], gw["end"]))
+
+        # 简单顺序匹配（泰语字符通常一致，只是分词边界不同）
+        timings = []
+        gi = 0  # groq_chars index
+        for gword in gemini_words:
+            word_start = None
+            word_end = None
+            for ch in gword:
+                # 在 groq_chars 中找下一个匹配的字符
+                while gi < len(groq_chars) and groq_chars[gi] != ch:
+                    gi += 1
+                if gi < len(groq_chars):
+                    t_start, t_end = groq_char_times[gi]
+                    if word_start is None:
+                        word_start = t_start
+                    word_end = t_end
+                    gi += 1
+            if word_start is not None:
+                timings.append({"start": round(word_start, 3),
+                                "end": round(word_end, 3)})
+            else:
+                # 匹配失败，放弃整句
+                timings = []
+                break
+
+        if timings and len(timings) == len(gemini_words):
+            seg["wordTimings"] = timings
 
 
 AZURE_LOCALE_MAP = {

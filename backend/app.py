@@ -7,7 +7,7 @@ import threading
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
-from transcribe import transcribe_video, transcribe_slice, add_word_spacing
+from transcribe import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps
 from translate import translate_segments
 from export import export_video_with_subtitles, export_srt
 from pronounce import assess_pronunciation
@@ -404,6 +404,10 @@ def api_transcribe():
                 s["text"] = item["text"]
                 if item["weights"]:
                     s["wordWeights"] = item["weights"]
+            # 用 Groq word-level timestamps 精确对齐（如果有的话）
+            if result.get("words"):
+                align_word_timestamps(result["segments"], result["words"])
+                del result["words"]  # 不传给前端（已合入 wordTimings）
 
         log_event("transcribe", video=video_name, provider=provider,
                   language=result.get("language", ""),
