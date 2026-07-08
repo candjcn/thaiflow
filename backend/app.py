@@ -402,10 +402,23 @@ def api_transcribe():
             spaced = add_word_spacing(texts, "th")
             for s, sp in zip(result["segments"], spaced):
                 s["text"] = sp
-            # 用 Groq word-level timestamps 精确对齐
-            if result.get("words"):
-                align_word_timestamps(result["segments"], result["words"])
-                del result["words"]  # 不传给前端（已合入 wordTimings）
+
+            # Gemini 分词失败时的兜底：直接用 OpenAI 词级 tokens 拼成带空格文本
+            raw_words = result.get("words", [])
+            if raw_words:
+                for s in result["segments"]:
+                    if " " not in s["text"]:
+                        # 找该句时间范围内的词
+                        seg_words = [w for w in raw_words
+                                     if w["start"] >= s["start"] - 0.05
+                                     and w["end"] <= s["end"] + 0.05]
+                        if seg_words:
+                            s["text"] = " ".join(w["word"].strip() for w in seg_words)
+
+            # 词级时间戳精确对齐
+            if raw_words:
+                align_word_timestamps(result["segments"], raw_words)
+                result.pop("words", None)  # 不传给前端（已合入 wordTimings）
 
         # 清理内部字段，保留前端需要的置信度信息
         for s in result.get("segments", []):

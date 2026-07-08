@@ -469,17 +469,10 @@ def add_word_spacing(texts, language="th"):
     numbered = "\n".join(f"{i}\t{t}" for i, t in enumerate(texts))
     prompt = (
         f"The following numbered lines are {lang_name} sentences (index TAB text).\n"
-        f"Task: insert spaces to segment each sentence into meaningful chunks "
-        f"for language learners.\n"
-        f"Grouping rules:\n"
-        f"- Keep common collocations and phrases together (e.g. ไม่ได้, อยู่ที่, เป็นไป, ก็ได้).\n"
-        f"- Keep verb+particle, noun+classifier, prefix+word as one unit.\n"
-        f"- Single-syllable function words (ก็, ที่, ได้, จะ, ไม่, ให้, แล้ว, กัน, ค่ะ, ครับ) "
-        f"should attach to adjacent content words, not stand alone.\n"
-        f"- Aim for chunks of 1-3 syllables each; avoid both single-character chunks "
-        f"and overly long chunks (>4 syllables).\n"
-        "Do NOT change, add, remove, or reorder any characters — only insert spaces.\n"
-        "Keep existing spaces/punctuation as-is.\n"
+        f"Task: insert a single space between every {lang_name} word "
+        "(word segmentation to help language learners read).\n"
+        "Rules: do NOT change, add, remove, or reorder any characters — "
+        "only insert spaces. Keep existing spaces/punctuation as-is.\n"
         "Return ONLY a JSON array of strings in the same order, no explanations, no markdown.\n\n"
         + numbered
     )
