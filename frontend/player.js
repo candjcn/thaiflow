@@ -1266,21 +1266,46 @@ async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
 const LESSON_DB = "reelspeak-lessons";
 const MAX_LESSONS = 20; // 超出后删最旧的，控制存储占用
 
-// 严格的 IndexedDB 操作：请求在事务同一 tick 内发起，
-// 且等待 transaction.oncomplete（真正落盘提交）才算成功
-function lessonsOp(mode, fn) {
+// 拆库设计：meta（名字/字幕/缩略图，几十KB）与 media（视频大文件）分开。
+// 列表只读 meta，避免冷启动一次性载入几百 MB 大文件导致读取失败。
+function lessonsOp(stores, mode, fn) {
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open(LESSON_DB, 1);
+        const req = indexedDB.open(LESSON_DB, 2);
         req.onupgradeneeded = () => {
-            req.result.createObjectStore("lessons", { keyPath: "name" });
+            const db = req.result;
+            const tx = req.transaction;
+            if (!db.objectStoreNames.contains("meta")) {
+                db.createObjectStore("meta", { keyPath: "name" });
+            }
+            if (!db.objectStoreNames.contains("media")) {
+                db.createObjectStore("media", { keyPath: "name" });
+            }
+            // v1 迁移：旧 lessons 记录拆分到新库
+            if (db.objectStoreNames.contains("lessons")) {
+                const old = tx.objectStore("lessons");
+                const meta = tx.objectStore("meta");
+                const media = tx.objectStore("media");
+                old.openCursor().onsuccess = (ev) => {
+                    const cur = ev.target.result;
+                    if (cur) {
+                        const r = cur.value;
+                        meta.put({ name: r.name, savedAt: r.savedAt, coverName: r.coverName || "",
+                                   thumbBlob: r.thumbBlob || null, subtitle: r.subtitle });
+                        media.put({ name: r.name, videoBlob: r.videoBlob, coverBlob: r.coverBlob || null });
+                        cur.continue();
+                    } else {
+                        db.deleteObjectStore("lessons");
+                    }
+                };
+            }
         };
         req.onerror = () => reject(req.error);
         req.onsuccess = () => {
             const db = req.result;
             let result;
             try {
-                const tx = db.transaction("lessons", mode);
-                const r = fn(tx.objectStore("lessons"));
+                const tx = db.transaction(stores, mode);
+                const r = fn(tx);
                 if (r) r.onsuccess = () => { result = r.result; };
                 tx.oncomplete = () => { db.close(); resolve(result); };
                 tx.onerror = () => { db.close(); reject(tx.error); };
@@ -1293,22 +1318,34 @@ function lessonsOp(mode, fn) {
     });
 }
 
-function lessonsGetAll() {
-    return lessonsOp("readonly", s => s.getAll())
+function metaGetAll() {
+    return lessonsOp(["meta"], "readonly", tx => tx.objectStore("meta").getAll())
         .then(r => r || [])
-        .catch(e => { console.log("[Library] 读取失败:", e); return []; });
+        .catch(e => { console.log("[Library] 列表读取失败:", e); return []; });
 }
 
-function lessonsGet(name) {
-    return lessonsOp("readonly", s => s.get(name)).catch(() => null);
+function metaGet(name) {
+    return lessonsOp(["meta"], "readonly", tx => tx.objectStore("meta").get(name)).catch(() => null);
 }
 
-function lessonsPut(record) {
-    return lessonsOp("readwrite", s => s.put(record));
+function mediaGet(name) {
+    return lessonsOp(["media"], "readonly", tx => tx.objectStore("media").get(name)).catch(() => null);
+}
+
+function lessonsPut(metaRec, mediaRec) {
+    return lessonsOp(["meta", "media"], "readwrite", tx => {
+        tx.objectStore("meta").put(metaRec);
+        tx.objectStore("media").put(mediaRec);
+        return null;
+    });
 }
 
 function lessonsDelete(name) {
-    return lessonsOp("readwrite", s => s.delete(name)).catch(() => false);
+    return lessonsOp(["meta", "media"], "readwrite", tx => {
+        tx.objectStore("meta").delete(name);
+        tx.objectStore("media").delete(name);
+        return null;
+    }).catch(() => false);
 }
 
 // 申请持久化存储：阻止浏览器在存储压力下清除课程库
@@ -1342,16 +1379,22 @@ async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
     if (!isMobile() || !currentVideoName || segments.length === 0) return;
     try {
         // 已存在则复用大文件，只更新字幕
-        const existing = await lessonsGet(currentVideoName);
+        const existingMeta = await metaGet(currentVideoName);
 
-        let videoBlob = (existing && existing.videoBlob) || localVideoBlob;
+        let videoBlob = localVideoBlob;
+        let coverBlob = localCoverBlob;
+        if (existingMeta) {
+            const existingMedia = await mediaGet(currentVideoName);
+            if (existingMedia) {
+                videoBlob = videoBlob || existingMedia.videoBlob;
+                coverBlob = coverBlob || existingMedia.coverBlob;
+            }
+        }
         if (!videoBlob) {
             const res = await fetch(`/videos/${encodeURIComponent(currentVideoName)}`);
             if (!res.ok) return;
             videoBlob = await res.blob();
         }
-
-        let coverBlob = (existing && existing.coverBlob) || localCoverBlob;
         if (!coverBlob && currentCover) {
             try {
                 const res = await fetch(`/videos/${encodeURIComponent(currentCover)}`);
@@ -1360,24 +1403,29 @@ async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
         }
 
         // 缩略图：视频截帧，音频用封面
-        let thumbBlob = existing && existing.thumbBlob;
+        let thumbBlob = existingMeta && existingMeta.thumbBlob;
         if (!thumbBlob) {
             await delay(600); // 等首帧渲染
             thumbBlob = await captureVideoThumb() || coverBlob || null;
         }
 
-        await lessonsPut({
-            name: currentVideoName,
-            coverName: currentCover || "",
-            videoBlob,
-            coverBlob: coverBlob || null,
-            thumbBlob: thumbBlob || null,
-            subtitle: { segments, language },
-            savedAt: Date.now(),
-        });
+        await lessonsPut(
+            {
+                name: currentVideoName,
+                coverName: currentCover || "",
+                thumbBlob: thumbBlob || null,
+                subtitle: { segments, language },
+                savedAt: Date.now(),
+            },
+            {
+                name: currentVideoName,
+                videoBlob,
+                coverBlob: coverBlob || null,
+            }
+        );
 
         // 超量清理：删最旧
-        const all = await lessonsGetAll();
+        const all = await metaGetAll();
         if (all.length > MAX_LESSONS) {
             all.sort((a, b) => a.savedAt - b.savedAt);
             for (const old of all.slice(0, all.length - MAX_LESSONS)) {
@@ -1390,9 +1438,9 @@ async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
     }
 }
 
-// 手机端：从课程库渲染本地列表（带缩略图，点击直接播放）
+// 手机端：从课程库渲染本地列表（只读轻量 meta，点击时才取大文件）
 async function loadLessonLibraryList(section, listEl) {
-    const all = await lessonsGetAll();
+    const all = await metaGetAll();
     if (all.length === 0) {
         section.style.display = "none";
         return;
@@ -1439,15 +1487,21 @@ async function loadLessonLibraryList(section, listEl) {
         actions.appendChild(btnDel);
         item.appendChild(actions);
 
-        item.addEventListener("click", () => {
+        item.addEventListener("click", async () => {
+            // 点击时才读取大文件
+            const media = await mediaGet(rec.name);
+            if (!media || !media.videoBlob) {
+                alert(t("status.subtitleFail") + "媒体数据缺失，请重新打开原文件");
+                return;
+            }
             const ext = rec.name.split(".").pop();
             const mime = ext === "m4a" ? "audio/mp4" : "video/mp4";
-            const videoFile = new File([rec.videoBlob], rec.name, { type: mime });
+            const videoFile = new File([media.videoBlob], rec.name, { type: mime });
             const subtitleFile = new File(
                 [JSON.stringify(rec.subtitle)], rec.name.replace(/\.[^.]+$/, "") + ".json",
                 { type: "application/json" });
-            const coverFile = rec.coverBlob
-                ? new File([rec.coverBlob], rec.coverName || "cover.jpg", { type: "image/jpeg" })
+            const coverFile = media.coverBlob
+                ? new File([media.coverBlob], rec.coverName || "cover.jpg", { type: "image/jpeg" })
                 : null;
             playLocalWithSubtitle(videoFile, subtitleFile, coverFile);
         });
