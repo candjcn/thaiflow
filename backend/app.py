@@ -88,27 +88,6 @@ def normalize_audio(video_path):
     return False
 
 
-@app.route("/api/admin/test-openai")
-def admin_test_openai():
-    """测试 Railway → OpenAI 连通性"""
-    if request.args.get("key") != os.environ.get("ADMIN_KEY", ""):
-        return jsonify({"error": "unauthorized"}), 403
-    import time
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if not api_key:
-        return jsonify({"error": "OPENAI_API_KEY 未配置"}), 500
-    t0 = time.time()
-    try:
-        import requests as req
-        r = req.get(
-            "https://api.openai.com/v1/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=15,
-        )
-        return jsonify({"status": r.status_code, "ok": r.status_code == 200, "elapsed": round(time.time()-t0,2)})
-    except Exception as e:
-        return jsonify({"error": str(e), "type": type(e).__name__, "elapsed": round(time.time()-t0,2)})
-
 
 @app.route("/api/admin/logs")
 def admin_logs():
