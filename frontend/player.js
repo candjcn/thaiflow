@@ -2427,7 +2427,7 @@ function getSubtitleMode() {
 }
 
 // ========== 卡拉OK逐词高亮（原文字幕） ==========
-// 三级精度：wordTimings（Groq 词级时间戳）> wordWeights（Gemini 估算）> 字符数等比
+// 词级精度：wordTimings（Groq 词级时间戳对齐）> 字符数等比 fallback
 let kwSegKey = null;   // 当前已渲染句子的标识
 let kwSpans = [];      // 词 span 元素
 let kwBounds = [];     // 每词归一化结束位置 (0,1]  —— 用于 weight 模式
@@ -2459,11 +2459,8 @@ function renderKaraoke(seg) {
     if (Array.isArray(wt) && wt.length === tokens.length) {
         kwTimings = wt;
     } else {
-        // fallback: 权重模式（Gemini 估算 > 字符数等比）
-        const ww = seg.wordWeights;
-        const weights = (Array.isArray(ww) && ww.length === tokens.length)
-            ? ww.map(w => Math.max(0.5, w))
-            : tokens.map(tk => Math.max(1, tk.length));
+        // fallback: 按字符数等比分配
+        const weights = tokens.map(tk => Math.max(1, tk.length));
         const total = weights.reduce((a, b) => a + b, 0);
         let cum = 0;
         for (const w of weights) {
@@ -3826,8 +3823,6 @@ weBtnRetrans.addEventListener("click", async () => {
         const seg = segments[we.idx];
         if (data.text) seg.text = data.text;
         if (data.translation) seg.translation = data.translation;
-        if (data.wordWeights) seg.wordWeights = data.wordWeights;
-        else delete seg.wordWeights;
         delete seg.wordTimings; // 单句重识别没有词级时间戳，清除旧数据
         renderSentenceList();
         if (we.idx === currentIndex) updateSubtitle(seg);
