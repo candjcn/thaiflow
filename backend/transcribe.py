@@ -176,6 +176,8 @@ def transcribe_groq(video_path):
         raw_text = (seg.text if hasattr(seg, "text") else seg["text"]).strip()
         # 去除 Whisper 内部特殊标记，如 <|ar|>, <|en|>, <|0.00|> 等
         raw_text = re.sub(r'<\|[^|]*\|>', '', raw_text).strip()
+        # 修复 Whisper 泰语幻觉：辅音与声调间插入多余的 อ
+        raw_text = _fix_whisper_thai(raw_text)
         s = {
             "index": i,
             "text": raw_text,
@@ -661,10 +663,45 @@ def _approx_alignment(src, tgt):
     return pairs
 
 
-import re
-
 # 泰语上方符号（元音、声调、各种标记）— 这些不能连续出现超过 2 个
 _THAI_ABOVE = set("่้๊๋ิีึืุูัํ็์ำ")
+
+# 泰语辅音范围 (U+0E01 ก ~ U+0E2E ฮ)
+_THAI_CONSONANTS = set(chr(c) for c in range(0x0E01, 0x0E2F))
+
+# 泰语声调符号（Whisper 常在辅音和声调间插入多余的 อ）
+_THAI_TONE_MARKS = set("่้๊๋")
+# 泰语上方/下方元音（也容易被 Whisper 用 อ 隔开）
+_THAI_VOWEL_MARKS = set("ิีึืุู")
+
+
+def _fix_whisper_thai(text):
+    """修复 Whisper 对泰语的常见错误：
+    在辅音和声调符号之间插入多余的 อ (U+0E2D)。
+    如 ใชอ่ → ใช่, เกอ้ → เก้
+    泰语正字法中声调符号总是标在音节首辅音上（如 พ่อ = พ+่+อ），
+    不会出现 [辅音]อ[声调] 的序列，因此此模式可安全修复。
+    仅修复声调符号(่้๊๋)，不动元音符号(ิีึืุู)——因为 [辅音]อ[元音] 可能是合法词（如 คนอื่น）。
+    """
+    if not text:
+        return text
+    tones = "".join(_THAI_TONE_MARKS)
+    consonants = "".join(_THAI_CONSONANTS - {"อ"})
+    pattern = f'([{consonants}])อ([{tones}])'
+    fixed = re.sub(pattern, r'\1\2', text)
+    if fixed != text:
+        print(f"[ThaiFixup] อ修复: {text[:60]} → {fixed[:60]}")
+    return fixed
+
+
+def _has_foreign_chars(text):
+    """检测泰语文本中是否含有拉丁/其他非泰语字母字符。
+    用于发现 Whisper 语言混淆幻觉（如把泰语识别成西班牙语 obviamente）。"""
+    for ch in text:
+        if ch.isalpha() and not ('\u0E00' <= ch <= '\u0E7F'):
+            return True
+    return False
+
 
 def _thai_text_valid(text):
     """检测泰语文本是否有无效的字符序列（如重复声调符号）。
@@ -780,6 +817,26 @@ def align_and_calibrate(groq_segments, azure_full_text, azure_segments=None):
             continue
 
         groq_text = seg["text"]
+
+        groq_foreign = _has_foreign_chars(groq_text)
+        azure_foreign = _has_foreign_chars(azure_slice)
+
+        # 外文字符检测：如果一方含外文而另一方没有，优先选纯泰语的
+        if groq_foreign and not azure_foreign:
+            print(f"[Calibrate] #{i} Groq 含外文字符，用 Azure: {groq_text[:40]}")
+            seg = dict(seg)
+            seg["text"] = azure_slice
+            seg["_conf"] = round(get_azure_conf_for_range(seg["start"], seg["end"]), 4)
+            seg["_source"] = "azure"
+            calibrated.append(seg)
+            continue
+        if azure_foreign and not groq_foreign:
+            print(f"[Calibrate] #{i} Azure 含外文字符，保留 Groq: {azure_slice[:40]}")
+            seg = dict(seg)
+            seg["_conf"] = round(_groq_confidence(seg), 4)
+            seg["_source"] = "groq"
+            calibrated.append(seg)
+            continue
 
         # 泰语安全检查：如果 Azure 文本含无效字符序列（如重复声调符号），拒绝替换
         if not _thai_text_valid(azure_slice):
