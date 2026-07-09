@@ -642,12 +642,21 @@ def add_word_spacing(texts, language="th"):
             print("[WordSpacing] 返回数量不匹配，放弃")
             return texts
         # 安全校验：除空格外内容必须完全一致，否则该句保留原文
+        # 同时检测字符级分割（平均词长 < 1.5 说明 Gemini 按字符加了空格，丢弃）
         result = []
         for orig, sp in zip(texts, spaced):
-            if isinstance(sp, str) and sp.replace(" ", "") == orig.replace(" ", ""):
-                result.append(sp.strip())
-            else:
+            if not isinstance(sp, str) or sp.replace(" ", "") != orig.replace(" ", ""):
                 result.append(orig)
+                continue
+            words = sp.strip().split()
+            if words:
+                avg_len = sum(len(w) for w in words) / len(words)
+                if avg_len < 1.5:
+                    # 字符级分割，Gemini 没有正确分词，保留原文
+                    print(f"[WordSpacing] 检测到字符级分割（avg={avg_len:.1f}），丢弃: {sp[:40]!r}")
+                    result.append(orig)
+                    continue
+            result.append(sp.strip())
         return result
     except Exception as e:
         print(f"[WordSpacing] 失败: {e}")
