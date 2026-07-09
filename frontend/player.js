@@ -130,6 +130,7 @@ const btnDirCancel = document.getElementById("btnDirCancel");
 
 // ========== 初始化 ==========
 loadVideoList();
+renderFavorites();
 // 注意：loadLocalVideoList() 的启动调用在文件末尾——
 // 它依赖后面声明的 const（LESSON_DB 等），在这里调用会踩 TDZ
 // 页面版本标识（排查缓存问题用）
@@ -2130,6 +2131,7 @@ function backToSelect() {
     hideMobileOverlays();
     loadVideoList();
     loadLocalVideoList();
+    renderFavorites();
 }
 
 // ========== 句子列表抽屉 ==========
@@ -2143,6 +2145,137 @@ function toggleDrawer() {
 }
 
 // ========== 渲染句子列表 ==========
+// ========== 收藏句子 ==========
+const FAVORITES_KEY = "reelspeak_favorites";
+
+function getFavorites() {
+    try { return JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]"); } catch { return []; }
+}
+
+function saveFavorites(list) {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
+}
+
+async function bookmarkSentence(idx, btn) {
+    const seg = segments[idx];
+    if (!seg) return;
+
+    // 检查是否已收藏（同一段视频同一句）
+    const favs = getFavorites();
+    const alreadySaved = favs.some(f => f.source === currentVideoName && Math.abs(f.start - seg.start) < 0.1);
+    if (alreadySaved) {
+        btn && animateStar(btn, true);
+        return;
+    }
+
+    btn && (btn.disabled = true);
+    try {
+        let audioUrl = "";
+        const isLocal = video.src.startsWith("blob:") && localVideoFile;
+        if (isLocal) {
+            // 本地视频：前端截取音频上传
+            const wavBlob = await getLocalAudioSliceWav(seg.start, seg.end);
+            const fd = new FormData();
+            fd.append("audio", wavBlob, "slice.wav");
+            const res = await fetch("/api/bookmark-audio", { method: "POST", body: fd });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            audioUrl = data.audio_url;
+        } else {
+            // 服务器视频：后端截取上传
+            const res = await fetch("/api/bookmark-sentence", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    video: currentVideoName,
+                    start: seg.start,
+                    end: seg.end,
+                }),
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            audioUrl = data.audio_url;
+        }
+
+        const fav = {
+            id: Date.now() + "_" + Math.random().toString(36).slice(2),
+            text: seg.text,
+            translation: seg.translation || "",
+            audioUrl,
+            source: currentVideoName || "",
+            start: seg.start,
+            savedAt: Date.now(),
+        };
+        favs.unshift(fav);
+        saveFavorites(favs);
+        btn && animateStar(btn, false);
+        renderFavorites();
+    } catch (e) {
+        console.error("[Bookmark]", e);
+        alert("收藏失败：" + e.message);
+    } finally {
+        btn && (btn.disabled = false);
+    }
+}
+
+function animateStar(btn, alreadySaved) {
+    const svg = btn.querySelector("svg");
+    if (alreadySaved) {
+        // 已收藏：闪一下金色提示
+        btn.style.color = "#f0a800";
+        setTimeout(() => { btn.style.color = ""; }, 600);
+        return;
+    }
+    // 新收藏：填充星星 + 弹跳
+    if (svg) svg.setAttribute("fill", "currentColor");
+    btn.style.color = "#f0a800";
+    btn.style.transform = "scale(1.4)";
+    setTimeout(() => { btn.style.transform = ""; }, 200);
+}
+
+function renderFavorites() {
+    const section = document.getElementById("favoritesSection");
+    const list = document.getElementById("favoritesList");
+    if (!section || !list) return;
+    const favs = getFavorites();
+    if (favs.length === 0) {
+        section.style.display = "none";
+        return;
+    }
+    section.style.display = "";
+    list.innerHTML = "";
+    favs.forEach(fav => {
+        const div = document.createElement("div");
+        div.className = "favorite-item";
+        div.innerHTML = `
+            <button class="fav-play-btn" title="播放">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+            </button>
+            <div class="fav-text">
+                <div class="fav-original">${escapeHtml(fav.text)}</div>
+                <div class="fav-translation">${escapeHtml(fav.translation)}</div>
+            </div>
+            <button class="fav-delete-btn" title="删除收藏">×</button>
+        `;
+        let favAudio = null;
+        div.querySelector(".fav-play-btn").addEventListener("click", () => {
+            if (favAudio && !favAudio.paused) {
+                favAudio.pause();
+                favAudio.currentTime = 0;
+                return;
+            }
+            favAudio = new Audio(fav.audioUrl);
+            favAudio.play();
+        });
+        div.querySelector(".fav-delete-btn").addEventListener("click", () => {
+            const updated = getFavorites().filter(f => f.id !== fav.id);
+            saveFavorites(updated);
+            renderFavorites();
+        });
+        list.appendChild(div);
+    });
+}
+
 function renderSentenceList() {
     sentenceList.innerHTML = "";
     segments.forEach((seg, i) => {
@@ -2169,6 +2302,9 @@ function renderSentenceList() {
                     <div class="translation">${escapeHtml(seg.translation || "")}</div>
                 </div>
                 <div class="sentence-actions">
+                    <button class="sentence-star-btn" title="收藏句子">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+                    </button>
                     <button class="sentence-edit-btn" title="编辑">✎</button>
                     ${mergeBtn}
                     <button class="sentence-wave-btn" title="音轨编辑">
@@ -2179,6 +2315,7 @@ function renderSentenceList() {
             <button class="sentence-delete-btn">删除</button>
         `;
         div.addEventListener("click", (e) => {
+            if (e.target.closest(".sentence-star-btn")) return;
             if (e.target.closest(".sentence-edit-btn")) return;
             if (e.target.closest(".sentence-merge-btn")) return;
             if (e.target.closest(".sentence-delete-btn")) return;
@@ -2212,6 +2349,10 @@ function renderSentenceList() {
             e.stopPropagation();
             closeSwipedItems();
             openWaveEditor(i);
+        });
+        div.querySelector(".sentence-star-btn").addEventListener("click", (e) => {
+            e.stopPropagation();
+            bookmarkSentence(i, div.querySelector(".sentence-star-btn"));
         });
         attachSwipeToDelete(div);
         sentenceList.appendChild(div);
@@ -2248,7 +2389,7 @@ function attachSwipeToDelete(div) {
         if (swiping && dx < 0) {
             content.style.transform = `translateX(${Math.max(dx, -80)}px)`;
         } else if (swiping && dx > 0) {
-            // 右滑视觉暗示（最多 40px），松手后打开波形编辑器
+            // 右滑视觉暗示（最多 40px），松手后收藏句子
             content.style.transform = `translateX(${Math.min(dx, 40)}px)`;
         }
     }, { passive: true });
@@ -2263,10 +2404,12 @@ function attachSwipeToDelete(div) {
             div.classList.add("swiped");
             content.style.transform = "translateX(-80px)";
         } else if (dx > 60) {
-            // 右滑：打开波形音轨编辑器
+            // 右滑：收藏句子
             closeSwipedItems();
             content.style.transform = "";
-            openWaveEditor(parseInt(div.dataset.index));
+            const idx = parseInt(div.dataset.index);
+            const starBtn = div.querySelector(".sentence-star-btn");
+            bookmarkSentence(idx, starBtn);
         } else {
             div.classList.remove("swiped");
             content.style.transform = "";

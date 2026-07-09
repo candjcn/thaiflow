@@ -12,6 +12,7 @@ from translate import translate_segments
 from export import export_video_with_subtitles, export_srt
 from pronounce import assess_pronunciation
 from tts import generate_audio_lesson, generate_cover_image, ocr_image
+from r2 import upload_audio
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -896,6 +897,86 @@ def api_pronounce():
     finally:
         if os.path.exists(audio_path):
             os.remove(audio_path)
+
+
+@app.route("/api/bookmark-sentence", methods=["POST"])
+def api_bookmark_sentence():
+    """收藏句子：从服务器视频截取音频片段并上传到 R2"""
+    import uuid
+    data = request.get_json()
+    video_name = data.get("video", "")
+    try:
+        start = float(data.get("start", -1))
+        end = float(data.get("end", -1))
+    except (TypeError, ValueError):
+        return jsonify({"error": "时间参数无效"}), 400
+
+    if not (0 <= start < end) or end - start > 60:
+        return jsonify({"error": "时间范围无效"}), 400
+
+    videos_root = os.path.realpath(VIDEOS_DIR)
+    video_path = os.path.realpath(os.path.join(VIDEOS_DIR, video_name))
+    if not video_path.startswith(videos_root + os.sep) or not os.path.exists(video_path):
+        return jsonify({"error": "视频文件不存在"}), 404
+
+    tmp_mp3 = os.path.join(VIDEOS_DIR, f".bookmark_{os.getpid()}_{uuid.uuid4().hex}.mp3")
+    try:
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-ss", str(start), "-to", str(end),
+            "-vn", "-ar", "22050", "-ac", "1", "-b:a", "64k",
+            tmp_mp3,
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            return jsonify({"error": "音频截取失败: " + r.stderr[-200:]}), 500
+
+        key = f"sentences/{uuid.uuid4().hex}.mp3"
+        audio_url = upload_audio(tmp_mp3, key)
+        log_event("bookmark", video=video_name, range=f"{start:.1f}-{end:.1f}")
+        return jsonify({"audio_url": audio_url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+    finally:
+        if os.path.exists(tmp_mp3):
+            os.remove(tmp_mp3)
+
+
+@app.route("/api/bookmark-audio", methods=["POST"])
+def api_bookmark_audio():
+    """收藏句子：接收前端上传的音频片段（本地视频场景）并上传到 R2"""
+    import uuid
+    if "audio" not in request.files:
+        return jsonify({"error": "缺少音频文件"}), 400
+
+    audio_file = request.files["audio"]
+    tmp_in = os.path.join(VIDEOS_DIR, f".bm_in_{os.getpid()}.wav")
+    tmp_mp3 = os.path.join(VIDEOS_DIR, f".bm_out_{os.getpid()}.mp3")
+    try:
+        audio_file.save(tmp_in)
+        if os.path.getsize(tmp_in) > 10 * 1024 * 1024:
+            return jsonify({"error": "音频文件过大"}), 400
+
+        cmd = [
+            "ffmpeg", "-y", "-i", tmp_in,
+            "-ar", "22050", "-ac", "1", "-b:a", "64k",
+            tmp_mp3,
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            return jsonify({"error": "音频转换失败: " + r.stderr[-200:]}), 500
+
+        key = f"sentences/{uuid.uuid4().hex}.mp3"
+        audio_url = upload_audio(tmp_mp3, key)
+        log_event("bookmark_audio")
+        return jsonify({"audio_url": audio_url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+    finally:
+        for p in (tmp_in, tmp_mp3):
+            if os.path.exists(p):
+                os.remove(p)
 
 
 if __name__ == "__main__":
