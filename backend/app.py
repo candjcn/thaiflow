@@ -391,6 +391,21 @@ def api_transcribe():
     if segment_target:
         segment_target = int(segment_target)
 
+    # 检查视频时长，超过 10 分钟拒绝识别
+    try:
+        probe = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json",
+             "-show_format", video_path],
+            capture_output=True, text=True, timeout=15,
+        )
+        if probe.returncode == 0:
+            duration = float(json.loads(probe.stdout).get("format", {}).get("duration", 0))
+            if duration > 600:
+                mins = int(duration // 60)
+                return jsonify({"error": f"视频时长 {mins} 分钟，超过 10 分钟限制。ReelSpeak 专为短视频设计，建议截取片段后再上传。"}), 400
+    except Exception:
+        pass  # ffprobe 失败时不拦截，让识别正常进行
+
     try:
         result = transcribe_video(video_path, provider=provider,
                                   segment_target=segment_target)
