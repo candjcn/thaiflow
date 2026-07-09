@@ -2,6 +2,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
 html, body {
@@ -1036,6 +1037,8 @@ video {
     pointer-events: auto;
     cursor: grab;
     user-select: none;
+    touch-action: none;
+    will-change: transform;
 }
 
 .subtitle-translation {
@@ -1044,6 +1047,8 @@ video {
     pointer-events: auto;
     cursor: grab;
     user-select: none;
+    touch-action: none;
+    will-change: transform;
 }
 
 .subtitle-original.sub-grabbing,
