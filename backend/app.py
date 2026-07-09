@@ -399,27 +399,23 @@ def api_transcribe():
         lang = (result.get("language") or "")[:2].lower()
         lang_full = (result.get("language") or "").lower()
         if lang == "th" or lang_full == "thai":
-            texts = [s["text"] for s in result["segments"]]
-            spaced = add_word_spacing(texts, "th")
-            for s, sp in zip(result["segments"], spaced):
-                s["text"] = sp
-
-            # Gemini 分词失败时的兜底：直接用 OpenAI 词级 tokens 拼成带空格文本
             raw_words = result.get("words", [])
             if raw_words:
+                # 直接用 OpenAI 词级 tokens 构建带空格文本（跳过 Gemini）
                 for s in result["segments"]:
-                    if " " not in s["text"]:
-                        # 找该句时间范围内的词
-                        seg_words = [w for w in raw_words
-                                     if w["start"] >= s["start"] - 0.05
-                                     and w["end"] <= s["end"] + 0.05]
-                        if seg_words:
-                            s["text"] = " ".join(w["word"].strip() for w in seg_words)
-
-            # 词级时间戳精确对齐
-            if raw_words:
+                    seg_words = [w for w in raw_words
+                                 if w["start"] >= s["start"] - 0.05
+                                 and w["end"] <= s["end"] + 0.05]
+                    if seg_words:
+                        s["text"] = " ".join(w["word"].strip() for w in seg_words)
                 align_word_timestamps(result["segments"], raw_words)
-                result.pop("words", None)  # 不传给前端（已合入 wordTimings）
+                result.pop("words", None)
+            else:
+                # 无词级 tokens 时才用 Gemini（非 OpenAI 引擎的兜底）
+                texts = [s["text"] for s in result["segments"]]
+                spaced = add_word_spacing(texts, "th")
+                for s, sp in zip(result["segments"], spaced):
+                    s["text"] = sp
 
         # 清理内部字段，保留前端需要的置信度信息
         for s in result.get("segments", []):
