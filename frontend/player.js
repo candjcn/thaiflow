@@ -2266,18 +2266,20 @@ function renderFavorites() {
                 playBtn.style.background = "";
                 return;
             }
+            if (!fav.audioUrl) {
+                alert("音频地址为空，请重新收藏该句子");
+                return;
+            }
             favAudio = new Audio(fav.audioUrl);
             playBtn.style.background = "#aaa";
             favAudio.addEventListener("ended", () => { playBtn.style.background = ""; });
-            favAudio.addEventListener("error", (e) => {
+            favAudio.addEventListener("error", () => {
                 playBtn.style.background = "";
-                console.error("[Favorites] 播放失败:", fav.audioUrl, e);
-                alert("播放失败，请检查网络或控制台");
+                alert("播放失败\nURL: " + fav.audioUrl);
             });
             favAudio.play().catch(err => {
                 playBtn.style.background = "";
-                console.error("[Favorites] play() rejected:", err, "URL:", fav.audioUrl);
-                alert("播放失败: " + err.message);
+                alert("播放失败: " + err.message + "\nURL: " + fav.audioUrl);
             });
         });
         div.querySelector(".fav-delete-btn").addEventListener("click", () => {
