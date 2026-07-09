@@ -76,11 +76,18 @@ def _apply_offset(segs_raw, words_raw, offset):
         end   = (seg.end   if hasattr(seg, "end")   else seg["end"])
         if not text:
             continue
-        segments.append({
+        s = {
             "text":  text,
             "start": round(start + offset, 2),
             "end":   round(end   + offset, 2),
-        })
+        }
+        # 保留置信度字段，供后续低置信度重识别使用
+        seg_dict = seg if isinstance(seg, dict) else (vars(seg) if hasattr(seg, "__dict__") else {})
+        logprob   = seg_dict.get("avg_logprob")
+        no_speech = seg_dict.get("no_speech_prob")
+        if logprob   is not None: s["_logprob"]   = round(float(logprob),   4)
+        if no_speech is not None: s["_no_speech"] = round(float(no_speech), 4)
+        segments.append(s)
     words = []
     for w in words_raw:
         wt = (w.word  if hasattr(w, "word")  else w.get("word", "")).strip()
@@ -165,6 +172,14 @@ def transcribe_video(video_path, provider="groq", segment_target=None, progress_
         result = transcribe_openai(video_path)
     else:
         result = transcribe_groq(video_path)
+
+    # OpenAI 识别后：对低置信度句子自动用 Groq 重识别
+    if provider == "openai":
+        _retry_low_confidence_with_groq(
+            video_path, result["segments"],
+            language=result.get("language", "unknown"),
+            progress_callback=progress_callback,
+        )
 
     result["segments"] = fix_timestamps(result["segments"])
 
@@ -398,6 +413,12 @@ def transcribe_openai(video_path):
             "start": round(seg.start if hasattr(seg, "start") else seg["start"], 2),
             "end": round(seg.end if hasattr(seg, "end") else seg["end"], 2),
         }
+        # 保留置信度字段
+        seg_dict = seg if isinstance(seg, dict) else (vars(seg) if hasattr(seg, "__dict__") else {})
+        logprob   = seg_dict.get("avg_logprob")
+        no_speech = seg_dict.get("no_speech_prob")
+        if logprob   is not None: s["_logprob"]   = round(float(logprob),   4)
+        if no_speech is not None: s["_no_speech"] = round(float(no_speech), 4)
         segments.append(s)
 
     words = []
@@ -419,6 +440,86 @@ def transcribe_openai(video_path):
     if words:
         out["words"] = words
     return out
+
+
+# ========== 低置信度段落自动用 Groq 重识别 ==========
+
+_LOGPROB_THRESHOLD   = -0.5   # avg_logprob 低于此值 → 重识别
+_NO_SPEECH_THRESHOLD =  0.3   # no_speech_prob 高于此值 → 重识别
+
+
+def _is_low_confidence(seg):
+    lp = seg.get("_logprob")
+    ns = seg.get("_no_speech")
+    if lp is not None and lp < _LOGPROB_THRESHOLD:
+        return True
+    if ns is not None and ns > _NO_SPEECH_THRESHOLD:
+        return True
+    return False
+
+
+def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
+                                    progress_callback=None):
+    """对 OpenAI 低置信度的句子，用 Groq whisper 重新识别并替换文本。
+    时间戳保留 OpenAI 的（更精准），只替换识别文字。"""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return
+
+    low_conf = [s for s in segments if _is_low_confidence(s)]
+    if not low_conf:
+        return
+
+    if progress_callback:
+        progress_callback(f"发现 {len(low_conf)} 句置信度偏低，用 Groq 补充识别...")
+
+    groq_client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1",
+                         timeout=60.0)
+    lang_hint = language if language not in ("unknown", "") else None
+
+    for seg in low_conf:
+        start = seg["start"]
+        end   = seg["end"]
+        dur   = end - start
+        if dur < 0.3:
+            continue  # 太短，跳过
+
+        # 提取该句音频（前后各留 0.1s 余量）
+        pad      = 0.1
+        ext_start = max(0, start - pad)
+        ext_dur   = dur + 2 * pad
+        wav_path  = video_path + f".retry_{int(start*1000)}.wav"
+        try:
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", str(ext_start), "-i", video_path,
+                "-t", str(ext_dur),
+                "-ar", "16000", "-ac", "1", "-sample_fmt", "s16",
+                wav_path,
+            ]
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            if r.returncode != 0:
+                continue
+
+            kwargs = dict(model="whisper-large-v3", response_format="text")
+            if lang_hint:
+                kwargs["language"] = lang_hint
+
+            with open(wav_path, "rb") as f:
+                new_text = groq_client.audio.transcriptions.create(file=f, **kwargs)
+
+            new_text = (new_text if isinstance(new_text, str) else "").strip()
+            if new_text:
+                print(f"[Retry] {start:.1f}s: {seg['text']!r} → {new_text!r}")
+                seg["text"] = new_text
+                seg.pop("_logprob",   None)
+                seg.pop("_no_speech", None)
+
+        except Exception as e:
+            print(f"[Retry] 重识别失败 {start:.1f}s: {e}")
+        finally:
+            if os.path.exists(wav_path):
+                os.remove(wav_path)
 
 
 # ========== Azure Speech ==========
