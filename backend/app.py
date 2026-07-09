@@ -70,7 +70,7 @@ def normalize_audio(video_path):
     cmd = [
         "ffmpeg", "-y", "-i", video_path,
         "-c:v", "copy",
-        "-af", "afftdn=nr=10:nf=-25,loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-af", "volume=2.0",
         "-c:a", "aac", "-b:a", "128k",
         tmp_path,
     ]
@@ -321,7 +321,7 @@ def api_download_video():
 
             if os.path.exists(output_path):
                 # 响度归一化 + 降噪（源片音量低时对齐 TikTok 播放响度）
-                progress_queue.put(("progress", "正在优化音质（响度归一化 + 降噪）..."))
+                progress_queue.put(("progress", "正在处理音频..."))
                 normalize_audio(output_path)
 
                 progress_queue.put(("done", {
