@@ -76,7 +76,6 @@ const btnList = document.getElementById("btnList");
 const btnFullscreen = document.getElementById("btnFullscreen");
 const btnExport = document.getElementById("btnExport");
 const btnCloseDrawer = document.getElementById("btnCloseDrawer");
-const btnTranslate = document.getElementById("btnTranslate");
 const repeatCountSelect = document.getElementById("repeatCount");
 const playbackRateSelect = document.getElementById("playbackRate");
 const chkOriginal = document.getElementById("chkOriginal");
@@ -144,7 +143,6 @@ btnPrev.addEventListener("click", prevSentence);
 btnNext.addEventListener("click", nextSentence);
 btnPause.addEventListener("click", togglePause);
 btnRepeat.addEventListener("click", repeatCurrent);
-btnTranslate.addEventListener("click", translateAll);
 btnBack.addEventListener("click", backToSelect);
 btnList.addEventListener("click", toggleDrawer);
 btnFullscreen.addEventListener("click", toggleFullscreen);
@@ -1304,7 +1302,6 @@ async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
 
     await waitForVideo();
     isLoading = false;
-    btnTranslate.disabled = false;
     renderSentenceList();
     sentenceMode = true;
     jumpToSentence(0);
@@ -1911,7 +1908,6 @@ async function loadSaved(videoName) {
     }
 
     isLoading = false;
-    btnTranslate.disabled = false;
     renderSentenceList();
     sentenceMode = true;
     jumpToSentence(0);
@@ -2069,7 +2065,6 @@ function openDrawerIfDesktop() {
 function finishLoading() {
     isLoading = false;
     loadingOverlay.style.display = "none";
-    btnTranslate.disabled = false;
 
     renderSentenceList();
     sentenceMode = true;
@@ -2318,6 +2313,11 @@ function enterEditMode(div, i) {
         <textarea class="edit-translation" rows="2">${escapeHtml(seg.translation || "")}</textarea>
         <div class="edit-actions">
             <button class="edit-save">✓ 保存</button>
+            <select class="edit-trans-engine">
+                <option value="deepseek" selected>DeepSeek</option>
+                <option value="gemini">Gemini</option>
+            </select>
+            <button class="edit-retranslate">↻ 翻译</button>
             <button class="edit-cancel">✕ 取消</button>
         </div>
     `;
@@ -2341,6 +2341,41 @@ function enterEditMode(div, i) {
         }
         // 保存到服务器
         await saveSubtitle();
+    });
+
+    textGroup.querySelector(".edit-retranslate").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const btn = textGroup.querySelector(".edit-retranslate");
+        const originalText = textGroup.querySelector(".edit-original").value.trim();
+        if (!originalText) return;
+        btn.disabled = true;
+        btn.textContent = "...";
+        const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语", zh: "中文", chinese: "中文", mandarin: "中文" };
+        const sourceLang = langMap[language] || "外语";
+        const engine = textGroup.querySelector(".edit-trans-engine").value;
+        try {
+            const res = await fetch("/api/translate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    segments: [{ index: 0, text: originalText }],
+                    source_lang: sourceLang,
+                    target_lang: getTargetLang(),
+                    engine: engine,
+                }),
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(t("status.translateFail") + data.error);
+            } else {
+                const tr = (data.translations || [])[0];
+                if (tr) textGroup.querySelector(".edit-translation").value = tr.translation;
+            }
+        } catch (err) {
+            alert(t("status.translateFail") + err.message);
+        }
+        btn.disabled = false;
+        btn.textContent = "↻ 翻译";
     });
 
     textGroup.querySelector(".edit-cancel").addEventListener("click", (e) => {
@@ -2795,46 +2830,6 @@ function highlightSentence(index) {
     }
 }
 
-// ========== 翻译（手动重试） ==========
-async function translateAll() {
-    if (segments.length === 0) return;
-
-    btnTranslate.disabled = true;
-    btnTranslate.textContent = t("status.translatingBtn");
-
-    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语", zh: "中文", chinese: "中文", mandarin: "中文" };
-    const sourceLang = langMap[language] || "外语";
-
-    try {
-        const engine = document.getElementById("translateEngine").value;
-        const res = await fetch("/api/translate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                segments: segments.map((s) => ({ index: s.index, text: s.text })),
-                source_lang: sourceLang,
-                target_lang: getTargetLang(),
-                engine: engine,
-            }),
-        });
-        const data = await res.json();
-        if (data.error) {
-            alert(t("status.translateFail") + data.error);
-        } else {
-            (data.translations || []).forEach((tr) => {
-                if (segments[tr.index]) segments[tr.index].translation = tr.translation;
-            });
-            renderSentenceList();
-            highlightSentence(currentIndex);
-            if (currentIndex >= 0) updateSubtitle(segments[currentIndex]);
-            await saveSubtitle();
-        }
-    } catch (e) {
-        alert(t("status.translateFail") + e.message);
-    }
-    btnTranslate.textContent = t("status.retranslate");
-    btnTranslate.disabled = false;
-}
 
 // ========== 导出设置弹窗 ==========
 function showExportModal() {
