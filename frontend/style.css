@@ -1082,23 +1082,22 @@ video {
         0 0 14px rgba(233, 69, 96, 0.55);
 }
 
-/* 单词释义气泡 — Apple iOS 浅色毛玻璃风格 */
+/* 单词释义气泡 — 浅黄暖色毛玻璃 */
 .word-popup {
     display: none;
     position: absolute;
     z-index: 9999;
-    background: rgba(255, 255, 255, 0.88);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 0.5px solid rgba(0, 0, 0, 0.08);
+    background: rgba(255, 248, 160, 0.5);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 0.5px solid rgba(200, 160, 0, 0.22);
     border-radius: 13px;
     padding: 9px 13px 10px;
     min-width: 120px;
     max-width: 220px;
     box-shadow:
-        0 4px 20px rgba(0, 0, 0, 0.13),
-        0 1px 4px rgba(0, 0, 0, 0.07),
-        0 0 0 0.5px rgba(255, 255, 255, 0.5);
+        0 4px 18px rgba(0, 0, 0, 0.1),
+        0 1px 4px rgba(0, 0, 0, 0.06);
     text-shadow: none;
     line-height: 1.4;
     animation: wp-in 0.18s cubic-bezier(0.34, 1.1, 0.64, 1);
@@ -1108,7 +1107,7 @@ video {
     from { opacity: 0; transform: scale(0.86) translateY(6px); }
     to   { opacity: 1; transform: scale(1) translateY(0); }
 }
-/* 第一行：单词 + 播放图标 + 关闭 */
+/* 第一行：单词 + 播放图标 + 收藏星 */
 .word-popup-row1 {
     display: flex;
     align-items: center;
@@ -1118,7 +1117,7 @@ video {
 .word-popup-word {
     font-size: 15px;
     font-weight: 700;
-    color: #1c1c1e;
+    color: #2d1f00;
     letter-spacing: -0.2px;
     flex: 1;
     min-width: 0;
@@ -1140,20 +1139,21 @@ video {
 .word-popup-play:active {
     opacity: 0.45;
 }
-.word-popup-close {
+/* 收藏星（生词本占位） */
+.word-popup-star {
     background: none;
     border: none;
-    color: #8e8e93;
+    color: #c8860a;
     cursor: pointer;
-    font-size: 16px;
-    font-weight: 400;
-    line-height: 1;
-    padding: 2px 1px;
+    display: flex;
+    align-items: center;
+    padding: 3px;
     flex-shrink: 0;
-    transition: color 0.12s;
+    transition: color 0.15s, transform 0.15s;
 }
-.word-popup-close:active {
-    color: #3c3c43;
+.word-popup-star:active {
+    color: #f0a800;
+    transform: scale(1.2);
 }
 /* 第二行：词性 + 释义 */
 .word-popup-row2 {
@@ -1164,13 +1164,13 @@ video {
 .word-popup-pos {
     font-size: 10px;
     font-style: italic;
-    color: #8e8e93;
+    color: #7a6000;
     white-space: nowrap;
     flex-shrink: 0;
 }
 .word-popup-meaning {
     font-size: 13px;
-    color: #3c3c43;
+    color: #2d1f00;
     font-weight: 400;
 }
 

@@ -2622,6 +2622,8 @@ function kwLoop() {
 video.addEventListener("play", () => {
     cancelAnimationFrame(kwRaf);
     kwLoop();
+    // 视频正常播放时关闭单词气泡（气泡内部播放单词原声时除外）
+    if (!wordPopupPlaying) hideWordPopup();
 });
 video.addEventListener("pause", () => {
     cancelAnimationFrame(kwRaf);
@@ -2643,16 +2645,18 @@ function createWordPopup() {
             <button class="word-popup-play" title="播放原声">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
             </button>
-            <button class="word-popup-close">×</button>
+            <button class="word-popup-star" title="加入生词本">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+            </button>
         </div>
         <div class="word-popup-row2">
             <span class="word-popup-pos"></span>
             <span class="word-popup-meaning"></span>
         </div>`;
     document.body.appendChild(el);
-    el.querySelector(".word-popup-close").addEventListener("click", (e) => {
+    el.querySelector(".word-popup-star").addEventListener("click", (e) => {
         e.stopPropagation();
-        hideWordPopup();
+        // TODO: 加入生词本
     });
     el.querySelector(".word-popup-play").addEventListener("click", (e) => {
         e.stopPropagation();
