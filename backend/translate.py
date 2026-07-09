@@ -2,8 +2,9 @@ import os
 import json
 import requests
 
-# 中文系目标语言 → DeepSeek 效果更好；其他语言 → Gemini
+# 中文系目标语言 → DeepSeek；来源是中文 → DeepSeek；其他 → Gemini
 _CHINESE_TARGETS = {"中文", "繁體中文"}
+_CHINESE_SOURCES = {"中文", "繁體中文", "普通话"}
 
 
 def _build_prompt(segments, source_lang, target_lang):
@@ -81,7 +82,8 @@ def translate_segments(segments, source_lang, target_lang, engine="auto"):
     if not segments:
         return []
     if engine == "auto":
-        engine = "deepseek" if target_lang in _CHINESE_TARGETS else "gemini"
+        # 目标是中文，或来源是中文 → DeepSeek；其他语言对 → Gemini
+        engine = "deepseek" if (target_lang in _CHINESE_TARGETS or source_lang in _CHINESE_SOURCES) else "gemini"
     if engine == "deepseek":
         return _translate_deepseek(segments, source_lang, target_lang)
     elif engine == "gemini":

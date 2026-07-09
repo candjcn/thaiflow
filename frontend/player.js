@@ -1993,7 +1993,7 @@ async function startLoading(videoName, subtitleOnly) {
     // 步骤 3：翻译
     setStep("step3", "active");
     setTip(t("status.translating"));
-    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
+    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语", zh: "中文", chinese: "中文", mandarin: "中文" };
     const sourceLang = langMap[language] || "外语";
     try {
         const res = await fetch("/api/translate", {
@@ -2677,7 +2677,7 @@ function showWordPopup(span, wordIdx) {
     }
 
     // 查释义（带缓存）
-    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语" };
+    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", zh: "中文", chinese: "中文", mandarin: "中文" };
     const sourceLang = langMap[language] || "外语";
     const targetLang = getTargetLang();
     const cacheKey = `${word}|${sourceLang}|${targetLang}`;
@@ -2802,7 +2802,7 @@ async function translateAll() {
     btnTranslate.disabled = true;
     btnTranslate.textContent = t("status.translatingBtn");
 
-    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
+    const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语", zh: "中文", chinese: "中文", mandarin: "中文" };
     const sourceLang = langMap[language] || "外语";
 
     try {
