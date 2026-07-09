@@ -1082,41 +1082,44 @@ video {
         0 0 14px rgba(233, 69, 96, 0.55);
 }
 
-/* 点击查词气泡 */
-/* 单词释义气泡：浮在单词附近的轻量提示 */
+/* 单词释义气泡 — Apple iOS 浅色毛玻璃风格 */
 .word-popup {
     display: none;
     position: absolute;
     z-index: 9999;
-    background: rgba(20, 20, 30, 0.62);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 10px;
-    padding: 8px 12px 9px;
-    min-width: 110px;
-    max-width: 210px;
-    color: #fff;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 0.5px solid rgba(0, 0, 0, 0.08);
+    border-radius: 13px;
+    padding: 9px 13px 10px;
+    min-width: 120px;
+    max-width: 220px;
+    box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.13),
+        0 1px 4px rgba(0, 0, 0, 0.07),
+        0 0 0 0.5px rgba(255, 255, 255, 0.5);
     text-shadow: none;
     line-height: 1.4;
-    animation: wp-in 0.14s ease;
+    animation: wp-in 0.18s cubic-bezier(0.34, 1.1, 0.64, 1);
     pointer-events: auto;
 }
 @keyframes wp-in {
-    from { opacity: 0; transform: translateY(4px) scale(0.95); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
+    from { opacity: 0; transform: scale(0.86) translateY(6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
 }
-/* 第一行：单词 + 播放小图标 + 关闭 */
+/* 第一行：单词 + 播放图标 + 关闭 */
 .word-popup-row1 {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
     margin-bottom: 3px;
 }
 .word-popup-word {
     font-size: 15px;
     font-weight: 700;
-    color: #ffd700;
+    color: #1c1c1e;
+    letter-spacing: -0.2px;
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -1126,31 +1129,31 @@ video {
 .word-popup-play {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.75);
+    color: #007aff;
     cursor: pointer;
     display: flex;
     align-items: center;
     padding: 3px;
     flex-shrink: 0;
-    transition: color 0.12s;
+    transition: opacity 0.12s;
 }
 .word-popup-play:active {
-    color: #e94560;
-    transform: scale(0.88);
+    opacity: 0.45;
 }
 .word-popup-close {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.38);
+    color: #8e8e93;
     cursor: pointer;
-    font-size: 15px;
+    font-size: 16px;
+    font-weight: 400;
     line-height: 1;
     padding: 2px 1px;
     flex-shrink: 0;
     transition: color 0.12s;
 }
 .word-popup-close:active {
-    color: rgba(255, 255, 255, 0.75);
+    color: #3c3c43;
 }
 /* 第二行：词性 + 释义 */
 .word-popup-row2 {
@@ -1161,13 +1164,14 @@ video {
 .word-popup-pos {
     font-size: 10px;
     font-style: italic;
-    color: #e9a060;
+    color: #8e8e93;
     white-space: nowrap;
     flex-shrink: 0;
 }
 .word-popup-meaning {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.92);
+    color: #3c3c43;
+    font-weight: 400;
 }
 
 /* 低置信度提示 */
