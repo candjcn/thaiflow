@@ -601,65 +601,24 @@ def transcribe_gemini_slice(wav_path, language=None):
 
 
 def add_word_spacing(texts, language="th"):
-    """用 Gemini 给无空格语言（如泰语）的文本按词加空格，方便学习者阅读。
-    只插入空格，不改动任何字符；失败时原样返回。"""
-    import json as _json
-
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key or not texts:
+    """用 PyThaiNLP 给泰语文本按词加空格，方便学习者阅读。
+    本地运行，无 API 调用，稳定快速。非泰语原样返回。"""
+    lang = (language or "")[:2].lower()
+    if lang != "th" or not texts:
         return texts
 
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-    lang_name = {"th": "Thai", "ja": "Japanese", "km": "Khmer", "lo": "Lao", "my": "Burmese"}.get(
-        (language or "")[:2].lower(), "Thai")
-
-    numbered = "\n".join(f"{i}\t{t}" for i, t in enumerate(texts))
-    prompt = (
-        f"The following numbered lines are {lang_name} sentences (index TAB text).\n"
-        f"Task: insert a single space between every {lang_name} word "
-        "(word segmentation to help language learners read).\n"
-        "Rules: do NOT change, add, remove, or reorder any characters — "
-        "only insert spaces. Keep existing spaces/punctuation as-is.\n"
-        "Return ONLY a JSON array of strings in the same order, no explanations, no markdown.\n\n"
-        + numbered
-    )
-
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0},
-    }
     try:
-        from tts import _gemini_request
-        resp_json = _gemini_request(model, payload, timeout=60, max_retries=3, tag="分词")
-        raw = resp_json["candidates"][0]["content"]["parts"][0]["text"].strip()
-        # 去掉可能的 markdown 代码块包裹
-        if raw.startswith("```"):
-            raw = raw.strip("`")
-            if raw.startswith("json"):
-                raw = raw[4:]
-        spaced = _json.loads(raw)
-        if not isinstance(spaced, list) or len(spaced) != len(texts):
-            print("[WordSpacing] 返回数量不匹配，放弃")
-            return texts
-        # 安全校验：除空格外内容必须完全一致，否则该句保留原文
-        # 同时检测字符级分割（平均词长 < 1.5 说明 Gemini 按字符加了空格，丢弃）
+        from pythainlp.tokenize import word_tokenize
         result = []
-        for orig, sp in zip(texts, spaced):
-            if not isinstance(sp, str) or sp.replace(" ", "") != orig.replace(" ", ""):
-                result.append(orig)
+        for text in texts:
+            if not text or not text.strip():
+                result.append(text)
                 continue
-            words = sp.strip().split()
-            if words:
-                avg_len = sum(len(w) for w in words) / len(words)
-                if avg_len < 1.5:
-                    # 字符级分割，Gemini 没有正确分词，保留原文
-                    print(f"[WordSpacing] 检测到字符级分割（avg={avg_len:.1f}），丢弃: {sp[:40]!r}")
-                    result.append(orig)
-                    continue
-            result.append(sp.strip())
+            words = word_tokenize(text, engine="newmm", keep_whitespace=False)
+            result.append(" ".join(w for w in words if w.strip()))
         return result
     except Exception as e:
-        print(f"[WordSpacing] 失败: {e}")
+        print(f"[WordSpacing] PyThaiNLP 失败: {e}，返回原文")
         return texts
 
 
