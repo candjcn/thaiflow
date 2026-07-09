@@ -1,16 +1,163 @@
 import os
+import json
 import subprocess
 import threading
 from openai import OpenAI
 
+# 超过此时长（秒）自动分段识别；每段时长
+_CHUNK_THRESHOLD = 300   # 5 分钟以上才切段
+_CHUNK_SIZE      = 180   # 每段 3 分钟
 
-def transcribe_video(video_path, provider="groq", segment_target=None):
+
+def get_video_duration(video_path):
+    """用 ffprobe 获取视频时长（秒），失败返回 0"""
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", video_path],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode == 0:
+            return float(json.loads(r.stdout).get("format", {}).get("duration", 0))
+    except Exception:
+        pass
+    return 0
+
+
+def _extract_chunk_wav(video_path, start, duration):
+    """从视频提取一段 WAV（16kHz 单声道），返回临时文件路径"""
+    wav_path = video_path + f".chunk_{int(start)}.wav"
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", str(start), "-i", video_path,
+        "-t", str(duration),
+        "-ar", "16000", "-ac", "1", "-sample_fmt", "s16",
+        wav_path,
+    ]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"分段提取失败: {r.stderr[-300:]}")
+    return wav_path
+
+
+def _transcribe_wav_openai(client, wav_path):
+    """用 OpenAI whisper-1 识别一段 WAV，返回 (segments_raw, words_raw, language)"""
+    with open(wav_path, "rb") as f:
+        result = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=f,
+            response_format="verbose_json",
+            timestamp_granularities=["segment", "word"],
+        )
+    segs = result.segments or []
+    words = result.words or []
+    return segs, words, getattr(result, "language", "unknown")
+
+
+def _transcribe_wav_groq(client, wav_path):
+    """用 Groq whisper-large-v3 识别一段 WAV，返回 (segments_raw, words_raw, language)"""
+    with open(wav_path, "rb") as f:
+        result = client.audio.transcriptions.create(
+            model="whisper-large-v3",
+            file=f,
+            response_format="verbose_json",
+            timestamp_granularities=["segment", "word"],
+        )
+    segs = result.segments or []
+    words = result.words or []
+    return segs, words, getattr(result, "language", "unknown")
+
+
+def _apply_offset(segs_raw, words_raw, offset):
+    """把识别结果加上时间偏移，返回 (segments_list, words_list)"""
+    segments = []
+    for seg in segs_raw:
+        text  = (seg.text  if hasattr(seg, "text")  else seg["text"]).strip()
+        start = (seg.start if hasattr(seg, "start") else seg["start"])
+        end   = (seg.end   if hasattr(seg, "end")   else seg["end"])
+        if not text:
+            continue
+        segments.append({
+            "text":  text,
+            "start": round(start + offset, 2),
+            "end":   round(end   + offset, 2),
+        })
+    words = []
+    for w in words_raw:
+        wt = (w.word  if hasattr(w, "word")  else w.get("word", "")).strip()
+        ws = (w.start if hasattr(w, "start") else w.get("start", 0))
+        we = (w.end   if hasattr(w, "end")   else w.get("end",   0))
+        words.append({
+            "word":  wt,
+            "start": round(ws + offset, 3),
+            "end":   round(we + offset, 3),
+        })
+    return segments, words
+
+
+def transcribe_chunked(video_path, provider, duration, progress_callback=None):
+    """
+    将长视频分成 _CHUNK_SIZE 秒一段，逐段识别后合并。
+    progress_callback(msg): 推送进度文字
+    """
+    chunk_starts = list(range(0, int(duration), _CHUNK_SIZE))
+    total = len(chunk_starts)
+
+    if provider == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("未配置 OPENAI_API_KEY")
+        client = OpenAI(api_key=api_key.strip(), timeout=300.0)
+        transcribe_fn = _transcribe_wav_openai
+    else:  # groq
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("未配置 GROQ_API_KEY")
+        client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+        transcribe_fn = _transcribe_wav_groq
+
+    all_segments = []
+    all_words    = []
+    language     = "unknown"
+
+    for idx, start in enumerate(chunk_starts):
+        chunk_dur = min(_CHUNK_SIZE, duration - start)
+        if progress_callback:
+            m, s = divmod(int(start), 60)
+            progress_callback(f"正在识别第 {idx+1}/{total} 段（{m}:{s:02d} 起）...")
+
+        wav_path = _extract_chunk_wav(video_path, start, chunk_dur)
+        try:
+            segs_raw, words_raw, lang = transcribe_fn(client, wav_path)
+        finally:
+            if os.path.exists(wav_path):
+                os.remove(wav_path)
+
+        if lang and lang != "unknown" and language == "unknown":
+            language = lang
+
+        segs, words = _apply_offset(segs_raw, words_raw, start)
+        all_segments.extend(segs)
+        all_words.extend(words)
+
+    out = {"segments": all_segments, "language": language}
+    if all_words:
+        out["words"] = all_words
+    return out
+
+
+def transcribe_video(video_path, provider="groq", segment_target=None, progress_callback=None):
     """
     对视频进行语音识别和断句。
     provider: "groq" | "azure" | "combined" | "openai"
     segment_target: 目标句子长度（字符数），None 表示不调整
+    progress_callback(msg): 可选，用于 SSE 推送分段进度
     """
-    if provider == "azure":
+    duration = get_video_duration(video_path)
+    use_chunked = duration > _CHUNK_THRESHOLD and provider in ("openai", "groq")
+
+    if use_chunked:
+        result = transcribe_chunked(video_path, provider, duration, progress_callback)
+    elif provider == "azure":
         result = transcribe_azure(video_path)
     elif provider == "combined":
         result = transcribe_combined(video_path)

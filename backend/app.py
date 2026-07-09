@@ -7,7 +7,7 @@ import threading
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
-from transcribe import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps
+from transcribe import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps, get_video_duration
 from translate import translate_segments
 from export import export_video_with_subtitles, export_srt
 from pronounce import assess_pronunciation
@@ -408,25 +408,24 @@ def api_transcribe():
 
     def do_transcribe():
         # 检查视频时长，超过 10 分钟拒绝识别
-        try:
-            probe = subprocess.run(
-                ["ffprobe", "-v", "quiet", "-print_format", "json",
-                 "-show_format", video_path],
-                capture_output=True, text=True, timeout=15,
-            )
-            if probe.returncode == 0:
-                duration = float(json.loads(probe.stdout).get("format", {}).get("duration", 0))
-                if duration > 600:
-                    mins = int(duration // 60)
-                    progress_queue.put(("error", f"视频时长 {mins} 分钟，超过 10 分钟限制。ReelSpeak 专为短视频设计，建议截取片段后再上传。"))
-                    return
-        except Exception:
-            pass  # ffprobe 失败时不拦截，让识别正常进行
+        duration = get_video_duration(video_path)
+        if duration > 600:
+            mins = int(duration // 60)
+            progress_queue.put(("error", f"视频时长 {mins} 分钟，超过 10 分钟限制。ReelSpeak 专为短视频设计，建议截取片段后再上传。"))
+            return
 
         try:
-            progress_queue.put(("progress", f"正在识别（{provider.upper()}）..."))
-            result = transcribe_video(video_path, provider=provider,
-                                      segment_target=segment_target)
+            # 超过 5 分钟时 transcribe_video 内部自动分段，progress_callback 推送各段进度
+            if duration > 300 and provider in ("openai", "groq"):
+                total_chunks = -(-int(duration) // 180)  # ceil(duration/180)
+                progress_queue.put(("progress", f"视频较长，将分 {total_chunks} 段识别..."))
+            else:
+                progress_queue.put(("progress", f"正在识别（{provider.upper()}）..."))
+
+            result = transcribe_video(
+                video_path, provider=provider, segment_target=segment_target,
+                progress_callback=lambda msg: progress_queue.put(("progress", msg)),
+            )
 
             # 泰语等无空格语言：用 Gemini 按词加空格，方便学习者阅读
             lang = (result.get("language") or "")[:2].lower()
