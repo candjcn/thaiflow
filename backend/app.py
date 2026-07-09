@@ -229,8 +229,8 @@ def api_download_video():
             cookie_args = ytdlp_cookie_args()
             extra_args = list(cookie_args)
 
-            # 先获取视频标题作为文件名
-            info_cmd = ["yt-dlp", "--no-download", "--print", "title"] + extra_args + [url]
+            # 先获取视频标题和时长
+            info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
             info_result = subprocess.run(
                 info_cmd, capture_output=True, text=True, timeout=30
             )
@@ -240,7 +240,7 @@ def api_download_video():
                 # YouTube 机器人检测：改用 TV 客户端伪装重试
                 progress_queue.put(("progress", "YouTube 验证拦截，尝试备用通道..."))
                 extra_args = cookie_args + ["--extractor-args", "youtube:player_client=tv,web_embedded"]
-                info_cmd = ["yt-dlp", "--no-download", "--print", "title"] + extra_args + [url]
+                info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
                 info_result = subprocess.run(
                     info_cmd, capture_output=True, text=True, timeout=30
                 )
@@ -251,7 +251,20 @@ def api_download_video():
                 progress_queue.put(("error", f"无法获取视频信息: {err}"))
                 return
 
-            title = info_result.stdout.strip()
+            lines = info_result.stdout.strip().splitlines()
+            title = lines[0] if lines else ""
+            # 下载前检查时长
+            try:
+                duration_sec = float(lines[1]) if len(lines) > 1 else 0
+                if duration_sec > 600:
+                    mins = int(duration_sec // 60)
+                    secs = int(duration_sec % 60)
+                    progress_queue.put(("error",
+                        f"视频时长 {mins}:{secs:02d}，超过 10 分钟限制。"
+                        f"ReelSpeak 专为短视频设计，建议截取片段后再上传。"))
+                    return
+            except (ValueError, IndexError):
+                pass  # 获取不到时长时继续下载
             # 清理文件名
             safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
             if not safe_title:
