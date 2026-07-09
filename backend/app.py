@@ -487,6 +487,7 @@ def api_retranscribe():
     provider = data.get("provider", "groq")
     do_translate = bool(data.get("translate", True))
     source_lang = data.get("source_lang", "泰语")
+    target_lang = data.get("target_lang", "中文")
     language = data.get("language", "")  # 短语言码如 "th"，Azure 识别需要
 
     try:
@@ -533,7 +534,7 @@ def api_retranscribe():
         translation = ""
         if do_translate and text:
             try:
-                translated = translate_segments([{"index": 0, "text": text}], source_lang, "中文")
+                translated = translate_segments([{"index": 0, "text": text}], source_lang, target_lang)
                 if translated:
                     translation = translated[0].get("translation", "")
             except Exception as te:
@@ -558,6 +559,7 @@ def api_retranscribe_audio():
     provider = request.form.get("provider", "groq")
     do_translate = request.form.get("translate", "true") == "true"
     source_lang = request.form.get("source_lang", "泰语")
+    target_lang = request.form.get("target_lang", "中文")
     language = request.form.get("language", "")
 
     if provider not in ("groq", "azure", "gemini", "openai"):
@@ -591,7 +593,7 @@ def api_retranscribe_audio():
         translation = ""
         if do_translate and text:
             try:
-                translated = translate_segments([{"index": 0, "text": text}], source_lang, "中文")
+                translated = translate_segments([{"index": 0, "text": text}], source_lang, target_lang)
                 if translated:
                     translation = translated[0].get("translation", "")
             except Exception as te:

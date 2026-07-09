@@ -4020,6 +4020,7 @@ weBtnRetrans.addEventListener("click", async () => {
             formData.append("translate", "true");
             formData.append("language", shortLang);
             formData.append("source_lang", langNameMap[shortLang] || "外语");
+            formData.append("target_lang", getTargetLang());
             res = await fetch("/api/retranscribe-audio", {
                 method: "POST",
                 body: formData,
@@ -4037,6 +4038,7 @@ weBtnRetrans.addEventListener("click", async () => {
                     translate: true,
                     language: shortLang,
                     source_lang: langNameMap[shortLang] || "外语",
+                    target_lang: getTargetLang(),
                 }),
             });
         }
