@@ -2629,6 +2629,7 @@ video.addEventListener("pause", () => {
 
 // ========== 点击查词 ==========
 let wordPopup = null;
+let wordPopupVisible = false;
 let wordPopupPlaying = false;  // 正在播放单词原声时阻止气泡消失
 const wordDefineCache = {};    // 缓存已查过的释义
 
@@ -2637,18 +2638,21 @@ function createWordPopup() {
     const el = document.createElement("div");
     el.className = "word-popup";
     el.innerHTML = `
-        <div class="word-popup-header">
+        <div class="word-popup-handle"></div>
+        <div class="word-popup-row1">
             <span class="word-popup-word"></span>
             <button class="word-popup-play" title="播放原声">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="6,4 20,12 6,20"/></svg>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>
             </button>
-            <button class="word-popup-close">×</button>
+            <button class="word-popup-close" title="关闭">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
         </div>
-        <div class="word-popup-body">
+        <div class="word-popup-row2">
             <span class="word-popup-pos"></span>
             <span class="word-popup-meaning"></span>
         </div>`;
-    document.body.appendChild(el);
+    videoContainer.appendChild(el);
     el.querySelector(".word-popup-close").addEventListener("click", (e) => {
         e.stopPropagation();
         hideWordPopup();
@@ -2705,20 +2709,10 @@ function showWordPopup(span, wordIdx) {
     }
     popup.querySelector(".word-popup-play").style.display = hasAudio ? "" : "none";
 
-    // 定位：在单词上方
-    const rect = span.getBoundingClientRect();
+    // 底部面板滑入
     popup.style.display = "block";
-    const popW = popup.offsetWidth;
-    let left = rect.left + rect.width / 2 - popW / 2;
-    if (left < 8) left = 8;
-    if (left + popW > window.innerWidth - 8) left = window.innerWidth - 8 - popW;
-    popup.style.left = left + "px";
-    popup.style.top = (rect.top - popup.offsetHeight - 8 + window.scrollY) + "px";
-
-    // 如果气泡超出顶部，放到单词下方
-    if (rect.top - popup.offsetHeight - 8 < 0) {
-        popup.style.top = (rect.bottom + 8 + window.scrollY) + "px";
-    }
+    wordPopupVisible = true;
+    requestAnimationFrame(() => popup.classList.add("wp-visible"));
 
     // 查释义（带缓存）
     const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", zh: "中文", chinese: "中文", mandarin: "中文" };
@@ -2729,6 +2723,7 @@ function showWordPopup(span, wordIdx) {
     if (wordDefineCache[cacheKey]) {
         const c = wordDefineCache[cacheKey];
         popup.querySelector(".word-popup-pos").textContent = c.pos || "";
+        popup.querySelector(".word-popup-pos").style.display = c.pos ? "" : "none";
         popup.querySelector(".word-popup-meaning").textContent = c.meaning || "";
         return;
     }
@@ -2750,7 +2745,9 @@ function showWordPopup(span, wordIdx) {
             return;
         }
         wordDefineCache[cacheKey] = data;
-        popup.querySelector(".word-popup-pos").textContent = data.pos || "";
+        const posEl = popup.querySelector(".word-popup-pos");
+        posEl.textContent = data.pos || "";
+        posEl.style.display = data.pos ? "" : "none";
         popup.querySelector(".word-popup-meaning").textContent = data.meaning || "";
     })
     .catch(() => {
@@ -2759,7 +2756,12 @@ function showWordPopup(span, wordIdx) {
 }
 
 function hideWordPopup() {
-    if (wordPopup) wordPopup.style.display = "none";
+    if (!wordPopup || !wordPopupVisible) return;
+    wordPopupVisible = false;
+    wordPopup.classList.remove("wp-visible");
+    setTimeout(() => {
+        if (!wordPopupVisible) wordPopup.style.display = "none";
+    }, 230);
 }
 
 // ========== 字幕拖动定位 ==========
@@ -2870,7 +2872,7 @@ subtitleOriginal.addEventListener("touchend", (e) => {
 
 // 点击其他区域关闭气泡（但不在播放单词原声时关闭）
 document.addEventListener("click", (e) => {
-    if (wordPopup && wordPopup.style.display !== "none"
+    if (wordPopup && wordPopupVisible
         && !wordPopup.contains(e.target) && !e.target.closest(".kw")) {
         hideWordPopup();
     }
