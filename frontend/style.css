@@ -65,7 +65,10 @@ html, body {
 }
 
 .header-lang {
-    margin-bottom: 30px;
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 200;
 }
 
 .lang-switcher {
