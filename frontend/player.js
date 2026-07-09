@@ -2258,14 +2258,27 @@ function renderFavorites() {
             <button class="fav-delete-btn" title="删除收藏">×</button>
         `;
         let favAudio = null;
+        const playBtn = div.querySelector(".fav-play-btn");
         div.querySelector(".fav-play-btn").addEventListener("click", () => {
             if (favAudio && !favAudio.paused) {
                 favAudio.pause();
                 favAudio.currentTime = 0;
+                playBtn.style.background = "";
                 return;
             }
             favAudio = new Audio(fav.audioUrl);
-            favAudio.play();
+            playBtn.style.background = "#aaa";
+            favAudio.addEventListener("ended", () => { playBtn.style.background = ""; });
+            favAudio.addEventListener("error", (e) => {
+                playBtn.style.background = "";
+                console.error("[Favorites] 播放失败:", fav.audioUrl, e);
+                alert("播放失败，请检查网络或控制台");
+            });
+            favAudio.play().catch(err => {
+                playBtn.style.background = "";
+                console.error("[Favorites] play() rejected:", err, "URL:", fav.audioUrl);
+                alert("播放失败: " + err.message);
+            });
         });
         div.querySelector(".fav-delete-btn").addEventListener("click", () => {
             const updated = getFavorites().filter(f => f.id !== fav.id);
