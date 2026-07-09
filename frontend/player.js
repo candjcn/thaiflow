@@ -1286,6 +1286,7 @@ async function saveToLocal(subtitleOnly, interactive, mode) {
 async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
     currentVideoName = videoFile.name;
     localVideoFile = videoFile; // 供波形编辑器解码音频用
+    loadSubtitleDragPos();
 
     // 先隐藏所有遮罩，再显示播放界面，避免一闪而过
     loadingOverlay.style.display = "none";
@@ -1806,6 +1807,7 @@ async function openLocalFiles() {
         // 没有字幕文件：先上传到服务器，再走与"粘贴链接"完全一致的识别翻译流程
         currentVideoName = videoFile.name;
         localVideoFile = videoFile;
+        loadSubtitleDragPos();
         exportOverlay.style.display = "none";
         followReadPanel.style.display = "none";
         phaseSelect.style.display = "none";
@@ -1851,6 +1853,7 @@ async function openLocalFiles() {
 function showPlayerWithVideo(videoName) {
     currentVideoName = videoName;
     isLoading = true;
+    loadSubtitleDragPos();
 
     // 切换到播放界面
     phaseSelect.style.display = "none";
@@ -1893,6 +1896,7 @@ lessonCover.addEventListener("load", updateSubtitleWidth);
 async function loadSaved(videoName) {
     currentVideoName = videoName;
     isLoading = true;
+    loadSubtitleDragPos();
 
     // 切换到播放界面（不显示加载遮罩）
     phaseSelect.style.display = "none";
@@ -2758,8 +2762,95 @@ function hideWordPopup() {
     if (wordPopup) wordPopup.style.display = "none";
 }
 
+// ========== 字幕拖动定位 ==========
+let subtitleDragY = { original: 0, translation: 0 };
+let subDragActive = false; // 拖动结束后短暂屏蔽 click
+
+function applySubtitleDragPos() {
+    subtitleOriginal.style.transform = subtitleDragY.original
+        ? `translateY(${subtitleDragY.original}px)` : "";
+    subtitleTranslation.style.transform = subtitleDragY.translation
+        ? `translateY(${subtitleDragY.translation}px)` : "";
+}
+
+function saveSubtitleDragPos() {
+    if (!currentVideoName) return;
+    const storKey = `subtitle_pos_${currentVideoName}`;
+    if (!subtitleDragY.original && !subtitleDragY.translation) {
+        localStorage.removeItem(storKey);
+    } else {
+        localStorage.setItem(storKey, JSON.stringify(subtitleDragY));
+    }
+}
+
+function loadSubtitleDragPos() {
+    subtitleDragY = { original: 0, translation: 0 };
+    if (currentVideoName) {
+        try {
+            const s = localStorage.getItem(`subtitle_pos_${currentVideoName}`);
+            if (s) subtitleDragY = JSON.parse(s);
+        } catch (e) { /* ignore */ }
+    }
+    applySubtitleDragPos();
+}
+
+function initSubtitleDrag(el, key) {
+    let sy = 0, so = 0, moved = false, lastDown = 0;
+
+    el.addEventListener("pointerdown", (e) => {
+        // 鼠标右键忽略
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        const now = Date.now();
+        // 双击/双指重置到默认位置
+        if (now - lastDown < 300 && !moved) {
+            subtitleDragY[key] = 0;
+            el.style.transform = "";
+            el.classList.remove("sub-grabbing");
+            saveSubtitleDragPos();
+            lastDown = 0;
+            return;
+        }
+        lastDown = now;
+        sy = e.clientY;
+        so = subtitleDragY[key] || 0;
+        moved = false;
+        el.setPointerCapture(e.pointerId);
+    });
+
+    el.addEventListener("pointermove", (e) => {
+        if (!el.hasPointerCapture(e.pointerId)) return;
+        const dy = e.clientY - sy;
+        if (!moved && Math.abs(dy) > 5) {
+            moved = true;
+            el.classList.add("sub-grabbing");
+        }
+        if (!moved) return;
+        subtitleDragY[key] = so + dy;
+        el.style.transform = `translateY(${subtitleDragY[key]}px)`;
+    });
+
+    el.addEventListener("pointerup", () => {
+        el.classList.remove("sub-grabbing");
+        if (moved) {
+            subDragActive = true;
+            saveSubtitleDragPos();
+            setTimeout(() => { subDragActive = false; }, 100);
+        }
+        moved = false;
+    });
+
+    el.addEventListener("pointercancel", () => {
+        el.classList.remove("sub-grabbing");
+        moved = false;
+    });
+}
+
+initSubtitleDrag(subtitleOriginal, "original");
+initSubtitleDrag(subtitleTranslation, "translation");
+
 // 事件委托：点击字幕词（暂停视频 + 弹出释义）
 subtitleOriginal.addEventListener("click", (e) => {
+    if (subDragActive) return;
     const span = e.target.closest(".kw");
     if (!span) return;
     e.stopPropagation();
@@ -2771,6 +2862,7 @@ subtitleOriginal.addEventListener("click", (e) => {
 });
 // 触摸事件也拦截，防止手机上穿透到 videoContainer
 subtitleOriginal.addEventListener("touchend", (e) => {
+    if (subDragActive) return;
     if (e.target.closest(".kw")) {
         e.stopPropagation();
     }

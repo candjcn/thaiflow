@@ -1034,11 +1034,21 @@ video {
     font-size: 22px;
     font-weight: 500;
     pointer-events: auto;
+    cursor: grab;
+    user-select: none;
 }
 
 .subtitle-translation {
     color: #fff;
     font-size: 17px;
+    pointer-events: auto;
+    cursor: grab;
+    user-select: none;
+}
+
+.subtitle-original.sub-grabbing,
+.subtitle-translation.sub-grabbing {
+    cursor: grabbing;
 }
 
 .subtitle-original:empty,
