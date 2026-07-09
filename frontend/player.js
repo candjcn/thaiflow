@@ -55,6 +55,7 @@ let sentenceMode = false;
 let language = "";
 let currentVideoName = "";
 let isLoading = false;
+let threePassMode = false; // 3遍复读独立模式（第1遍无字幕/第2遍原文/第3遍双语）
 
 // ========== DOM 元素 ==========
 const phaseSelect = document.getElementById("phaseSelect");
@@ -325,8 +326,13 @@ mRepeatBtn.addEventListener("click", (e) => {
 mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(opt => {
     opt.addEventListener("click", () => {
         const val = opt.dataset.repeat;
+        // 用户主动选遍数 → 退出3遍复读独立模式
+        if (threePassMode) {
+            threePassMode = false;
+            [btnModeStudy, dModeStudy].forEach(b => b.classList.remove("active"));
+            mModeBg.dataset.pos = "";
+        }
         repeatCountSelect.value = val;
-        // Update button label
         if (val === "9999") {
             mRepeatBtn.textContent = "\u221E";
         } else {
@@ -335,9 +341,17 @@ mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(opt => {
         mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(o => o.classList.remove("active"));
         opt.classList.add("active");
         mRepeatPicker.style.display = "none";
-        // Re-trigger repeat info update
         updateRepeatInfo(parseInt(repeatCountSelect.value) || 3);
     });
+});
+
+// 桌面端直接操作遍数下拉 → 退出3遍复读独立模式
+repeatCountSelect.addEventListener("change", () => {
+    if (threePassMode) {
+        threePassMode = false;
+        [btnModeStudy, dModeStudy].forEach(b => b.classList.remove("active"));
+        mModeBg.dataset.pos = "";
+    }
 });
 
 // Close pickers when tapping elsewhere
@@ -372,28 +386,28 @@ function switchMode(mode) {
     [btnModeStudy, btnModeFollow, dModeStudy, dModeFollow].forEach(b => b.classList.remove("active"));
     mModeBg.dataset.pos = "";
     if (mode === "normal") {
-        // 默认模式：从头到尾播放一遍，不重复
+        // 默认模式：关闭3遍复读，遍数重置为1，每遍双语
+        threePassMode = false;
         repeatCountSelect.value = "1";
         mRepeatBtn.textContent = "1" + t("ctrl.repeat.unit");
         mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(o => {
             o.classList.toggle("active", o.dataset.repeat === "1");
         });
-        // 关闭跟读面板
         if (followReadPanel.style.display !== "none") {
             followReadPanel.style.display = "none";
         }
         mobileControls.classList.remove("follow-mode");
     } else if (mode === "study") {
+        // 3遍复读独立模式：激活渐进字幕逻辑，强制遍数=3
+        threePassMode = true;
         btnModeStudy.classList.add("active");
         dModeStudy.classList.add("active");
         mModeBg.dataset.pos = "0";
         repeatCountSelect.value = "3";
-        // Sync mobile repeat button
         mRepeatBtn.textContent = "3" + t("ctrl.repeat.unit");
         mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(o => {
             o.classList.toggle("active", o.dataset.repeat === "3");
         });
-        // 关闭跟读面板
         if (followReadPanel.style.display !== "none") {
             followReadPanel.style.display = "none";
         }
@@ -2499,23 +2513,14 @@ function repeatCurrent() {
 }
 
 // ========== 字幕显示逻辑 ==========
-// 根据当前重复次数和设定的总重复次数，决定字幕显示方式：
-// - 重复3次：第1遍盲听、第2遍原文、第3遍双语
-// - 重复1~2次：始终显示双语
-// - 重复4次及以上：前3遍按上述规则，第4遍起显示双语
+// threePassMode（3遍复读独立模式）：第1遍无字幕/第2遍原文/第3遍双语
+// 普通遍数模式：无论选几遍，每遍都显示双语
 function getSubtitleMode() {
-    const maxRepeat = parseInt(repeatCountSelect.value) || 3;
-    if (maxRepeat !== 3) {
-        // 非3次模式：1~2次全显示，4+次前3遍按规则其余全显示
-        if (maxRepeat <= 2) return "both";
-        // maxRepeat >= 4
+    if (threePassMode) {
         if (repeatCount === 0) return "none";
         if (repeatCount === 1) return "original";
         return "both";
     }
-    // 恰好3次模式
-    if (repeatCount === 0) return "none";
-    if (repeatCount === 1) return "original";
     return "both";
 }
 
