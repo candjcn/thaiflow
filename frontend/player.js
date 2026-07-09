@@ -118,6 +118,7 @@ const frCompleteness = document.getElementById("frCompleteness");
 const frWords = document.getElementById("frWords");
 const videoUrlInput = document.getElementById("videoUrlInput");
 const btnDownloadUrl = document.getElementById("btnDownloadUrl");
+const btnPasteUrl = document.getElementById("btnPasteUrl");
 const urlStatus = document.getElementById("urlStatus");
 const btnBrowseDir = document.getElementById("btnBrowseDir");
 const dirBrowser = document.getElementById("dirBrowser");
@@ -963,6 +964,34 @@ async function downloadFromUrl() {
 // 回车键触发下载
 videoUrlInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") downloadFromUrl();
+});
+
+// 聚焦时显示粘贴按钮，失焦且输入框有内容时隐藏
+videoUrlInput.addEventListener("focus", () => {
+    btnPasteUrl.style.display = "block";
+});
+videoUrlInput.addEventListener("blur", () => {
+    // 延迟隐藏，避免点粘贴按钮时提前消失
+    setTimeout(() => { btnPasteUrl.style.display = "none"; }, 200);
+});
+videoUrlInput.addEventListener("input", () => {
+    if (videoUrlInput.value.trim()) btnPasteUrl.style.display = "none";
+});
+
+// 粘贴按钮：读剪贴板并填入输入框
+btnPasteUrl.addEventListener("click", async () => {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            videoUrlInput.value = text.trim();
+            btnPasteUrl.style.display = "none";
+            videoUrlInput.focus();
+        }
+    } catch (e) {
+        // 权限被拒或不支持时降级：聚焦让用户手动粘贴
+        videoUrlInput.focus();
+        document.execCommand("paste");
+    }
 });
 
 // ========== 粘贴文本生成朗读课程 ==========

@@ -32,8 +32,10 @@
                 <div class="hero-add-section">
                     <div class="hero-url-row">
                         <input type="text" id="videoUrlInput" class="hero-url-input" data-i18n-placeholder="app.add.url.placeholder" placeholder="粘贴 TikTok / YouTube 链接...">
+                        <button id="btnPasteUrl" class="hero-paste-btn" data-i18n="app.add.url.paste" style="display:none;">粘贴</button>
                         <button id="btnDownloadUrl" class="hero-url-btn" data-i18n="app.add.url.btn">下载</button>
                     </div>
+                    <div class="url-hint" data-i18n="app.add.url.hint">仅支持 10 分钟内的视频</div>
                     <div class="url-status" id="urlStatus"></div>
                     <!-- 识别设置（界面已隐藏，用默认值：智能校准引擎 + 自动断句。
                          将来做 APP 设置页时再暴露 -->
