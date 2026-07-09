@@ -34,9 +34,9 @@ html, body {
 .header {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 16px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .header h1 {
@@ -65,10 +65,9 @@ html, body {
 }
 
 .header-lang {
-    position: fixed;
-    top: 12px;
-    right: 12px;
-    z-index: 200;
+    margin-left: auto;
+    margin-bottom: 0;
+    flex-shrink: 0;
 }
 
 .lang-switcher {
@@ -2375,11 +2374,11 @@ label {
 
     .brand-title {
         font-size: 22px;
+        margin-bottom: 0;
     }
 
     .brand-subtitle {
-        font-size: 12px;
-        margin-bottom: 18px;
+        display: none;
     }
 
     .subtitle-original {
