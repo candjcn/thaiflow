@@ -646,15 +646,17 @@ _TH_CUSTOM_WORDS = {
     "เรียนออนไลน์", "ทำงานรีโมท",
 }
 
-# สร้าง Tokenizer ครั้งเดียว (module-level) เพื่อประสิทธิภาพ
-_th_tokenizer = None
+# 合并标准词典 + 自定义词，构建 Trie（模块级缓存，只初始化一次）
+_th_trie = None
 
-def _get_th_tokenizer():
-    global _th_tokenizer
-    if _th_tokenizer is None:
-        from pythainlp.tokenize import Tokenizer
-        _th_tokenizer = Tokenizer(custom_dict=_TH_CUSTOM_WORDS, engine="newmm")
-    return _th_tokenizer
+def _get_th_trie():
+    global _th_trie
+    if _th_trie is None:
+        from pythainlp.corpus.common import thai_words
+        from pythainlp.util import dict_trie
+        combined = thai_words() | _TH_CUSTOM_WORDS   # 标准6万词 + 自定义词
+        _th_trie = dict_trie(combined)
+    return _th_trie
 
 
 def add_word_spacing(texts, language="th"):
@@ -665,13 +667,14 @@ def add_word_spacing(texts, language="th"):
         return texts
 
     try:
-        tokenizer = _get_th_tokenizer()
+        from pythainlp.tokenize import word_tokenize
+        trie = _get_th_trie()
         result = []
         for text in texts:
             if not text or not text.strip():
                 result.append(text)
                 continue
-            words = tokenizer.word_tokenize(text)
+            words = word_tokenize(text, engine="newmm", custom_dict=trie, keep_whitespace=False)
             result.append(" ".join(w for w in words if w.strip()))
         return result
     except Exception as e:
