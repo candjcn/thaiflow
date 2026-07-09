@@ -33,16 +33,10 @@ html, body {
 
 .header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 12px;
     flex-wrap: nowrap;
-}
-
-.header-brand {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
 }
 
 .header h1 {
@@ -68,11 +62,15 @@ html, body {
     color: #86868b;
     font-weight: 400;
     margin-bottom: 0;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .header-lang {
-    margin-left: auto;
-    margin-bottom: 0;
+    margin-left: 0;
     flex-shrink: 0;
 }
 
