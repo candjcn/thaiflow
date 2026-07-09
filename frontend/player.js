@@ -1902,7 +1902,7 @@ async function startLoading(videoName, subtitleOnly) {
     await waitForVideo();
     setStep("step1", "done");
 
-    // 步骤 2：语音识别
+    // 步骤 2：语音识别（SSE 流式，防超时）
     const provider = transcribeProvider.value;
     const providerLabels = {
         groq: t("status.providerGroq"),
@@ -1919,14 +1919,39 @@ async function startLoading(videoName, subtitleOnly) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ video: videoName, provider, segment_target: segTarget }),
         });
-        const data = await res.json();
-        if (data.error) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let transcribeResult = null;
+        let transcribeError = null;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop();
+            for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const data = JSON.parse(line.slice(6));
+                if (data.progress) setTip(data.progress);
+                if (data.done) transcribeResult = data.result;
+                if (data.error) transcribeError = data.error;
+            }
+        }
+
+        if (transcribeError) {
             setStep("step2", "error");
-            setTip(t("status.recognizeFail") + data.error);
+            setTip(t("status.recognizeFail") + transcribeError);
             return;
         }
-        segments = data.segments || [];
-        language = data.language || "";
+        if (!transcribeResult) {
+            setStep("step2", "error");
+            setTip(t("status.recognizeFail") + "无返回结果");
+            return;
+        }
+        segments = transcribeResult.segments || [];
+        language = transcribeResult.language || "";
         setStep("step2", "done");
         setTip(t("status.recognizeDone", { n: segments.length }));
     } catch (e) {

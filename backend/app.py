@@ -389,7 +389,7 @@ def save_subtitle(video_name):
 
 @app.route("/api/transcribe", methods=["POST"])
 def api_transcribe():
-    """语音识别 + 断句"""
+    """语音识别 + 断句（SSE 流式推送进度，防止 Railway 30s 超时切断）"""
     data = request.get_json()
     video_name = data.get("video")
     if not video_name:
@@ -404,58 +404,80 @@ def api_transcribe():
     if segment_target:
         segment_target = int(segment_target)
 
-    # 检查视频时长，超过 10 分钟拒绝识别
-    try:
-        probe = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-print_format", "json",
-             "-show_format", video_path],
-            capture_output=True, text=True, timeout=15,
-        )
-        if probe.returncode == 0:
-            duration = float(json.loads(probe.stdout).get("format", {}).get("duration", 0))
-            if duration > 600:
-                mins = int(duration // 60)
-                return jsonify({"error": f"视频时长 {mins} 分钟，超过 10 分钟限制。ReelSpeak 专为短视频设计，建议截取片段后再上传。"}), 400
-    except Exception:
-        pass  # ffprobe 失败时不拦截，让识别正常进行
+    progress_queue = queue.Queue()
 
-    try:
-        result = transcribe_video(video_path, provider=provider,
-                                  segment_target=segment_target)
+    def do_transcribe():
+        # 检查视频时长，超过 10 分钟拒绝识别
+        try:
+            probe = subprocess.run(
+                ["ffprobe", "-v", "quiet", "-print_format", "json",
+                 "-show_format", video_path],
+                capture_output=True, text=True, timeout=15,
+            )
+            if probe.returncode == 0:
+                duration = float(json.loads(probe.stdout).get("format", {}).get("duration", 0))
+                if duration > 600:
+                    mins = int(duration // 60)
+                    progress_queue.put(("error", f"视频时长 {mins} 分钟，超过 10 分钟限制。ReelSpeak 专为短视频设计，建议截取片段后再上传。"))
+                    return
+        except Exception:
+            pass  # ffprobe 失败时不拦截，让识别正常进行
 
-        # 泰语等无空格语言：用 Gemini 按词加空格，方便学习者阅读
-        lang = (result.get("language") or "")[:2].lower()
-        lang_full = (result.get("language") or "").lower()
-        if lang == "th" or lang_full == "thai":
-            # Gemini 负责泰语分词（OpenAI word tokens 是字符级，不适合直接用）
-            texts = [s["text"] for s in result["segments"]]
-            spaced = add_word_spacing(texts, "th")
-            for s, sp in zip(result["segments"], spaced):
-                s["text"] = sp
+        try:
+            progress_queue.put(("progress", f"正在识别（{provider.upper()}）..."))
+            result = transcribe_video(video_path, provider=provider,
+                                      segment_target=segment_target)
 
-            # OpenAI word tokens 用于时间戳对齐（不用于文本拼接）
-            raw_words = result.get("words", [])
-            if raw_words:
-                align_word_timestamps(result["segments"], raw_words)
-                result.pop("words", None)
+            # 泰语等无空格语言：用 Gemini 按词加空格，方便学习者阅读
+            lang = (result.get("language") or "")[:2].lower()
+            lang_full = (result.get("language") or "").lower()
+            if lang == "th" or lang_full == "thai":
+                progress_queue.put(("progress", "正在处理泰语分词..."))
+                # Gemini 负责泰语分词（OpenAI word tokens 是字符级，不适合直接用）
+                texts = [s["text"] for s in result["segments"]]
+                spaced = add_word_spacing(texts, "th")
+                for s, sp in zip(result["segments"], spaced):
+                    s["text"] = sp
 
-        # 清理内部字段，保留前端需要的置信度信息
-        for s in result.get("segments", []):
-            if "_conf" in s:
-                s["confidence"] = s.pop("_conf")
-            if "_source" in s:
-                s["source"] = s.pop("_source")
-            s.pop("_logprob", None)
-            s.pop("_no_speech", None)
-        result.pop("words", None)
+                # OpenAI word tokens 用于时间戳对齐（不用于文本拼接）
+                raw_words = result.get("words", [])
+                if raw_words:
+                    align_word_timestamps(result["segments"], raw_words)
+                    result.pop("words", None)
 
-        log_event("transcribe", video=video_name, provider=provider,
-                  language=result.get("language", ""),
-                  segments=len(result.get("segments", [])))
-        return jsonify(result)
-    except Exception as e:
-        log_event("transcribe_fail", video=video_name, provider=provider, error=str(e)[:200])
-        return jsonify({"error": str(e)}), 500
+            # 清理内部字段，保留前端需要的置信度信息
+            for s in result.get("segments", []):
+                if "_conf" in s:
+                    s["confidence"] = s.pop("_conf")
+                if "_source" in s:
+                    s["source"] = s.pop("_source")
+                s.pop("_logprob", None)
+                s.pop("_no_speech", None)
+            result.pop("words", None)
+
+            log_event("transcribe", video=video_name, provider=provider,
+                      language=result.get("language", ""),
+                      segments=len(result.get("segments", [])))
+            progress_queue.put(("done", result))
+        except Exception as e:
+            log_event("transcribe_fail", video=video_name, provider=provider, error=str(e)[:200])
+            progress_queue.put(("error", str(e)))
+
+    threading.Thread(target=do_transcribe, daemon=True).start()
+
+    def generate():
+        while True:
+            msg_type, msg_data = progress_queue.get()
+            if msg_type == "progress":
+                yield f"data: {json.dumps({'progress': msg_data})}\n\n"
+            elif msg_type == "done":
+                yield f"data: {json.dumps({'done': True, 'result': msg_data})}\n\n"
+                break
+            elif msg_type == "error":
+                yield f"data: {json.dumps({'error': msg_data})}\n\n"
+                break
+
+    return Response(generate(), mimetype="text/event-stream")
 
 
 @app.route("/api/retranscribe", methods=["POST"])
