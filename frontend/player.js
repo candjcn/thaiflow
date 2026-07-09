@@ -16,6 +16,7 @@ function getTargetLang() {
     if (uiLang === "zh-TW") return "繁體中文";
     if (uiLang === "ja") return "日本語";
     if (uiLang === "ko") return "한국어";
+    if (uiLang === "th") return "ไทย";
     // 界面为英文时，按浏览器语言细分目标语言
     const lang = navigator.language || navigator.userLanguage || "en";
     if (lang.startsWith("zh")) {
