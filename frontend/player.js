@@ -2638,21 +2638,18 @@ function createWordPopup() {
     const el = document.createElement("div");
     el.className = "word-popup";
     el.innerHTML = `
-        <div class="word-popup-handle"></div>
         <div class="word-popup-row1">
             <span class="word-popup-word"></span>
             <button class="word-popup-play" title="播放原声">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
             </button>
-            <button class="word-popup-close" title="关闭">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+            <button class="word-popup-close">×</button>
         </div>
         <div class="word-popup-row2">
             <span class="word-popup-pos"></span>
             <span class="word-popup-meaning"></span>
         </div>`;
-    videoContainer.appendChild(el);
+    document.body.appendChild(el);
     el.querySelector(".word-popup-close").addEventListener("click", (e) => {
         e.stopPropagation();
         hideWordPopup();
@@ -2709,10 +2706,19 @@ function showWordPopup(span, wordIdx) {
     }
     popup.querySelector(".word-popup-play").style.display = hasAudio ? "" : "none";
 
-    // 底部面板滑入
+    // 定位：在单词上方（空间不足时改到下方）
     popup.style.display = "block";
     wordPopupVisible = true;
-    requestAnimationFrame(() => popup.classList.add("wp-visible"));
+    const rect = span.getBoundingClientRect();
+    const popW = popup.offsetWidth;
+    const popH = popup.offsetHeight;
+    let left = rect.left + rect.width / 2 - popW / 2;
+    if (left < 8) left = 8;
+    if (left + popW > window.innerWidth - 8) left = window.innerWidth - 8 - popW;
+    popup.style.left = left + "px";
+    const topAbove = rect.top - popH - 8 + window.scrollY;
+    const topBelow = rect.bottom + 8 + window.scrollY;
+    popup.style.top = (rect.top - popH - 8 >= 4 ? topAbove : topBelow) + "px";
 
     // 查释义（带缓存）
     const langMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", zh: "中文", chinese: "中文", mandarin: "中文" };
@@ -2758,10 +2764,7 @@ function showWordPopup(span, wordIdx) {
 function hideWordPopup() {
     if (!wordPopup || !wordPopupVisible) return;
     wordPopupVisible = false;
-    wordPopup.classList.remove("wp-visible");
-    setTimeout(() => {
-        if (!wordPopupVisible) wordPopup.style.display = "none";
-    }, 230);
+    wordPopup.style.display = "none";
 }
 
 // ========== 字幕拖动定位 ==========
@@ -2880,7 +2883,6 @@ document.addEventListener("click", (e) => {
 
 function updateSubtitle(seg) {
     renderKaraoke(seg);
-    if (!wordPopupPlaying) hideWordPopup();
     subtitleTranslation.textContent = seg.translation || "";
     // 低置信度视觉提示
     const conf = seg.confidence;

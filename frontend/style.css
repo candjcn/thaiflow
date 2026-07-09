@@ -1078,47 +1078,38 @@ video {
 }
 
 /* 点击查词气泡 */
-/* 单词释义面板：从视频底部滑出的 bottom sheet */
+/* 单词释义气泡：浮在单词附近的轻量提示 */
 .word-popup {
     display: none;
     position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
     z-index: 9999;
-    background: rgba(14, 14, 22, 0.93);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px 16px 0 0;
-    padding: 8px 18px 20px;
+    background: rgba(20, 20, 30, 0.62);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    padding: 8px 12px 9px;
+    min-width: 110px;
+    max-width: 210px;
     color: #fff;
     text-shadow: none;
     line-height: 1.4;
-    transform: translateY(100%);
-    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: wp-in 0.14s ease;
     pointer-events: auto;
 }
-.word-popup.wp-visible {
-    transform: translateY(0);
+@keyframes wp-in {
+    from { opacity: 0; transform: translateY(4px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-/* 顶部拖动提示条 */
-.word-popup-handle {
-    width: 36px;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 2px;
-    margin: 0 auto 12px;
-}
-/* 第一行：单词 + 播放 + 关闭 */
+/* 第一行：单词 + 播放小图标 + 关闭 */
 .word-popup-row1 {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
+    gap: 7px;
+    margin-bottom: 3px;
 }
 .word-popup-word {
-    font-size: 24px;
+    font-size: 15px;
     font-weight: 700;
     color: #ffd700;
     flex: 1;
@@ -1128,60 +1119,49 @@ video {
     white-space: nowrap;
 }
 .word-popup-play {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: #e94560;
+    background: none;
     border: none;
-    color: #fff;
+    color: rgba(255, 255, 255, 0.75);
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: center;
+    padding: 3px;
     flex-shrink: 0;
-    transition: transform 0.1s, background 0.15s;
+    transition: color 0.12s;
 }
 .word-popup-play:active {
+    color: #e94560;
     transform: scale(0.88);
-    background: #c73850;
 }
 .word-popup-close {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.1);
+    background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.38);
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 1px;
     flex-shrink: 0;
-    transition: background 0.15s;
+    transition: color 0.12s;
 }
 .word-popup-close:active {
-    background: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.75);
 }
-/* 第二行：词性标签 + 释义 */
+/* 第二行：词性 + 释义 */
 .word-popup-row2 {
     display: flex;
     align-items: baseline;
-    gap: 8px;
-    min-height: 24px;
+    gap: 5px;
 }
 .word-popup-pos {
-    font-size: 11px;
+    font-size: 10px;
     font-style: italic;
-    color: #e94560;
-    background: rgba(233, 69, 96, 0.18);
-    padding: 2px 7px;
-    border-radius: 5px;
+    color: #e9a060;
     white-space: nowrap;
     flex-shrink: 0;
 }
 .word-popup-meaning {
-    font-size: 18px;
-    font-weight: 500;
+    font-size: 13px;
     color: rgba(255, 255, 255, 0.92);
 }
 
