@@ -2148,8 +2148,22 @@ function toggleDrawer() {
 // ========== 收藏句子 ==========
 const FAVORITES_KEY = "reelspeak_favorites";
 
+const R2_PUBLIC_BASE = "https://pub-c00d464d3bb5416d952be95db7a51106.r2.dev";
+
 function getFavorites() {
-    try { return JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]"); } catch { return []; }
+    try {
+        const list = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+        // 修复旧数据：audioUrl 为相对路径时补全 R2 前缀
+        let fixed = false;
+        list.forEach(f => {
+            if (f.audioUrl && f.audioUrl.startsWith("/sentences/")) {
+                f.audioUrl = R2_PUBLIC_BASE + f.audioUrl;
+                fixed = true;
+            }
+        });
+        if (fixed) localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
+        return list;
+    } catch { return []; }
 }
 
 function saveFavorites(list) {
