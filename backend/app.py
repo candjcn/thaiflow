@@ -707,12 +707,13 @@ def api_translate():
     segments = data.get("segments", [])
     source_lang = data.get("source_lang", "泰语")
     target_lang = data.get("target_lang", "中文")
+    engine = data.get("engine", "auto")
 
     if not segments:
         return jsonify({"error": "缺少 segments 参数"}), 400
 
     try:
-        translations = translate_segments(segments, source_lang, target_lang)
+        translations = translate_segments(segments, source_lang, target_lang, engine=engine)
         return jsonify({"translations": translations})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -2776,6 +2776,7 @@ async function translateAll() {
     const sourceLang = langMap[language] || "外语";
 
     try {
+        const engine = document.getElementById("translateEngine").value;
         const res = await fetch("/api/translate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2783,6 +2784,7 @@ async function translateAll() {
                 segments: segments.map((s) => ({ index: s.index, text: s.text })),
                 source_lang: sourceLang,
                 target_lang: getTargetLang(),
+                engine: engine,
             }),
         });
         const data = await res.json();
