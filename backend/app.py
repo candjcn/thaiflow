@@ -131,6 +131,31 @@ def admin_gemini_models():
     return jsonify(results)
 
 
+@app.route("/api/admin/gemini-test")
+def admin_gemini_test():
+    """直接测试 generateContent，看 key 是否真的能生成内容（诊断用）"""
+    import requests as _req
+    key = os.environ.get("GEMINI_API_KEY", "")
+    key_prefix = key[:12] + "..." if len(key) > 12 else key
+    results = {"key_prefix": key_prefix, "key_length": len(key), "tests": {}}
+    for ver in ("v1", "v1beta"):
+        for model in ("gemini-2.5-flash", "gemini-2.0-flash"):
+            label = f"{ver}/{model}"
+            url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={key}"
+            try:
+                r = _req.post(url, json={
+                    "contents": [{"parts": [{"text": "Say hi"}]}],
+                    "generationConfig": {"maxOutputTokens": 5},
+                }, timeout=20)
+                if r.status_code == 200:
+                    results["tests"][label] = "OK"
+                else:
+                    results["tests"][label] = f"HTTP {r.status_code}: {r.text[:200]}"
+            except Exception as e:
+                results["tests"][label] = f"Exception: {e}"
+    return jsonify(results)
+
+
 @app.route("/")
 def landing():
     return send_from_directory(FRONTEND_DIR, "landing.html")
