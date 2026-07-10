@@ -401,7 +401,10 @@ def transcribe_openai(video_path):
     cmd = ["ffmpeg", "-y", "-i", video_path, "-map", "0:a", "-ar", "16000", "-ac", "1", "-sample_fmt", "s16", wav_path]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
-        raise RuntimeError(f"音频提取失败: {r.stderr[-300:]}")
+        err = r.stderr
+        if "matches no streams" in err or "does not contain any stream" in err or "Invalid argument" in err:
+            raise RuntimeError("视频没有音频轨道，无法识别。请检查下载的视频文件是否包含音频。")
+        raise RuntimeError(f"音频提取失败: {err[-300:]}")
     try:
         with open(wav_path, "rb") as f:
             result = client.audio.transcriptions.create(
@@ -548,7 +551,10 @@ def extract_audio_wav(video_path):
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError(f"音频提取失败: {result.stderr[-300:]}")
+        err = result.stderr
+        if "matches no streams" in err or "does not contain any stream" in err or "Invalid argument" in err:
+            raise RuntimeError("视频没有音频轨道，无法识别。请检查下载的视频文件是否包含音频。")
+        raise RuntimeError(f"音频提取失败: {err[-300:]}")
     return wav_path
 
 

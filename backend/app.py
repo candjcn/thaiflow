@@ -345,7 +345,7 @@ def api_download_video():
             # 下载视频（沿用信息获取阶段成功的通道参数）
             dl_cmd = [
                 "yt-dlp",
-                "-f", "mp4/best[ext=mp4]/best",
+                "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best",
                 "--merge-output-format", "mp4",
                 "--no-playlist",
                 "-o", output_path,
