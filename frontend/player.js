@@ -2262,6 +2262,7 @@ function _pushDrawerHistory() {
 // 通过界面按钮直接关闭句子列表（非系统返回）
 function _closeDrawerDirect() {
     sentenceDrawer.style.display = "none";
+    mBtnList.classList.remove("active");
     if (_drawerInHistory) {
         _drawerInHistory = false;
         history.replaceState({ rs: "play" }, "");
@@ -2298,6 +2299,7 @@ window.addEventListener("popstate", () => {
         // 句子列表打开 → 先关闭
         _drawerInHistory = false;
         sentenceDrawer.style.display = "none";
+        mBtnList.classList.remove("active");
         history.pushState({ rs: "play" }, "");
         _playerInHistory = true;
     } else {
@@ -2320,6 +2322,7 @@ function backToSelect() {
     phasePlay.style.display = "none";
     phaseSelect.style.display = "flex";
     sentenceDrawer.style.display = "none";
+    mBtnList.classList.remove("active");
     loadingOverlay.style.display = "none";
     // 重置移动端模式到默认（播放一遍）
     switchMode("normal");
@@ -2335,6 +2338,7 @@ function backToSelect() {
 function toggleDrawer() {
     if (sentenceDrawer.style.display === "none") {
         sentenceDrawer.style.display = "flex";
+        mBtnList.classList.add("active");
         highlightSentence(currentIndex);
         _pushDrawerHistory();
     } else {

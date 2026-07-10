@@ -2450,6 +2450,12 @@ label {
     background: rgba(233, 69, 96, 0.3);
 }
 
+.m-list-btn.active {
+    background: #e94560;
+    border-color: #e94560;
+    color: #fff;
+}
+
 /* 精简模式切换 */
 .m-mode-tabs-slim {
     display: flex;
