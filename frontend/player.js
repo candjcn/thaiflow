@@ -431,6 +431,45 @@ function isMobile() {
     return window.innerWidth <= 1024 || "ontouchstart" in window;
 }
 
+// iOS Safari 判断（不含 Chrome for iOS）
+function isIosSafari() {
+    return /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+// 是否已以 PWA 方式运行（添加到主屏幕后）
+function isInStandaloneMode() {
+    return window.navigator.standalone === true ||
+        window.matchMedia("(display-mode: standalone)").matches;
+}
+
+// ========== iOS PWA 添加到主屏幕引导 ==========
+(function initIosPwaPrompt() {
+    if (!isIosSafari()) return;           // 非 iOS 不显示
+    if (isInStandaloneMode()) return;     // 已是 PWA 不提示
+    if (localStorage.getItem("pwa-prompt-dismissed")) return; // 已关闭过
+
+    const prompt = document.getElementById("iosPwaPrompt");
+    const closeBtn = document.getElementById("iosPwaClose");
+    if (!prompt) return;
+
+    // i18n 内容（data-i18n 属性由 applyI18n 处理，但 steps 含 HTML 需手动设置）
+    function updatePwaI18n() {
+        const stepsEl = prompt.querySelector(".ios-pwa-steps");
+        if (stepsEl) stepsEl.innerHTML = t("pwa.steps");
+    }
+
+    // 延迟 3 秒后显示（避免刚打开就弹出）
+    setTimeout(() => {
+        prompt.style.display = "block";
+        updatePwaI18n();
+    }, 3000);
+
+    closeBtn.addEventListener("click", () => {
+        prompt.style.display = "none";
+        localStorage.setItem("pwa-prompt-dismissed", "1");
+    });
+})();
+
 // 进入播放界面时自动全屏（移动端）
 function tryMobileFullscreen() {
     if (!isMobile()) return;
@@ -1250,6 +1289,12 @@ function showToast(text) {
 async function saveToLocal(subtitleOnly, interactive, mode) {
     if (!currentVideoName || segments.length === 0) return;
     mode = mode || "all";
+
+    // iOS 不支持视频下载（二进制 MIME 被系统拦截）；强制只保存字幕并提示
+    if (!subtitleOnly && isIosSafari()) {
+        subtitleOnly = true;
+        showToast(t("ios.noVideoDownload"));
+    }
 
     const baseName = currentVideoName.replace(/\.[^.]+$/, "");
     const files = [];

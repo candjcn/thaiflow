@@ -4,11 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ReelSpeak">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0d0d1a">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-180.png">
     <title>ReelSpeak — 用短视频学外语</title>
     <link rel="stylesheet" href="style.css?v=20260708i">
 </head>
 <body>
+    <!-- iOS 添加到主屏幕引导横幅 -->
+    <div id="iosPwaPrompt" class="ios-pwa-prompt" style="display:none;">
+        <div class="ios-pwa-content">
+            <img src="/icon-180.png" class="ios-pwa-icon" alt="">
+            <div class="ios-pwa-text">
+                <div class="ios-pwa-title" data-i18n="pwa.title">添加到主屏幕</div>
+                <div class="ios-pwa-desc" data-i18n="pwa.desc">获得全屏播放体验，视频学习记录永不丢失</div>
+                <div class="ios-pwa-steps" data-i18n="pwa.steps">点击底部 <span class="ios-pwa-share-icon">□↑</span> 按钮 → 选择「添加到主屏幕」</div>
+            </div>
+            <button class="ios-pwa-close" id="iosPwaClose" aria-label="关闭">✕</button>
+        </div>
+    </div>
+
     <div class="app" id="app">
 
         <!-- ====== 阶段一：选择视频 ====== -->

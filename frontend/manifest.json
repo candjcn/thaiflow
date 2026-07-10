@@ -1,0 +1,24 @@
+{
+  "name": "ReelSpeak — 用短视频学外语",
+  "short_name": "ReelSpeak",
+  "description": "通过短视频学外语：逐句复读、影子跟读、AI 发音评分",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#0d0d1a",
+  "theme_color": "#0d0d1a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
