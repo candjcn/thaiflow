@@ -343,12 +343,7 @@ mRepeatBtn.addEventListener("click", (e) => {
 mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(opt => {
     opt.addEventListener("click", () => {
         const val = opt.dataset.repeat;
-        // 用户主动选遍数 → 退出3遍复读独立模式
-        if (threePassMode) {
-            threePassMode = false;
-            [btnModeStudy, dModeStudy].forEach(b => b.classList.remove("active"));
-            mModeBg.dataset.pos = "";
-        }
+        // 遍数与模式按钮完全独立，不退出复读模式
         repeatCountSelect.value = val;
         if (val === "9999") {
             mRepeatBtn.textContent = "\u221E";
@@ -362,13 +357,9 @@ mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(opt => {
     });
 });
 
-// 桌面端直接操作遍数下拉 → 退出3遍复读独立模式
+// 桌面端遍数下拉——与模式按钮完全独立，不影响复读/影子跟读状态
 repeatCountSelect.addEventListener("change", () => {
-    if (threePassMode) {
-        threePassMode = false;
-        [btnModeStudy, dModeStudy].forEach(b => b.classList.remove("active"));
-        mModeBg.dataset.pos = "";
-    }
+    // 遍数变化不退出任何模式
 });
 
 // Close pickers when tapping elsewhere
@@ -401,30 +392,24 @@ dModeFollow.addEventListener("click", () => {
 
 function switchMode(mode) {
     [btnModeStudy, btnModeFollow, dModeStudy, dModeFollow].forEach(b => b.classList.remove("active"));
-    mModeBg.dataset.pos = "";
     if (mode === "normal") {
-        // 默认模式：关闭3遍复读，遍数重置为1，每遍双语
+        // 即时隐藏滑动背景，避免 opacity 过渡期出现"红底灰字"中间态
+        mModeBg.style.transition = "none";
+        mModeBg.dataset.pos = "";
+        requestAnimationFrame(() => { mModeBg.style.transition = ""; });
         threePassMode = false;
-        repeatCountSelect.value = "1";
-        mRepeatBtn.textContent = "1" + t("ctrl.repeat.unit");
-        mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(o => {
-            o.classList.toggle("active", o.dataset.repeat === "1");
-        });
+        // 不重置遍数——遍数由右侧数字按钮独立控制
         if (followReadPanel.style.display !== "none") {
             followReadPanel.style.display = "none";
         }
         mobileControls.classList.remove("follow-mode");
     } else if (mode === "study") {
-        // 3遍复读独立模式：激活渐进字幕逻辑，强制遍数=3
+        // 复读模式：激活渐进字幕逻辑，遍数保持用户选择不变
+        mModeBg.dataset.pos = "0";
         threePassMode = true;
         btnModeStudy.classList.add("active");
         dModeStudy.classList.add("active");
-        mModeBg.dataset.pos = "0";
-        repeatCountSelect.value = "3";
-        mRepeatBtn.textContent = "3" + t("ctrl.repeat.unit");
-        mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(o => {
-            o.classList.toggle("active", o.dataset.repeat === "3");
-        });
+        // 不强制遍数=3——遍数由右侧数字按钮独立控制
         if (followReadPanel.style.display !== "none") {
             followReadPanel.style.display = "none";
         }
@@ -434,9 +419,10 @@ function switchMode(mode) {
             video.play();
         }
     } else if (mode === "follow") {
+        mModeBg.dataset.pos = "1";
         btnModeFollow.classList.add("active");
         dModeFollow.classList.add("active");
-        mModeBg.dataset.pos = "1";
+        // 不修改遍数——遍数由右侧数字按钮独立控制
         openFollowRead();
     }
 }
