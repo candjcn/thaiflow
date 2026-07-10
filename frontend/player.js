@@ -451,17 +451,25 @@ const _pwaCloseBtn  = document.getElementById("iosPwaClose");
 const _pwaStepsEl   = _pwaPromptEl && _pwaPromptEl.querySelector(".ios-pwa-steps");
 const _pwaInstallBtn = document.getElementById("androidPwaInstall");
 
+// 判断是否应显示 PWA 提示：已安装永不显示；关闭过则 7 天后再显示
+function _shouldShowPwa() {
+    if (localStorage.getItem("pwa-installed")) return false;
+    const t = localStorage.getItem("pwa-dismissed-at");
+    if (t && Date.now() - parseInt(t) < 7 * 24 * 60 * 60 * 1000) return false;
+    return true;
+}
+
 function _showPwaPrompt() {
     if (!_pwaPromptEl) return;
-    if (localStorage.getItem("pwa-prompt-dismissed")) return;
+    if (!_shouldShowPwa()) return;
     if (isInStandaloneMode()) return;
     _pwaPromptEl.style.display = "block";
 }
 
-// 关闭按钮（iOS + 安卓共用）
+// 关闭按钮（iOS + 安卓共用）：记录关闭时间，7 天后可再次弹出
 _pwaCloseBtn && _pwaCloseBtn.addEventListener("click", () => {
     _pwaPromptEl.style.display = "none";
-    localStorage.setItem("pwa-prompt-dismissed", "1");
+    localStorage.setItem("pwa-dismissed-at", Date.now());
 });
 
 // --- iOS：显示操作步骤文字 ---
@@ -490,14 +498,14 @@ _pwaInstallBtn && _pwaInstallBtn.addEventListener("click", async () => {
     _deferredInstallPrompt = null;
     _pwaPromptEl.style.display = "none";
     if (outcome === "accepted") {
-        localStorage.setItem("pwa-prompt-dismissed", "1");
+        localStorage.setItem("pwa-installed", "1"); // 真正安装后永久不再提示
     }
 });
 
-// 安装完成后自动隐藏
+// 安装完成后永久隐藏
 window.addEventListener("appinstalled", () => {
     if (_pwaPromptEl) _pwaPromptEl.style.display = "none";
-    localStorage.setItem("pwa-prompt-dismissed", "1");
+    localStorage.setItem("pwa-installed", "1");
     _deferredInstallPrompt = null;
 });
 

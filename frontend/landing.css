@@ -634,6 +634,136 @@ body {
 }
 
 /* ==========================================
+   PWA 安装引导
+   ========================================== */
+.ios-pwa-prompt {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: rgba(10, 10, 20, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
+    animation: pwa-slide-up 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes pwa-slide-up {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+
+.ios-pwa-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.ios-pwa-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.ios-pwa-text { flex: 1; min-width: 0; }
+
+.ios-pwa-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #f5f5f7;
+    margin-bottom: 3px;
+}
+
+.ios-pwa-desc {
+    font-size: 13px;
+    color: #86868b;
+    margin-bottom: 5px;
+    line-height: 1.4;
+}
+
+.ios-pwa-steps {
+    font-size: 13px;
+    color: #2997ff;
+    line-height: 1.4;
+}
+
+.ios-pwa-share-icon {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 700;
+    border: 1.5px solid #2997ff;
+    border-radius: 4px;
+    padding: 0 3px;
+    line-height: 1.3;
+    vertical-align: middle;
+}
+
+.ios-pwa-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: #48484a;
+    font-size: 18px;
+    padding: 2px 4px;
+    cursor: pointer;
+    line-height: 1;
+    margin-top: -2px;
+}
+
+.android-pwa-btn {
+    margin-top: 8px;
+    padding: 8px 18px;
+    background: #0071e3;
+    border: none;
+    border-radius: 20px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.android-pwa-btn:hover { background: #0077ed; }
+
+/* CTA 区域安装入口 */
+.cta-pwa-install {
+    margin-top: 20px;
+}
+
+.btn-pwa-install {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #2997ff;
+    background: none;
+    border: 1px solid rgba(41, 151, 255, 0.35);
+    border-radius: 980px;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.btn-pwa-install:hover {
+    border-color: #2997ff;
+    color: #6cb7ff;
+}
+
+.cta-pwa-note {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #48484a;
+    line-height: 1.5;
+}
+
+/* ==========================================
    响应式
    ========================================== */
 @media (max-width: 1024px) {

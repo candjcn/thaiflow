@@ -2,11 +2,32 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ReelSpeak">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-180.png">
     <title>ReelSpeak — 用短视频学外语</title>
-    <link rel="stylesheet" href="landing.css?v=20260708i">
+    <link rel="stylesheet" href="landing.css?v=20260710a">
 </head>
 <body>
+
+<!-- PWA 安装引导横幅 -->
+<div id="landingPwaPrompt" class="ios-pwa-prompt" style="display:none;">
+    <div class="ios-pwa-content">
+        <img src="/icon-180.png" class="ios-pwa-icon" alt="">
+        <div class="ios-pwa-text">
+            <div class="ios-pwa-title" data-i18n="pwa.title">添加到主屏幕</div>
+            <div class="ios-pwa-desc" data-i18n="pwa.desc">获得全屏播放体验，视频学习记录永不丢失</div>
+            <div class="ios-pwa-steps" id="landingPwaSteps"></div>
+            <button class="android-pwa-btn" id="landingAndroidInstall" style="display:none;" data-i18n="pwa.install">安装到主屏幕</button>
+        </div>
+        <button class="ios-pwa-close" id="landingPwaClose" aria-label="关闭">✕</button>
+    </div>
+</div>
 
 <!-- 导航 -->
 <nav class="nav">
@@ -242,6 +263,13 @@
         <h2 class="cta-title" data-i18n="cta.title">开始你的外语学习之旅</h2>
         <p class="cta-desc" data-i18n="cta.desc">完全免费，无需注册，打开即用。</p>
         <a href="/app" class="btn-primary btn-large" data-i18n="cta.btn">立即体验</a>
+        <div id="ctaPwaInstall" class="cta-pwa-install" style="display:none;">
+            <button id="ctaInstallBtn" class="btn-pwa-install">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13M7 10l5 5 5-5"/><path d="M3 18h18v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z"/></svg>
+                <span id="ctaInstallLabel">添加到主屏幕</span>
+            </button>
+            <p class="cta-pwa-note" id="ctaIosNote" style="display:none;"></p>
+        </div>
     </div>
 </section>
 
@@ -264,6 +292,97 @@ document.querySelectorAll(".lang-switcher-select").forEach(sel => {
         I18N.setLang(sel.value);
     });
 });
+
+// ===== PWA 安装引导 =====
+(function () {
+    function isIosSafari() { return /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream; }
+    function isWechat() { return /MicroMessenger/i.test(navigator.userAgent); }
+    function isStandalone() { return navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches; }
+    function shouldShow() {
+        if (localStorage.getItem("pwa-installed")) return false;
+        const t = localStorage.getItem("pwa-dismissed-at");
+        if (t && Date.now() - parseInt(t) < 7 * 24 * 60 * 60 * 1000) return false;
+        return true;
+    }
+
+    if (isStandalone()) return; // 已安装，不显示任何提示
+
+    const promptEl   = document.getElementById("landingPwaPrompt");
+    const closeBtn   = document.getElementById("landingPwaClose");
+    const stepsEl    = document.getElementById("landingPwaSteps");
+    const androidBtn = document.getElementById("landingAndroidInstall");
+    const ctaWrap    = document.getElementById("ctaPwaInstall");
+    const ctaBtn     = document.getElementById("ctaInstallBtn");
+    const ctaLabel   = document.getElementById("ctaInstallLabel");
+    const ctaIosNote = document.getElementById("ctaIosNote");
+
+    function showBanner() {
+        if (!shouldShow()) return;
+        if (promptEl) promptEl.style.display = "block";
+    }
+
+    closeBtn && closeBtn.addEventListener("click", () => {
+        promptEl.style.display = "none";
+        localStorage.setItem("pwa-dismissed-at", Date.now());
+    });
+
+    window.addEventListener("appinstalled", () => {
+        if (promptEl) promptEl.style.display = "none";
+        if (ctaWrap) ctaWrap.style.display = "none";
+        localStorage.setItem("pwa-installed", "1");
+    });
+
+    let deferred = null;
+
+    // --- 安卓 ---
+    window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferred = e;
+        // 横幅
+        if (stepsEl) stepsEl.style.display = "none";
+        if (androidBtn) androidBtn.style.display = "inline-block";
+        setTimeout(showBanner, 2000);
+        // CTA 安装入口
+        if (ctaWrap) ctaWrap.style.display = "block";
+        if (ctaLabel) ctaLabel.textContent = "安装到主屏幕";
+    });
+
+    androidBtn && androidBtn.addEventListener("click", triggerInstall);
+    ctaBtn && ctaBtn.addEventListener("click", triggerInstall);
+
+    async function triggerInstall() {
+        if (!deferred) return;
+        deferred.prompt();
+        const { outcome } = await deferred.userChoice;
+        deferred = null;
+        if (promptEl) promptEl.style.display = "none";
+        if (outcome === "accepted") {
+            localStorage.setItem("pwa-installed", "1");
+            if (ctaWrap) ctaWrap.style.display = "none";
+        }
+    }
+
+    // --- iOS ---
+    if (isIosSafari()) {
+        const iosSteps = isWechat()
+            ? "点右下角 <span class=\"ios-pwa-share-icon\">···</span> → 选「在浏览器中打开」→ 再按提示添加"
+            : "点底部 <span class=\"ios-pwa-share-icon\">⬆</span> → 「添加到主屏幕」";
+        setTimeout(() => {
+            if (stepsEl) stepsEl.innerHTML = iosSteps;
+            showBanner();
+        }, 3000);
+        // CTA 安装入口（iOS 点击展开横幅）
+        if (ctaWrap) ctaWrap.style.display = "block";
+        if (ctaLabel) ctaLabel.textContent = "添加到主屏幕";
+        if (ctaIosNote) {
+            ctaIosNote.style.display = "block";
+            ctaIosNote.innerHTML = isWechat()
+                ? "点右下角 <span class=\"ios-pwa-share-icon\">···</span> → 在浏览器中打开 → 再添加"
+                : "点底部 <span class=\"ios-pwa-share-icon\">⬆</span> → 添加到主屏幕";
+        }
+        ctaBtn && ctaBtn.addEventListener("click", showBanner);
+    }
+})();
 
 // 滚动动画
 const observer = new IntersectionObserver((entries) => {
