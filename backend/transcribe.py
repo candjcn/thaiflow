@@ -666,7 +666,7 @@ def transcribe_gemini_slice(wav_path, language=None):
     if not api_key:
         raise RuntimeError("请在 .env 中配置 GEMINI_API_KEY（在 aistudio.google.com 免费申请）")
 
-    model = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     short = (language or "")[:2].lower()
     lang_name = LANG_NAME_MAP.get(short, "")
     lang_hint = f"The audio is in {lang_name}. " if lang_name else ""
