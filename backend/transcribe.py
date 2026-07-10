@@ -1,8 +1,16 @@
+import hashlib
 import os
 import json
 import subprocess
+import tempfile
 import threading
 from openai import OpenAI
+
+
+def _safe_wav_path(video_path, suffix):
+    """生成不含特殊字符的临时 WAV 路径（避免 # 等字符被 ffmpeg 解析为 URL fragment）"""
+    h = hashlib.md5(video_path.encode()).hexdigest()[:12]
+    return os.path.join(tempfile.gettempdir(), f"{h}_{suffix}.wav")
 
 # 超过此时长（秒）自动分段识别；每段时长
 _CHUNK_THRESHOLD = 300   # 5 分钟以上才切段
@@ -25,7 +33,7 @@ def get_video_duration(video_path):
 
 def _extract_chunk_wav(video_path, start, duration):
     """从视频提取一段 WAV（16kHz 单声道），返回临时文件路径"""
-    wav_path = video_path + f".chunk_{int(start)}.wav"
+    wav_path = _safe_wav_path(video_path, f"chunk_{int(start)}")
     cmd = [
         "ffmpeg", "-y",
         "-ss", str(start), "-i", video_path,
@@ -388,7 +396,7 @@ def transcribe_openai(video_path):
     client = OpenAI(api_key=api_key, timeout=300.0)
 
     # 提取 WAV 音频（16kHz 单声道，用独立 tmp 路径避免与 Azure 冲突）
-    wav_path = video_path + ".tmp_openai.wav"
+    wav_path = _safe_wav_path(video_path, "openai")
     cmd = ["ffmpeg", "-y", "-i", video_path, "-ar", "16000", "-ac", "1", "-sample_fmt", "s16", wav_path]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
@@ -526,7 +534,7 @@ def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
 
 def extract_audio_wav(video_path):
     """从视频提取 WAV 音频（16kHz 单声道），供 Azure 使用"""
-    wav_path = video_path + ".tmp_transcribe.wav"
+    wav_path = _safe_wav_path(video_path, "azure")
     cmd = [
         "ffmpeg", "-y",
         "-i", video_path,
