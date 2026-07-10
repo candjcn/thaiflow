@@ -440,6 +440,7 @@ def generate_cover_image(text, language, out_path):
         "Create ONE simple, warm, flat-design cartoon illustration that captures "
         f"the scene or theme of this {lang_name} text. "
         "Style: minimalist flat cartoon, soft colors, cozy mood. "
+        "Square 1:1 aspect ratio. "
         "Absolutely NO words, NO letters, NO text in the image.\n\n"
         + text[:400]
     )
