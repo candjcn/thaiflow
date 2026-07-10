@@ -29,6 +29,7 @@ html, body {
     align-items: center;
     min-height: 100vh;
     padding: 20px;
+    padding-top: calc(20px + env(safe-area-inset-top));
     overflow-y: auto;
 }
 
