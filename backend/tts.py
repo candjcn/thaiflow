@@ -470,20 +470,50 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None):
     report("正在分析文本、分配角色...")
     script, language = prepare_script(text, language)  # auto 时得到检测语言
 
+    # TTS 引擎回退顺序：首选引擎失败时自动切换
+    _FALLBACK = {
+        "gemini": ["gemini", "azure"],
+        "azure":  ["azure", "gemini"],
+        "youdao": ["youdao", "gemini", "azure"],
+    }
+    engine_queue = _FALLBACK.get(engine, [engine, "azure"])
+
     tmpdir = tempfile.mkdtemp(prefix="tts_")
     clips = []
-    youdao = YoudaoTTS() if engine == "youdao" else None
+    youdao = YoudaoTTS() if "youdao" in engine_queue else None
+    current_engine = engine_queue[0]
     try:
         for i, item in enumerate(script):
             report(f"正在生成语音 {i + 1}/{len(script)}...")
             slot = _voice_slot(item["speaker"], item["gender"])
             clip = os.path.join(tmpdir, f"clip_{i:03d}.wav")
-            if engine == "azure":
-                azure_tts_sentence(item["text"], slot, language, clip)
-            elif engine == "youdao":
-                youdao.tts_sentence(item["text"], language, item["gender"], clip)
-            else:
-                gemini_tts_sentence(item["text"], slot, item["emotion"], clip)
+
+            # 逐引擎尝试，失败后切换并沿用到后续句子
+            tried = set()
+            remaining = [current_engine] + [e for e in engine_queue if e != current_engine]
+            last_err = None
+            for eng in remaining:
+                if eng in tried:
+                    continue
+                tried.add(eng)
+                try:
+                    if eng == "azure":
+                        azure_tts_sentence(item["text"], slot, language, clip)
+                    elif eng == "youdao" and youdao:
+                        youdao.tts_sentence(item["text"], language, item["gender"], clip)
+                    else:  # gemini
+                        gemini_tts_sentence(item["text"], slot, item["emotion"], clip)
+                    if eng != current_engine:
+                        print(f"[TTS] 第{i+1}句起自动切换至 {eng}（{current_engine} 失败）")
+                        current_engine = eng  # 后续句子也用新引擎
+                    last_err = None
+                    break
+                except Exception as e:
+                    last_err = e
+                    print(f"[TTS] {eng} 引擎第{i+1}句失败: {e}")
+
+            if last_err:
+                raise RuntimeError(f"所有 TTS 引擎均失败（第{i+1}句）: {last_err}")
             clips.append(clip)
 
         # 计算时间戳（含句间停顿）
