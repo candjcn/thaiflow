@@ -170,7 +170,7 @@ btnFollowRead.addEventListener("click", openFollowRead);
 document.getElementById("btnSaveLocal").addEventListener("click", () => saveToLocal(false, true, "all"));
 btnDownloadUrl.addEventListener("click", downloadFromUrl);
 document.getElementById("localFiles").addEventListener("change", openLocalFiles);
-btnFrClose.addEventListener("click", closeFollowRead);
+btnFrClose.addEventListener("click", _closeFollowReadDirect);
 btnFrPlayOriginal.addEventListener("click", toggleShadowRead);
 btnFrRecord.addEventListener("click", toggleRecording);
 btnFrPlayback.addEventListener("click", playbackRecording);
@@ -2237,12 +2237,14 @@ async function saveSubtitle() {
 // ========== 系统返回键拦截（Android 返回键 / iOS 手势返回） ==========
 let _playerInHistory = false;
 let _drawerInHistory = false;
+let _followReadInHistory = false;
 
 // 进入播放器时推入历史记录（仅移动端，由 tryMobileFullscreen 调用）
 function _pushPlayerHistory() {
     history.pushState({ rs: "play" }, "");
     _playerInHistory = true;
     _drawerInHistory = false;
+    _followReadInHistory = false;
 }
 
 // 打开句子列表时再推一条
@@ -2257,7 +2259,22 @@ function _closeDrawerDirect() {
     sentenceDrawer.style.display = "none";
     if (_drawerInHistory) {
         _drawerInHistory = false;
-        // 将当前 drawer 历史记录原地替换为 play，保证再按系统返回仍能退出播放器
+        history.replaceState({ rs: "play" }, "");
+    }
+}
+
+// 打开影子跟读面板时推入历史记录
+function _pushFollowReadHistory() {
+    if (!isMobile() || !_playerInHistory || _followReadInHistory) return;
+    history.pushState({ rs: "followread" }, "");
+    _followReadInHistory = true;
+}
+
+// 通过界面按钮直接关闭影子跟读（非系统返回）
+function _closeFollowReadDirect() {
+    closeFollowRead();
+    if (_followReadInHistory) {
+        _followReadInHistory = false;
         history.replaceState({ rs: "play" }, "");
     }
 }
@@ -2266,15 +2283,20 @@ function _closeDrawerDirect() {
 window.addEventListener("popstate", () => {
     if (phasePlay.style.display === "none") return; // 不在播放器，不拦截
 
-    if (sentenceDrawer.style.display !== "none") {
-        // 句子列表打开 → 先关闭它
+    if (followReadPanel.style.display !== "none") {
+        // 影子跟读面板打开 → 先关闭
+        _followReadInHistory = false;
+        closeFollowRead();
+        history.pushState({ rs: "play" }, "");
+        _playerInHistory = true;
+    } else if (sentenceDrawer.style.display !== "none") {
+        // 句子列表打开 → 先关闭
         _drawerInHistory = false;
         sentenceDrawer.style.display = "none";
-        // 重新推入 play 状态，确保下次再按返回能退出播放器
         history.pushState({ rs: "play" }, "");
         _playerInHistory = true;
     } else {
-        // 句子列表已关闭 → 退出播放器回首页
+        // 全部关闭 → 退出播放器回首页
         _playerInHistory = false;
         backToSelect();
     }
@@ -3562,6 +3584,7 @@ function openFollowRead() {
     followReadPanel.style.display = "block";
     mobileControls.classList.add("follow-mode");
     updateFollowReadContent();
+    _pushFollowReadHistory();
 }
 
 function updateFollowReadContent() {
