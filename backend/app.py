@@ -109,6 +109,28 @@ def admin_logs():
     return jsonify({"count": len(events), "events": events[-500:]})
 
 
+@app.route("/api/admin/gemini-models")
+def admin_gemini_models():
+    """列出当前 GEMINI_API_KEY 可用的模型（诊断用）"""
+    import requests as _req
+    key = os.environ.get("GEMINI_API_KEY", "")
+    if not key:
+        return jsonify({"error": "no GEMINI_API_KEY"}), 500
+    results = {}
+    for ver in ("v1", "v1beta"):
+        url = f"https://generativelanguage.googleapis.com/{ver}/models?key={key}"
+        try:
+            r = _req.get(url, timeout=10)
+            if r.status_code == 200:
+                names = [m["name"] for m in r.json().get("models", [])]
+                results[ver] = names
+            else:
+                results[ver] = f"HTTP {r.status_code}: {r.text[:200]}"
+        except Exception as e:
+            results[ver] = str(e)
+    return jsonify(results)
+
+
 @app.route("/")
 def landing():
     return send_from_directory(FRONTEND_DIR, "landing.html")
