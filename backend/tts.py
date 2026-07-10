@@ -123,7 +123,7 @@ def prepare_script(text, language="th"):
         '{"language": "th", "sentences": [{"text": "...", "speaker": "A", "gender": "female", "emotion": "..."}]}\n\n'
         + text
     )
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
     result = _gemini_request(model, {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0},
@@ -212,7 +212,7 @@ def _split_long_sentences(script, language):
         "Return ONLY a JSON array of arrays: element i is the ordered list of "
         "chunks for input line i.\n\n" + numbered
     )
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
     try:
         result = _gemini_request(model, {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -267,7 +267,7 @@ def _pcm_to_wav(pcm_bytes, sample_rate=24000):
 
 def gemini_tts_sentence(text, voice_slot, emotion, out_path):
     """Gemini TTS 生成单句，带情感指令（内置限流/高负载重试）"""
-    model = os.environ.get("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
+    model = os.environ.get("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview")
     voice = GEMINI_VOICES.get(voice_slot, "Kore")
     styled = f"Say in a {emotion} tone: {text}" if emotion else text
     result = _gemini_request(model, {
@@ -408,7 +408,7 @@ class YoudaoTTS:
 
 def ocr_image(image_bytes, mime_type="image/png", language=""):
     """识别图片中的文字（隐藏测试功能：粘贴文本框支持直接贴图）"""
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
     lang_name = {"th": "Thai", "en": "English"}.get((language or "")[:2].lower(), "")
     lang_hint = f"The text is mainly in {lang_name}. " if lang_name else ""
     prompt = (
@@ -434,7 +434,7 @@ def ocr_image(image_bytes, mime_type="image/png", language=""):
 
 def generate_cover_image(text, language, out_path):
     """根据文本内容生成一张卡通风格封面插画。失败时返回 False，不影响主流程。"""
-    model = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+    model = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-lite-image")
     lang_name = {"th": "Thai", "en": "English"}.get(language, "")
     prompt = (
         "Create ONE simple, warm, flat-design cartoon illustration that captures "
