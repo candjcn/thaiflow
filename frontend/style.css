@@ -2402,14 +2402,14 @@ label {
 /* 单行精简栏 */
 .m-slim-bar {
     display: flex;
-    align-items: center;
+    align-items: stretch;  /* 所有按钮等高，以最高的为准 */
     gap: 6px;
 }
 
 .m-slim-btn {
     flex-shrink: 0;
     padding: 6px 10px;
-    font-size: 12px;
+    font-size: 14px;       /* 12px → 14px (+17%) */
     font-weight: 600;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 6px;
@@ -2426,19 +2426,19 @@ label {
 }
 
 .m-speed-compact {
-    min-width: 36px;
+    min-width: 40px;
     text-align: center;
 }
 
 .m-repeat-compact {
-    min-width: 36px;
+    min-width: 40px;
     text-align: center;
 }
 
 .m-list-btn {
     margin-left: auto;
     padding: 6px 14px;
-    font-size: 16px;
+    font-size: 19px;       /* 16px → 19px (+19%) */
     background: rgba(233, 69, 96, 0.15);
     border-color: rgba(233, 69, 96, 0.3);
     color: #e94560;
@@ -2480,7 +2480,7 @@ label {
     position: relative;
     z-index: 1;
     padding: 5px 0;
-    font-size: 12px;
+    font-size: 14px;       /* 12px → 14px (+17%) */
     font-weight: 600;
     background: transparent;
     border: none;
