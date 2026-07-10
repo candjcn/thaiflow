@@ -117,7 +117,7 @@ def prepare_script(text, language="th"):
         '{"language": "th", "sentences": [{"text": "...", "speaker": "A", "gender": "female", "emotion": "..."}]}\n\n'
         + text
     )
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     result = _gemini_request(model, {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0},
@@ -206,7 +206,7 @@ def _split_long_sentences(script, language):
         "Return ONLY a JSON array of arrays: element i is the ordered list of "
         "chunks for input line i.\n\n" + numbered
     )
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     try:
         result = _gemini_request(model, {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -402,7 +402,7 @@ class YoudaoTTS:
 
 def ocr_image(image_bytes, mime_type="image/png", language=""):
     """识别图片中的文字（隐藏测试功能：粘贴文本框支持直接贴图）"""
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     lang_name = {"th": "Thai", "en": "English"}.get((language or "")[:2].lower(), "")
     lang_hint = f"The text is mainly in {lang_name}. " if lang_name else ""
     prompt = (
