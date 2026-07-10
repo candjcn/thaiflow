@@ -138,8 +138,8 @@ def admin_gemini_test():
     key = os.environ.get("GEMINI_API_KEY", "")
     key_prefix = key[:12] + "..." if len(key) > 12 else key
     results = {"key_prefix": key_prefix, "key_length": len(key), "tests": {}}
-    for ver in ("v1", "v1beta"):
-        for model in ("gemini-2.5-flash", "gemini-2.0-flash"):
+    for ver in ("v1",):
+        for model in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"):
             label = f"{ver}/{model}"
             url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={key}"
             try:
