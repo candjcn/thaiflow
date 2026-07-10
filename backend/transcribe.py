@@ -38,6 +38,7 @@ def _extract_chunk_wav(video_path, start, duration):
         "ffmpeg", "-y",
         "-ss", str(start), "-i", video_path,
         "-t", str(duration),
+        "-map", "0:a",
         "-ar", "16000", "-ac", "1", "-sample_fmt", "s16",
         wav_path,
     ]
@@ -397,7 +398,7 @@ def transcribe_openai(video_path):
 
     # 提取 WAV 音频（16kHz 单声道，用独立 tmp 路径避免与 Azure 冲突）
     wav_path = _safe_wav_path(video_path, "openai")
-    cmd = ["ffmpeg", "-y", "-i", video_path, "-ar", "16000", "-ac", "1", "-sample_fmt", "s16", wav_path]
+    cmd = ["ffmpeg", "-y", "-i", video_path, "-map", "0:a", "-ar", "16000", "-ac", "1", "-sample_fmt", "s16", wav_path]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"音频提取失败: {r.stderr[-300:]}")
@@ -496,12 +497,13 @@ def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
         pad      = 0.1
         ext_start = max(0, start - pad)
         ext_dur   = dur + 2 * pad
-        wav_path  = video_path + f".retry_{int(start*1000)}.wav"
+        wav_path  = _safe_wav_path(video_path, f"retry_{int(start*1000)}")
         try:
             cmd = [
                 "ffmpeg", "-y",
                 "-ss", str(ext_start), "-i", video_path,
                 "-t", str(ext_dur),
+                "-map", "0:a",
                 "-ar", "16000", "-ac", "1", "-sample_fmt", "s16",
                 wav_path,
             ]
@@ -538,6 +540,7 @@ def extract_audio_wav(video_path):
     cmd = [
         "ffmpeg", "-y",
         "-i", video_path,
+        "-map", "0:a",
         "-ar", "16000",
         "-ac", "1",
         "-sample_fmt", "s16",
