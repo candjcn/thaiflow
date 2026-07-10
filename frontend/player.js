@@ -1339,6 +1339,12 @@ async function saveToLocal(subtitleOnly, interactive, mode) {
     if (!currentVideoName || segments.length === 0) return;
     mode = mode || "all";
 
+    // 移动端非交互式（自动保存）：直接跳过所有文件下载。
+    // 课程已通过 saveLessonToLibrary() 存入 IndexedDB，无需触发 blob 下载。
+    // 注意：此检查必须在所有 async 操作之前，防止 iOS 上 getSaveDir 意外
+    // 返回缓存 handle 导致写入失败后 fallthrough 到文件下载逻辑。
+    if (isMobile() && interactive !== true) return;
+
     // iOS 不支持视频下载（二进制 MIME 被系统拦截）；强制只保存字幕并提示
     if (!subtitleOnly && isIosSafari()) {
         subtitleOnly = true;
