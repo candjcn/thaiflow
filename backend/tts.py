@@ -12,7 +12,8 @@ import tempfile
 
 import requests
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+GEMINI_URL    = "https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={key}"
+GEMINI_URL_BETA = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 
 # Gemini 预置声音（多语言通用）
 GEMINI_VOICES = {
@@ -44,17 +45,20 @@ def _gemini_key():
     return key
 
 
-def _gemini_request(model, payload, timeout=60, max_retries=4, tag="Gemini"):
-    """统一的 Gemini 调用：429 限流和 503 高负载自动退避重试"""
+def _gemini_request(model, payload, timeout=60, max_retries=4, tag="Gemini", url_tpl=None):
+    """统一的 Gemini 调用：429 限流和 503 高负载自动退避重试。
+    url_tpl: 默认用 GEMINI_URL (v1)；预览模型传 GEMINI_URL_BETA (v1beta)。"""
     import time
 
+    if url_tpl is None:
+        url_tpl = GEMINI_URL
     last_err = ""
     attempts_made = 0
     for attempt in range(max_retries):
         attempts_made = attempt + 1
         try:
             resp = requests.post(
-                GEMINI_URL.format(model=model, key=_gemini_key()),
+                url_tpl.format(model=model, key=_gemini_key()),
                 json=payload, timeout=timeout,
             )
             if resp.status_code == 200:
@@ -274,7 +278,7 @@ def gemini_tts_sentence(text, voice_slot, emotion, out_path):
                 "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}
             },
         },
-    }, timeout=120, tag="GeminiTTS")
+    }, timeout=120, tag="GeminiTTS", url_tpl=GEMINI_URL_BETA)
     parts = result["candidates"][0]["content"]["parts"]
     inline = next((p["inlineData"] for p in parts if "inlineData" in p), None)
     if inline is None:
@@ -443,7 +447,7 @@ def generate_cover_image(text, language, out_path):
         result = _gemini_request(model, {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
-        }, timeout=90, max_retries=2, tag="Cover")
+        }, timeout=90, max_retries=2, tag="Cover", url_tpl=GEMINI_URL_BETA)
         for part in result["candidates"][0]["content"]["parts"]:
             inline = part.get("inlineData")
             if inline and inline.get("mimeType", "").startswith("image/"):
