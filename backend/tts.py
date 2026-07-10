@@ -49,7 +49,9 @@ def _gemini_request(model, payload, timeout=60, max_retries=4, tag="Gemini"):
     import time
 
     last_err = ""
+    attempts_made = 0
     for attempt in range(max_retries):
+        attempts_made = attempt + 1
         try:
             resp = requests.post(
                 GEMINI_URL.format(model=model, key=_gemini_key()),
@@ -57,7 +59,7 @@ def _gemini_request(model, payload, timeout=60, max_retries=4, tag="Gemini"):
             )
             if resp.status_code == 200:
                 return resp.json()
-            last_err = f"{resp.status_code}: {resp.text[:150]}"
+            last_err = f"{resp.status_code}: {resp.text[:300]}"
             if resp.status_code == 429:
                 wait = 15 * (attempt + 1)
                 print(f"[{tag}] 限流，{wait}s 后重试（{attempt + 1}/{max_retries}）")
@@ -68,12 +70,12 @@ def _gemini_request(model, payload, timeout=60, max_retries=4, tag="Gemini"):
                 print(f"[{tag}] 服务繁忙 {resp.status_code}，{wait}s 后重试（{attempt + 1}/{max_retries}）")
                 time.sleep(wait)
                 continue
-            break  # 其他 4xx 不重试
+            break  # 其他 4xx（含 404 模型不存在）不重试
         except requests.RequestException as e:
-            last_err = str(e)[:150]
+            last_err = str(e)[:300]
             time.sleep(3 * (attempt + 1))
 
-    raise RuntimeError(f"{tag} 失败（已重试 {max_retries} 次）{last_err}")
+    raise RuntimeError(f"{tag} 失败（尝试 {attempts_made} 次）{last_err}")
 
 
 # ========== 第一步：分句 + 说话人/性别/情感标注 ==========
@@ -117,7 +119,7 @@ def prepare_script(text, language="th"):
         '{"language": "th", "sentences": [{"text": "...", "speaker": "A", "gender": "female", "emotion": "..."}]}\n\n'
         + text
     )
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
     result = _gemini_request(model, {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0},
@@ -206,7 +208,7 @@ def _split_long_sentences(script, language):
         "Return ONLY a JSON array of arrays: element i is the ordered list of "
         "chunks for input line i.\n\n" + numbered
     )
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
     try:
         result = _gemini_request(model, {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -402,7 +404,7 @@ class YoudaoTTS:
 
 def ocr_image(image_bytes, mime_type="image/png", language=""):
     """识别图片中的文字（隐藏测试功能：粘贴文本框支持直接贴图）"""
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
     lang_name = {"th": "Thai", "en": "English"}.get((language or "")[:2].lower(), "")
     lang_hint = f"The text is mainly in {lang_name}. " if lang_name else ""
     prompt = (

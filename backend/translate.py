@@ -63,7 +63,7 @@ def _translate_gemini(segments, source_lang, target_lang):
     from tts import _gemini_request
     prompt = _build_prompt(segments, source_lang, target_lang)
     result = _gemini_request(
-        "gemini-2.5-flash",
+        "gemini-1.5-flash",
         {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.3},
