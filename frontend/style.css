@@ -1660,16 +1660,19 @@ video {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: #e94560;
+    background: rgba(255,255,255,0.12);
     border: none;
-    color: #fff;
+    color: rgba(255,255,255,0.75);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s;
+    transition: background 0.15s, color 0.15s;
 }
-.fav-play-btn:active { background: #c73850; }
+.fav-play-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+.fav-play-btn:active { background: rgba(255,255,255,0.25); }
+.fav-play-btn.playing { background: #e94560; color: #fff; }
+.fav-play-btn.playing:hover { background: #c73850; }
 .fav-text {
     flex: 1;
     min-width: 0;
