@@ -230,6 +230,12 @@ function isCssFullscreen() {
 }
 
 function enterFullscreen() {
+    // PWA standalone 模式：已无浏览器 UI，CSS 全屏即可，不触发系统通知
+    if (isInStandaloneMode()) {
+        phasePlay.classList.add("css-fullscreen");
+        mBtnFullscreen.classList.add("is-fullscreen");
+        return;
+    }
     const el = document.documentElement;
     if (el.requestFullscreen) {
         el.requestFullscreen({ navigationUI: "hide" }).then(() => {
@@ -250,6 +256,11 @@ function enterFullscreen() {
 }
 
 function exitFullscreen() {
+    if (isInStandaloneMode()) {
+        phasePlay.classList.remove("css-fullscreen");
+        mBtnFullscreen.classList.remove("is-fullscreen");
+        return;
+    }
     if (isNativeFullscreen()) {
         if (document.exitFullscreen) {
             document.exitFullscreen().catch(() => {});
