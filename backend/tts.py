@@ -452,8 +452,16 @@ def generate_cover_image(text, language, out_path):
         for part in result["candidates"][0]["content"]["parts"]:
             inline = part.get("inlineData")
             if inline and inline.get("mimeType", "").startswith("image/"):
-                with open(out_path, "wb") as f:
-                    f.write(base64.b64decode(inline["data"]))
+                img_bytes = base64.b64decode(inline["data"])
+                try:
+                    from PIL import Image
+                    import io
+                    img = Image.open(io.BytesIO(img_bytes))
+                    img = img.resize((512, 512), Image.LANCZOS)
+                    img.save(out_path, "JPEG", quality=82, optimize=True)
+                except Exception:
+                    with open(out_path, "wb") as f:
+                        f.write(img_bytes)
                 return True
         print("[Cover] 返回中没有图片")
         return False
