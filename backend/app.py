@@ -35,6 +35,20 @@ VIDEOS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "videos")
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 
 
+def clean_video_title(title):
+    """把视频标题清理成干净的文件名：去掉 # 标签、控制字符，截到 40 字"""
+    # 去掉 #xxx 标签（井号开头直到空格或末尾）
+    t = re.sub(r'#\S+', '', title)
+    # 去掉文件系统非法字符
+    t = re.sub(r'[\\/:*?"<>|]', '', t)
+    # 合并多余空格、去掉首尾空白和标点
+    t = re.sub(r'\s+', ' ', t).strip(' ._-')
+    # 截到 40 字，在词边界截断
+    if len(t) > 40:
+        t = t[:40].rsplit(' ', 1)[0].strip()
+    return t or "video"
+
+
 def subtitle_path(video_name):
     """视频对应的字幕 JSON 文件路径"""
     base = os.path.splitext(video_name)[0]
@@ -313,10 +327,8 @@ def api_download_video():
                     return
             except (ValueError, IndexError):
                 pass  # 获取不到时长时继续下载
-            # 清理文件名
-            safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
-            if not safe_title:
-                safe_title = "downloaded_video"
+            # 清理文件名（去 # 标签、限 40 字）
+            safe_title = clean_video_title(title)
 
             output_path = os.path.join(VIDEOS_DIR, safe_title + ".mp4")
 
