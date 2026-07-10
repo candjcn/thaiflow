@@ -168,6 +168,35 @@ html, body {
     background: rgba(255,255,255,0.14);
 }
 
+.tts-textarea-wrap {
+    position: relative;
+}
+
+.tts-textarea-wrap textarea {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.tts-paste-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    color: #ccc;
+    cursor: pointer;
+    transition: background 0.15s;
+    z-index: 1;
+}
+
+.tts-paste-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
 .hero-url-btn {
     flex-shrink: 0;
     padding: 14px 24px;

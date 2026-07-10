@@ -85,7 +85,10 @@
                             <div class="tts-img-spinner" id="ttsImgSpinner"></div>
                             <button class="tts-img-close" id="ttsImgClose" type="button">✕</button>
                         </div>
-                        <textarea id="ttsText" rows="5" data-i18n-placeholder="tts.placeholder" placeholder="粘贴一段文章或对话（泰语/英语）。对话会自动用两个声音朗读..."></textarea>
+                        <div class="tts-textarea-wrap">
+                            <textarea id="ttsText" rows="5" data-i18n-placeholder="tts.placeholder" placeholder="粘贴一段文章或对话（泰语/英语）。对话会自动用两个声音朗读..."></textarea>
+                            <button id="btnPasteTts" class="tts-paste-btn" style="display:none;" data-i18n="app.add.url.paste">粘贴</button>
+                        </div>
                         <div class="provider-row">
                             <label data-i18n="tts.lang">文本语言：</label>
                             <select id="ttsLang">

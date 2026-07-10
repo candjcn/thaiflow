@@ -119,6 +119,7 @@ const frWords = document.getElementById("frWords");
 const videoUrlInput = document.getElementById("videoUrlInput");
 const btnDownloadUrl = document.getElementById("btnDownloadUrl");
 const btnPasteUrl = document.getElementById("btnPasteUrl");
+const btnPasteTts = document.getElementById("btnPasteTts");
 const urlStatus = document.getElementById("urlStatus");
 const btnBrowseDir = document.getElementById("btnBrowseDir");
 const dirBrowser = document.getElementById("dirBrowser");
@@ -1003,6 +1004,35 @@ btnPasteUrl.addEventListener("click", async () => {
     } catch (e) {
         // 权限被拒或不支持时降级：聚焦让用户手动粘贴
         videoUrlInput.focus();
+        document.execCommand("paste");
+    }
+});
+
+// ========== ttsText 粘贴按钮（同 URL 输入框行为）==========
+const ttsTextEl = document.getElementById("ttsText");
+ttsTextEl.addEventListener("focus", async () => {
+    if (ttsTextEl.value.trim()) return;
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) btnPasteTts.style.display = "block";
+    } catch (e) { /* 权限被拒时不显示 */ }
+});
+ttsTextEl.addEventListener("blur", () => {
+    setTimeout(() => { btnPasteTts.style.display = "none"; }, 200);
+});
+ttsTextEl.addEventListener("input", () => {
+    if (ttsTextEl.value.trim()) btnPasteTts.style.display = "none";
+});
+btnPasteTts.addEventListener("click", async () => {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            ttsTextEl.value = text.trim();
+            btnPasteTts.style.display = "none";
+            ttsTextEl.focus();
+        }
+    } catch (e) {
+        ttsTextEl.focus();
         document.execCommand("paste");
     }
 });
