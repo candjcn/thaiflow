@@ -1599,6 +1599,13 @@ async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
             if (!res.ok) return;
             videoBlob = await res.blob();
         }
+        // 视频 blob 已就绪：若当前仍是同一视频且尚未有本地文件引用，
+        // 立即设置 localVideoFile，后续波形/收藏等操作即可使用本地音频，
+        // 不再依赖服务器上可能因 Railway 重新部署而消失的视频文件。
+        const savedName = currentVideoName; // 闭包捕获，防止异步期间切换视频
+        if (!localVideoFile && currentVideoName === savedName) {
+            localVideoFile = videoBlob;
+        }
         if (!coverBlob && currentCover) {
             try {
                 const res = await fetch(`/videos/${encodeURIComponent(currentCover)}`);
@@ -1987,6 +1994,7 @@ async function openLocalFiles() {
 // ========== 显示播放界面并加载视频首帧 ==========
 function showPlayerWithVideo(videoName) {
     currentVideoName = videoName;
+    localVideoFile = null; // 切换到服务器视频时清除本地文件引用
     isLoading = true;
     loadSubtitleDragPos();
 
@@ -2030,6 +2038,7 @@ lessonCover.addEventListener("load", updateSubtitleWidth);
 // ========== 加载已保存的字幕 ==========
 async function loadSaved(videoName) {
     currentVideoName = videoName;
+    localVideoFile = null; // 切换到服务器视频时清除本地文件引用
     isLoading = true;
     loadSubtitleDragPos();
 
@@ -2388,9 +2397,9 @@ async function bookmarkSentence(idx, btn) {
     btn && (btn.disabled = true);
     try {
         let audioUrl = "";
-        const isLocal = video.src.startsWith("blob:") && localVideoFile;
+        const isLocal = !!localVideoFile;
         if (isLocal) {
-            // 本地视频：前端截取音频上传
+            // 本地视频/已缓存blob：前端截取音频上传
             const wavBlob = await getLocalAudioSliceWav(seg.start, seg.end);
             const fd = new FormData();
             fd.append("audio", wavBlob, "slice.wav");
@@ -4080,7 +4089,7 @@ async function getPeaks() {
     if (wePeaksVideoKey === currentVideoName && wePeaks) return wePeaks;
 
     let buf;
-    if (localVideoFile && video.src.startsWith("blob:")) {
+    if (localVideoFile) {
         buf = await localVideoFile.arrayBuffer();
     } else {
         const res = await fetch(`/videos/${encodeURIComponent(currentVideoName)}`);
@@ -4481,12 +4490,12 @@ weBtnRetrans.addEventListener("click", async () => {
     const langNameMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
     const shortLang = (language || "").slice(0, 2).toLowerCase();
 
-    const isLocal = video.src.startsWith("blob:") && localVideoFile;
+    const isLocal = !!localVideoFile;
 
     try {
         let res;
         if (isLocal) {
-            // 本地视频：客户端切音频编码 WAV 上传识别
+            // 本地视频/已缓存blob：客户端切音频编码 WAV 上传识别
             const wavBlob = await getLocalAudioSliceWav(we.start, we.end);
             const formData = new FormData();
             formData.append("audio", wavBlob, "slice.wav");
