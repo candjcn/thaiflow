@@ -393,10 +393,7 @@ dModeFollow.addEventListener("click", () => {
 function switchMode(mode) {
     [btnModeStudy, btnModeFollow, dModeStudy, dModeFollow].forEach(b => b.classList.remove("active"));
     if (mode === "normal") {
-        // 即时隐藏滑动背景，避免 opacity 过渡期出现"红底灰字"中间态
-        mModeBg.style.transition = "none";
         mModeBg.dataset.pos = "";
-        requestAnimationFrame(() => { mModeBg.style.transition = ""; });
         threePassMode = false;
         // 不重置遍数——遍数由右侧数字按钮独立控制
         if (followReadPanel.style.display !== "none") {
@@ -1407,6 +1404,7 @@ async function saveToLocal(subtitleOnly, interactive, mode) {
 async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
     currentVideoName = videoFile.name;
     localVideoFile = videoFile; // 供波形编辑器解码音频用
+    switchMode("normal");
     loadSubtitleDragPos();
 
     // 先隐藏所有遮罩，再显示播放界面，避免一闪而过
@@ -1981,6 +1979,7 @@ async function openLocalFiles() {
 function showPlayerWithVideo(videoName) {
     currentVideoName = videoName;
     localVideoFile = null; // 切换到服务器视频时清除本地文件引用
+    switchMode("normal");
     isLoading = true;
     loadSubtitleDragPos();
 
@@ -2025,6 +2024,7 @@ lessonCover.addEventListener("load", updateSubtitleWidth);
 async function loadSaved(videoName) {
     currentVideoName = videoName;
     localVideoFile = null; // 切换到服务器视频时清除本地文件引用
+    switchMode("normal");
     isLoading = true;
     loadSubtitleDragPos();
 
