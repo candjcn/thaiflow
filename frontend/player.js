@@ -431,9 +431,14 @@ function isMobile() {
     return window.innerWidth <= 1024 || "ontouchstart" in window;
 }
 
-// iOS Safari 判断（不含 Chrome for iOS）
+// iOS 设备判断
 function isIosSafari() {
     return /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+// 微信内置浏览器判断
+function isWechatBrowser() {
+    return /MicroMessenger/i.test(navigator.userAgent);
 }
 
 // 是否已以 PWA 方式运行（添加到主屏幕后）
@@ -452,10 +457,12 @@ function isInStandaloneMode() {
     const closeBtn = document.getElementById("iosPwaClose");
     if (!prompt) return;
 
-    // i18n 内容（data-i18n 属性由 applyI18n 处理，但 steps 含 HTML 需手动设置）
+    // 微信浏览器用不同步骤文案
+    const stepsKey = isWechatBrowser() ? "pwa.steps.wechat" : "pwa.steps";
+
     function updatePwaI18n() {
         const stepsEl = prompt.querySelector(".ios-pwa-steps");
-        if (stepsEl) stepsEl.innerHTML = t("pwa.steps");
+        if (stepsEl) stepsEl.innerHTML = t(stepsKey);
     }
 
     // 延迟 3 秒后显示（避免刚打开就弹出）
