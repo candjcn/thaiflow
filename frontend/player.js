@@ -447,35 +447,61 @@ function isInStandaloneMode() {
         window.matchMedia("(display-mode: standalone)").matches;
 }
 
-// ========== iOS PWA 添加到主屏幕引导 ==========
-(function initIosPwaPrompt() {
-    if (!isIosSafari()) return;           // 非 iOS 不显示
-    if (isInStandaloneMode()) return;     // 已是 PWA 不提示
-    if (localStorage.getItem("pwa-prompt-dismissed")) return; // 已关闭过
+// ========== PWA 安装引导（iOS 步骤说明 / 安卓一键安装） ==========
+const _pwaPromptEl  = document.getElementById("iosPwaPrompt");
+const _pwaCloseBtn  = document.getElementById("iosPwaClose");
+const _pwaStepsEl   = _pwaPromptEl && _pwaPromptEl.querySelector(".ios-pwa-steps");
+const _pwaInstallBtn = document.getElementById("androidPwaInstall");
 
-    const prompt = document.getElementById("iosPwaPrompt");
-    const closeBtn = document.getElementById("iosPwaClose");
-    if (!prompt) return;
+function _showPwaPrompt() {
+    if (!_pwaPromptEl) return;
+    if (localStorage.getItem("pwa-prompt-dismissed")) return;
+    if (isInStandaloneMode()) return;
+    _pwaPromptEl.style.display = "block";
+}
 
-    // 微信浏览器用不同步骤文案
+// 关闭按钮（iOS + 安卓共用）
+_pwaCloseBtn && _pwaCloseBtn.addEventListener("click", () => {
+    _pwaPromptEl.style.display = "none";
+    localStorage.setItem("pwa-prompt-dismissed", "1");
+});
+
+// --- iOS：显示操作步骤文字 ---
+if (isIosSafari()) {
     const stepsKey = isWechatBrowser() ? "pwa.steps.wechat" : "pwa.steps";
-
-    function updatePwaI18n() {
-        const stepsEl = prompt.querySelector(".ios-pwa-steps");
-        if (stepsEl) stepsEl.innerHTML = t(stepsKey);
-    }
-
-    // 延迟 3 秒后显示（避免刚打开就弹出）
     setTimeout(() => {
-        prompt.style.display = "block";
-        updatePwaI18n();
+        if (_pwaStepsEl) _pwaStepsEl.innerHTML = t(stepsKey);
+        _showPwaPrompt();
     }, 3000);
+}
 
-    closeBtn.addEventListener("click", () => {
-        prompt.style.display = "none";
+// --- 安卓：捕获 beforeinstallprompt，显示一键安装按钮 ---
+let _deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault(); // 阻止 Chrome 自带的 mini-infobar
+    _deferredInstallPrompt = e;
+    if (_pwaStepsEl) _pwaStepsEl.style.display = "none";
+    if (_pwaInstallBtn) _pwaInstallBtn.style.display = "inline-block";
+    setTimeout(_showPwaPrompt, 2000); // 稍微延迟，不要刚打开就弹
+});
+
+_pwaInstallBtn && _pwaInstallBtn.addEventListener("click", async () => {
+    if (!_deferredInstallPrompt) return;
+    _deferredInstallPrompt.prompt();
+    const { outcome } = await _deferredInstallPrompt.userChoice;
+    _deferredInstallPrompt = null;
+    _pwaPromptEl.style.display = "none";
+    if (outcome === "accepted") {
         localStorage.setItem("pwa-prompt-dismissed", "1");
-    });
-})();
+    }
+});
+
+// 安装完成后自动隐藏
+window.addEventListener("appinstalled", () => {
+    if (_pwaPromptEl) _pwaPromptEl.style.display = "none";
+    localStorage.setItem("pwa-prompt-dismissed", "1");
+    _deferredInstallPrompt = null;
+});
 
 // 进入播放界面时自动全屏（移动端）
 function tryMobileFullscreen() {

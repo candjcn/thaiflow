@@ -2856,3 +2856,20 @@ label {
     line-height: 1;
     margin-top: -2px;
 }
+
+.android-pwa-btn {
+    margin-top: 8px;
+    padding: 8px 18px;
+    background: #e94560;
+    border: none;
+    border-radius: 20px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.android-pwa-btn:hover {
+    background: #d13b54;
+}

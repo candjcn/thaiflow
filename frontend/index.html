@@ -14,14 +14,15 @@
     <link rel="stylesheet" href="style.css?v=20260708i">
 </head>
 <body>
-    <!-- iOS 添加到主屏幕引导横幅 -->
+    <!-- PWA 安装引导横幅（iOS 显示步骤说明，安卓显示一键安装按钮） -->
     <div id="iosPwaPrompt" class="ios-pwa-prompt" style="display:none;">
         <div class="ios-pwa-content">
             <img src="/icon-180.png" class="ios-pwa-icon" alt="">
             <div class="ios-pwa-text">
                 <div class="ios-pwa-title" data-i18n="pwa.title">添加到主屏幕</div>
                 <div class="ios-pwa-desc" data-i18n="pwa.desc">获得全屏播放体验，视频学习记录永不丢失</div>
-                <div class="ios-pwa-steps" data-i18n="pwa.steps">点击底部 <span class="ios-pwa-share-icon">□↑</span> 按钮 → 选择「添加到主屏幕」</div>
+                <div class="ios-pwa-steps"></div>
+                <button class="android-pwa-btn" id="androidPwaInstall" style="display:none;" data-i18n="pwa.install">安装到主屏幕</button>
             </div>
             <button class="ios-pwa-close" id="iosPwaClose" aria-label="关闭">✕</button>
         </div>
