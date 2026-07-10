@@ -119,6 +119,8 @@ const I18N = {
 
             // 句子列表
             "drawer.title": "句子列表",
+            "drawer.save": "⬇ 保存",
+            "drawer.delete": "删除",
             "drawer.retranslate": "重新翻译",
 
             // 导出弹窗
@@ -358,6 +360,8 @@ const I18N = {
             "mobile.repeat.status": "第{current}/{total}遍",
 
             "drawer.title": "句子列表",
+            "drawer.save": "⬇ 儲存",
+            "drawer.delete": "刪除",
             "drawer.retranslate": "重新翻譯",
 
             "export.title": "導出設置",
@@ -594,6 +598,8 @@ const I18N = {
             "mobile.repeat.status": "Rep {current}/{total}",
 
             "drawer.title": "Sentence List",
+            "drawer.save": "⬇ Save",
+            "drawer.delete": "Delete",
             "drawer.retranslate": "Re-translate",
 
             "export.title": "Export Settings",
@@ -830,6 +836,8 @@ const I18N = {
             "mobile.repeat.status": "{current}/{total}回目",
 
             "drawer.title": "文リスト",
+            "drawer.save": "⬇ 保存",
+            "drawer.delete": "削除",
             "drawer.retranslate": "再翻訳",
 
             "export.title": "書き出し設定",
@@ -1066,6 +1074,8 @@ const I18N = {
             "mobile.repeat.status": "{current}/{total}회차",
 
             "drawer.title": "문장 목록",
+            "drawer.save": "⬇ 저장",
+            "drawer.delete": "삭제",
             "drawer.retranslate": "재번역",
 
             "export.title": "내보내기 설정",
@@ -1302,6 +1312,8 @@ const I18N = {
             "mobile.repeat.status": "รอบ {current}/{total}",
 
             "drawer.title": "รายการประโยค",
+            "drawer.save": "⬇ บันทึก",
+            "drawer.delete": "ลบ",
             "drawer.retranslate": "แปลใหม่",
 
             "export.title": "ตั้งค่าการส่งออก",

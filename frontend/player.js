@@ -2538,7 +2538,7 @@ function renderSentenceList() {
                     </button>
                 </div>
             </div>
-            <button class="sentence-delete-btn">删除</button>
+            <button class="sentence-delete-btn">${t("drawer.delete")}</button>
         `;
         div.addEventListener("click", (e) => {
             if (e.target.closest(".sentence-star-btn")) return;
