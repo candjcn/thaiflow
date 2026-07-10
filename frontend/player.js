@@ -1391,7 +1391,11 @@ async function saveToLocal(subtitleOnly, interactive, mode) {
         }
     }
 
-    // 回退：浏览器下载（Safari / 未授权目录时）
+    // 手机端非交互式自动保存：课程已存入 IndexedDB，无需触发文件下载
+    // （Android 会把 blob 下载当作文件打开，弹出查看器打断流程）
+    if (isMobile() && !interactive) return;
+
+    // 回退：浏览器下载（桌面端 / 用户手动点击保存时）
     if (!subtitleOnly) {
         const videoLink = document.createElement("a");
         videoLink.href = `/videos/${encodeURIComponent(currentVideoName)}`;
