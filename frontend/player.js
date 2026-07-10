@@ -176,7 +176,7 @@ btnFrRecord.addEventListener("click", toggleRecording);
 btnFrPlayback.addEventListener("click", playbackRecording);
 btnFrScore.addEventListener("click", submitForScoring);
 btnCloseDrawer.addEventListener("click", () => {
-    sentenceDrawer.style.display = "none";
+    _closeDrawerDirect();
 });
 
 // 句子列表：下载字幕到本地（JSON + SRT）
@@ -217,7 +217,11 @@ mBtnList.addEventListener("click", toggleDrawer);
 
 // 返回按钮
 mBtnBack.addEventListener("click", () => {
-    backToSelect();
+    if (isMobile() && _playerInHistory) {
+        history.back(); // 触发 popstate → backToSelect()
+    } else {
+        backToSelect();
+    }
 });
 
 // 全屏按钮
@@ -514,10 +518,11 @@ window.addEventListener("appinstalled", () => {
     _deferredInstallPrompt = null;
 });
 
-// 进入播放界面时自动全屏（移动端）
+// 进入播放界面时自动全屏（移动端）+ 推入历史状态供系统返回拦截
 function tryMobileFullscreen() {
     if (!isMobile()) return;
     enterFullscreen();
+    _pushPlayerHistory();
 }
 
 // 移动端浮动控制层逻辑
@@ -2229,6 +2234,52 @@ async function saveSubtitle() {
     }
 }
 
+// ========== 系统返回键拦截（Android 返回键 / iOS 手势返回） ==========
+let _playerInHistory = false;
+let _drawerInHistory = false;
+
+// 进入播放器时推入历史记录（仅移动端，由 tryMobileFullscreen 调用）
+function _pushPlayerHistory() {
+    history.pushState({ rs: "play" }, "");
+    _playerInHistory = true;
+    _drawerInHistory = false;
+}
+
+// 打开句子列表时再推一条
+function _pushDrawerHistory() {
+    if (!isMobile() || !_playerInHistory || _drawerInHistory) return;
+    history.pushState({ rs: "drawer" }, "");
+    _drawerInHistory = true;
+}
+
+// 通过界面按钮直接关闭句子列表（非系统返回）
+function _closeDrawerDirect() {
+    sentenceDrawer.style.display = "none";
+    if (_drawerInHistory) {
+        _drawerInHistory = false;
+        // 将当前 drawer 历史记录原地替换为 play，保证再按系统返回仍能退出播放器
+        history.replaceState({ rs: "play" }, "");
+    }
+}
+
+// 系统返回键 / 浏览器后退 / iOS 左划手势
+window.addEventListener("popstate", () => {
+    if (phasePlay.style.display === "none") return; // 不在播放器，不拦截
+
+    if (sentenceDrawer.style.display !== "none") {
+        // 句子列表打开 → 先关闭它
+        _drawerInHistory = false;
+        sentenceDrawer.style.display = "none";
+        // 重新推入 play 状态，确保下次再按返回能退出播放器
+        history.pushState({ rs: "play" }, "");
+        _playerInHistory = true;
+    } else {
+        // 句子列表已关闭 → 退出播放器回首页
+        _playerInHistory = false;
+        backToSelect();
+    }
+});
+
 // ========== 返回选择 ==========
 function backToSelect() {
     // 退出全屏
@@ -2258,8 +2309,9 @@ function toggleDrawer() {
     if (sentenceDrawer.style.display === "none") {
         sentenceDrawer.style.display = "flex";
         highlightSentence(currentIndex);
+        _pushDrawerHistory();
     } else {
-        sentenceDrawer.style.display = "none";
+        _closeDrawerDirect();
     }
 }
 
