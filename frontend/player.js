@@ -406,6 +406,7 @@ function switchMode(mode) {
             followReadPanel.style.display = "none";
         }
         mobileControls.classList.remove("follow-mode");
+        videoContainer.classList.remove("follow-active"); // 重置字幕位置
     } else if (mode === "follow") {
         btnModeFollow.classList.add("active");
         dModeFollow.classList.add("active");
@@ -3739,13 +3740,11 @@ function closeFollowRead() {
         frAudioPlayer = null;
     }
     followReadPanel.style.display = "none";
-    videoContainer.classList.remove("follow-active");
+    // 不移除 follow-active：字幕位置不受影响（与点击"影子跟读"按钮行为一致）
     frOverlay.classList.remove("active");
     mobileControls.classList.remove("follow-mode");
-    // 同步移动端模式 tab 回到默认模式
-    if (btnModeFollow && btnModeFollow.classList.contains("active")) {
-        switchMode("normal");
-    }
+    // 仅同步按钮激活状态，不调用 switchMode（避免触发字幕位置重置）
+    [btnModeFollow, dModeFollow].forEach(b => b.classList.remove("active"));
 }
 
 // ========== 影子跟读 ==========

@@ -1048,9 +1048,6 @@ video {
     z-index: 20;
     /* 默认值，JS 会覆盖 */
     width: 92%;
-    transition: bottom 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                top 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 跟读模式：字幕上移到视频垂直中部，让底部面板有空间 */
