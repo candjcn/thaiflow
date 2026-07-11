@@ -56,6 +56,7 @@ let language = "";
 let currentVideoName = "";
 let isLoading = false;
 let threePassMode = false; // 3遍复读独立模式（第1遍无字幕/第2遍原文/第3遍双语）
+let showRomanization = false; // 罗马拼音显示开关（功能已实现，UI 入口暂未开放）
 
 // ========== DOM 元素 ==========
 const phaseSelect = document.getElementById("phaseSelect");
@@ -81,7 +82,9 @@ const repeatCountSelect = document.getElementById("repeatCount");
 const playbackRateSelect = document.getElementById("playbackRate");
 const chkOriginal = document.getElementById("chkOriginal");
 const chkTranslation = document.getElementById("chkTranslation");
+const chkRomanization = document.getElementById("chkRomanization");
 const subtitleOriginal = document.getElementById("subtitleOriginal");
+const subtitleRomanization = document.getElementById("subtitleRomanization");
 const subtitleTranslation = document.getElementById("subtitleTranslation");
 const repeatInfo = document.getElementById("repeatInfo");
 const subtitleOverlay = document.getElementById("subtitleOverlay");
@@ -3273,6 +3276,7 @@ document.addEventListener("click", (e) => {
 
 function updateSubtitle(seg) {
     renderKaraoke(seg);
+    subtitleRomanization.textContent = (showRomanization && seg.romanization) ? seg.romanization : "";
     subtitleTranslation.textContent = seg.translation || "";
     // 低置信度视觉提示
     const conf = seg.confidence;
@@ -3282,6 +3286,7 @@ function updateSubtitle(seg) {
 
 function clearSubtitle() {
     subtitleOriginal.textContent = "";
+    subtitleRomanization.textContent = "";
     subtitleTranslation.textContent = "";
     kwSegKey = null;
     kwSpans = [];
@@ -3295,19 +3300,35 @@ function updateSubtitleVisibility() {
     const shown = videoContainer.classList.contains("lesson-mode") ? "block" : "inline-block";
     // 盲听遍：课程模式下连卡片背景一起隐藏
     subtitleOverlay.classList.toggle("sub-empty", mode === "none");
+    const hasRoman = showRomanization && !!subtitleRomanization.textContent;
     if (mode === "none") {
         subtitleOriginal.style.display = "none";
+        subtitleRomanization.style.display = "none";
         subtitleTranslation.style.display = "none";
     } else if (mode === "original") {
         subtitleOriginal.style.display = shown;
+        subtitleRomanization.style.display = hasRoman ? shown : "none";
         subtitleTranslation.style.display = "none";
     } else {
         subtitleOriginal.style.display = shown;
+        subtitleRomanization.style.display = hasRoman ? shown : "none";
         subtitleTranslation.style.display = shown;
     }
     // 同步勾选框状态作为视觉反馈
     chkOriginal.checked = (mode !== "none");
     chkTranslation.checked = (mode === "both");
+    chkRomanization.checked = showRomanization;
+}
+
+// 罗马拼音开关（功能完整，UI 入口暂未开放；可从控制台调用 toggleRomanization() 测试）
+function toggleRomanization(force) {
+    showRomanization = (force !== undefined) ? !!force : !showRomanization;
+    // 刷新当前句子字幕
+    if (currentIndex >= 0 && segments[currentIndex]) {
+        updateSubtitle(segments[currentIndex]);
+    } else {
+        updateSubtitleVisibility();
+    }
 }
 
 // ========== 高亮句子 ==========

@@ -1002,8 +1002,15 @@ video {
 }
 
 .video-container.lesson-mode .subtitle-original,
+.video-container.lesson-mode .subtitle-romanization,
 .video-container.lesson-mode .subtitle-translation {
     padding: 0;
+}
+
+.video-container.lesson-mode .subtitle-romanization {
+    font-size: 15px;
+    margin-top: 2px;
+    margin-bottom: 4px;
 }
 
 /* 盲听遍：卡片整体隐藏 */
@@ -1071,6 +1078,17 @@ video {
     will-change: transform;
 }
 
+.subtitle-romanization {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 13px;
+    font-style: italic;
+    letter-spacing: 0.02em;
+    margin-top: 1px;
+    margin-bottom: 1px;
+    pointer-events: none;
+    user-select: none;
+}
+
 .subtitle-translation {
     color: #fff;
     font-size: 17px;
@@ -1087,6 +1105,7 @@ video {
 }
 
 .subtitle-original:empty,
+.subtitle-romanization:empty,
 .subtitle-translation:empty {
     display: none;
 }

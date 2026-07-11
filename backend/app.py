@@ -9,6 +9,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from transcribe import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps, get_video_duration
 from translate import translate_segments
+from romanize import generate_romanization
 from export import export_video_with_subtitles, export_srt
 from pronounce import assess_pronunciation
 from tts import generate_audio_lesson, generate_cover_image, ocr_image
@@ -513,6 +514,9 @@ def api_transcribe():
                 s.pop("_logprob", None)
                 s.pop("_no_speech", None)
             result.pop("words", None)
+
+            # 生成拼音 / 罗马拼音（中文→带声调拼音，泰语→RTGS）
+            generate_romanization(result["segments"], result.get("language", ""))
 
             log_event("transcribe", video=video_name, provider=provider,
                       language=result.get("language", ""),

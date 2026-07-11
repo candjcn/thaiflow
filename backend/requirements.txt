@@ -6,4 +6,5 @@ python-dotenv==1.1.0
 azure-cognitiveservices-speech==1.50.0
 gunicorn==23.0.0
 pythainlp==5.1.2
+pypinyin==0.53.0
 boto3==1.38.0
