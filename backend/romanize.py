@@ -65,7 +65,7 @@ def _romanize_th_batch(texts):
             f"Input: {input_json}"
         )
         result = _gemini_request(
-            "gemini-2.0-flash",
+            "gemini-3.5-flash",
             {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.1},
