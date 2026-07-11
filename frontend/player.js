@@ -406,7 +406,6 @@ function switchMode(mode) {
             followReadPanel.style.display = "none";
         }
         mobileControls.classList.remove("follow-mode");
-        videoContainer.classList.remove("follow-active"); // 重置字幕位置
     } else if (mode === "follow") {
         btnModeFollow.classList.add("active");
         dModeFollow.classList.add("active");
@@ -1403,6 +1402,7 @@ async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
     currentVideoName = videoFile.name;
     localVideoFile = videoFile; // 供波形编辑器解码音频用
     switchMode("normal");
+    videoContainer.classList.remove("follow-active");
     loadSubtitleDragPos();
 
     // 先隐藏所有遮罩，再显示播放界面，避免一闪而过
@@ -1980,6 +1980,7 @@ function showPlayerWithVideo(videoName) {
     currentVideoName = videoName;
     localVideoFile = null; // 切换到服务器视频时清除本地文件引用
     switchMode("normal");
+    videoContainer.classList.remove("follow-active");
     isLoading = true;
     loadSubtitleDragPos();
 
@@ -2025,6 +2026,7 @@ async function loadSaved(videoName) {
     currentVideoName = videoName;
     localVideoFile = null; // 切换到服务器视频时清除本地文件引用
     switchMode("normal");
+    videoContainer.classList.remove("follow-active");
     isLoading = true;
     loadSubtitleDragPos();
 
@@ -2330,6 +2332,7 @@ function backToSelect() {
     loadingOverlay.style.display = "none";
     // 重置移动端模式到默认（播放一遍）
     switchMode("normal");
+    videoContainer.classList.remove("follow-active");
     // Reset mobile overlays
     mOverlaysInitialized = false;
     hideMobileOverlays();
