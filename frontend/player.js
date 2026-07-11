@@ -114,6 +114,8 @@ const btnFrRecord = document.getElementById("btnFrRecord");
 const btnFrPlayback = document.getElementById("btnFrPlayback");
 const btnFrScore = document.getElementById("btnFrScore");
 const frTimer = document.getElementById("frTimer");
+const frStatusRow = document.getElementById("frStatusRow");
+const frStatusText = document.getElementById("frStatusText");
 const frWaveform = document.getElementById("frWaveform");
 const frOverlay = document.getElementById("frOverlay");
 const frResult = document.getElementById("frResult");
@@ -3697,6 +3699,7 @@ function openFollowRead() {
 
     video.pause();
     followReadPanel.style.display = "block";
+    videoContainer.classList.add("follow-active");
     mobileControls.classList.add("follow-mode");
     updateFollowReadContent();
     _pushFollowReadHistory();
@@ -3719,6 +3722,7 @@ function updateFollowReadContent() {
     frResult.style.display = "none";
     frOverlay.classList.remove("active");
     frTimer.textContent = "";
+    if (frStatusRow) frStatusRow.style.display = "none";
     btnFrPlayback.disabled = true;
     btnFrScore.disabled = true;
     btnFrPlayback.classList.remove("on");
@@ -3735,6 +3739,7 @@ function closeFollowRead() {
         frAudioPlayer = null;
     }
     followReadPanel.style.display = "none";
+    videoContainer.classList.remove("follow-active");
     frOverlay.classList.remove("active");
     mobileControls.classList.remove("follow-mode");
     // 同步移动端模式 tab 回到默认模式
@@ -3859,6 +3864,8 @@ async function startRecording() {
             frIsRecording = false;
             clearInterval(frRecordingTimer);
             btnFrRecord.classList.remove("on");
+            // 隐藏状态行
+            if (frStatusRow) frStatusRow.style.display = "none";
 
             if (frHasSpoken) {
                 // 有声音：保存录音，开放回放（评分等回放结束后开放）
@@ -3866,6 +3873,7 @@ async function startRecording() {
                 frRecordedExt = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
                 btnFrPlayback.disabled = false;
                 setFrBtnLabel(btnFrRecord, t("status.reRecord"));
+                frTimer.textContent = "";
             } else {
                 // 没检测到声音：不保存、不回放、不开放评分
                 frRecordedBlob = null;
@@ -3887,13 +3895,17 @@ async function startRecording() {
         frResult.style.display = "none";
         frOverlay.classList.remove("active");
 
-        // 显示波形
+        // 显示状态行 + 波形
+        if (frStatusRow) {
+            frStatusRow.style.display = "flex";
+            if (frStatusText) frStatusText.textContent = t("status.recording.label") || "录音中";
+        }
         frWaveform.classList.add("active");
 
         // 计时显示
         frRecordingTimer = setInterval(() => {
             const elapsed = ((Date.now() - frRecordingStart) / 1000).toFixed(1);
-            frTimer.textContent = t("status.recording", { t: elapsed });
+            frTimer.textContent = elapsed + "s";
         }, 100);
 
         // 启动静音检测 + 波形绘制
@@ -3923,7 +3935,7 @@ function startSilenceDetection(stream) {
     const MIN_SPEECH_TOTAL = 4;
     const MIN_RECORD_MS = 1000;
 
-    // 波形绘制（剪映式竖条）
+    // 波形绘制（剪映式竖条，白色）
     const canvas = frWaveform;
     const ctx = canvas.getContext("2d");
     function drawWaveform() {
@@ -3934,7 +3946,7 @@ function startSilenceDetection(stream) {
         const w = canvas.width = canvas.clientWidth * dpr;
         const h = canvas.height = canvas.clientHeight * dpr;
         const barCount = Math.floor(w / (3 * dpr));
-        drawBars(ctx, w, h, timeDomainToAmps(timeDomain, barCount));
+        drawBars(ctx, w, h, timeDomainToAmps(timeDomain, barCount), { color: "rgba(255,255,255,0.88)" });
     }
     drawWaveform();
 
@@ -4004,6 +4016,10 @@ function playbackRecording() {
 
     // 回放时显示波形 + 进度
     frWaveform.classList.add("active");
+    if (frStatusRow) {
+        frStatusRow.style.display = "flex";
+        if (frStatusText) frStatusText.textContent = "回放中";
+    }
     const pbCtx = frWaveform.getContext("2d");
     // 用 Web Audio API 解码录音来绘制回放波形
     const pbAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -4023,13 +4039,13 @@ function playbackRecording() {
         const w = frWaveform.width = frWaveform.clientWidth * dpr;
         const h = frWaveform.height = frWaveform.clientHeight * dpr;
         const barCount = Math.floor(w / (3 * dpr));
-        drawBars(pbCtx, w, h, timeDomainToAmps(pbTimeDomain, barCount));
+        drawBars(pbCtx, w, h, timeDomainToAmps(pbTimeDomain, barCount), { color: "rgba(255,255,255,0.6)" });
 
         // 进度时间
         if (frAudioPlayer && frAudioPlayer.duration) {
             const cur = frAudioPlayer.currentTime.toFixed(1);
             const dur = frAudioPlayer.duration.toFixed(1);
-            frTimer.textContent = `▶ ${cur}s / ${dur}s`;
+            frTimer.textContent = `${cur}s / ${dur}s`;
         }
     }
     drawPlaybackWave();
@@ -4040,7 +4056,8 @@ function playbackRecording() {
         pbAudioCtx.close().catch(() => {});
         btnFrPlayback.classList.remove("on");
         frWaveform.classList.remove("active");
-        frTimer.textContent = t("status.playbackDone");
+        if (frStatusRow) frStatusRow.style.display = "none";
+        frTimer.textContent = "";
         // 回放结束后才开放评分
         btnFrScore.disabled = false;
     };

@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icon-180.png">
     <title>ReelSpeak — 用短视频学外语</title>
-    <link rel="stylesheet" href="style.css?v=20260708i">
+    <link rel="stylesheet" href="style.css?v=20260711a">
 </head>
 <body>
     <!-- PWA 安装引导横幅（iOS 显示步骤说明，安卓显示一键安装按钮） -->
@@ -477,17 +477,22 @@
                         </div>
                         <div class="fr-words" id="frWords"></div>
                     </div>
+                    <div class="fr-status-row" id="frStatusRow" style="display:none;">
+                        <span class="fr-status-dot" id="frStatusDot"></span>
+                        <span class="fr-status-text" id="frStatusText"></span>
+                        <span class="fr-timer" id="frTimer"></span>
+                    </div>
                     <canvas class="fr-waveform" id="frWaveform" height="40"></canvas>
-                    <div class="fr-timer" id="frTimer"></div>
                 </div>
-                <!-- 固定区：标题、参考文本、按钮（永不移动） -->
+                <!-- 固定区：标题、按钮（永不移动）；参考文本由视频字幕承担 -->
                 <div class="fr-fixed">
                     <div class="fr-header">
                         <h3 data-i18n="follow.title">跟读练习</h3>
                         <button id="btnFrClose">✕</button>
                     </div>
-                    <div class="fr-reference" id="frReference"></div>
-                    <div class="fr-translation" id="frTranslation"></div>
+                    <!-- 保留隐藏元素：JS 仍引用这两个 id -->
+                    <div class="fr-reference" id="frReference" style="display:none;"></div>
+                    <div class="fr-translation" id="frTranslation" style="display:none;"></div>
                     <div class="fr-controls">
                         <button id="btnFrPlayOriginal" class="fr-btn" data-i18n-title="follow.playOriginal" title="影子跟读">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -526,6 +531,6 @@
     </div>
 
     <script src="i18n.js?v=20260708i"></script>
-    <script src="player.js?v=20260708i"></script>
+    <script src="player.js?v=20260711a"></script>
 </body>
 </html>
