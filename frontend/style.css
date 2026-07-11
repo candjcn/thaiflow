@@ -1001,6 +1001,10 @@ video {
     box-shadow: none;
 }
 
+.video-container.lesson-mode .subtitle-original-group {
+    display: block;
+}
+
 .video-container.lesson-mode .subtitle-original,
 .video-container.lesson-mode .subtitle-romanization,
 .video-container.lesson-mode .subtitle-translation {
@@ -1009,7 +1013,6 @@ video {
 
 .video-container.lesson-mode .subtitle-romanization {
     font-size: 15px;
-    margin-top: 2px;
     margin-bottom: 4px;
 }
 
@@ -1078,22 +1081,20 @@ video {
     will-change: transform;
 }
 
-.subtitle-romanization {
-    color: rgba(255, 255, 255, 0.55);
-    font-size: 13px;
-    font-style: italic;
-    letter-spacing: 0.02em;
-    margin-top: 1px;
-    margin-bottom: 1px;
-    pointer-events: auto;
-    cursor: grab;
-    user-select: none;
-    touch-action: none;
-    will-change: transform;
+.subtitle-original-group {
+    display: inline-block;
+    text-align: center;
 }
 
-.subtitle-romanization.sub-grabbing {
-    cursor: grabbing;
+.subtitle-romanization {
+    display: block;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    font-style: italic;
+    letter-spacing: 0.03em;
+    margin-bottom: 2px;
+    pointer-events: none;
+    user-select: none;
 }
 
 .subtitle-translation {
@@ -2479,6 +2480,37 @@ label {
 .m-list-btn.active {
     background: #e94560;
     border-color: #e94560;
+    color: #fff;
+}
+
+.m-roman-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.m-roman-btn:active {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.m-roman-btn.active {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: #fff;
+}
+
+/* 桌面端拼音按钮 */
+.d-roman-btn {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 10px;
+}
+
+.d-roman-btn.active {
+    background: rgba(255, 255, 255, 0.15);
     color: #fff;
 }
 

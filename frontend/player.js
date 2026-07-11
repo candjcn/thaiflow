@@ -83,9 +83,12 @@ const playbackRateSelect = document.getElementById("playbackRate");
 const chkOriginal = document.getElementById("chkOriginal");
 const chkTranslation = document.getElementById("chkTranslation");
 const chkRomanization = document.getElementById("chkRomanization");
+const subtitleOriginalGroup = document.getElementById("subtitleOriginalGroup");
 const subtitleOriginal = document.getElementById("subtitleOriginal");
 const subtitleRomanization = document.getElementById("subtitleRomanization");
 const subtitleTranslation = document.getElementById("subtitleTranslation");
+const mBtnRoman = document.getElementById("mBtnRoman");
+const dBtnRoman = document.getElementById("dBtnRoman");
 const repeatInfo = document.getElementById("repeatInfo");
 const subtitleOverlay = document.getElementById("subtitleOverlay");
 const transcribeProvider = document.getElementById("transcribeProvider");
@@ -217,6 +220,8 @@ const mSpeedPicker = document.getElementById("mSpeedPicker");
 const mRepeatPicker = document.getElementById("mRepeatPicker");
 
 mBtnList.addEventListener("click", toggleDrawer);
+mBtnRoman && mBtnRoman.addEventListener("click", () => toggleRomanization());
+dBtnRoman && dBtnRoman.addEventListener("click", () => toggleRomanization());
 
 // 返回按钮
 mBtnBack.addEventListener("click", () => {
@@ -1453,6 +1458,7 @@ async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
     video.play();
     initMobileOverlays();
     openDrawerIfDesktop();
+    updateRomanizationBtnVisibility();
     // 手机端：手动打开的本地文件也存入课程库（下次列表直接点开，不用再翻文件夹）
     saveLessonToLibrary(videoFile, coverFile || null);
 }
@@ -2073,6 +2079,7 @@ async function loadSaved(videoName) {
     video.play();
     initMobileOverlays();
     openDrawerIfDesktop();
+    updateRomanizationBtnVisibility();
     // 手机端：存入浏览器课程库（服务器被清空后仍可重播）
     saveLessonToLibrary();
 }
@@ -2231,6 +2238,7 @@ function finishLoading() {
     video.play();
     initMobileOverlays();
     openDrawerIfDesktop();
+    updateRomanizationBtnVisibility();
 
     // 识别完成后自动进入全屏（移动端）
     // video.play() 算 user-activation 延续，此时可以请求全屏
@@ -2733,6 +2741,7 @@ function enterEditMode(div, i) {
 
     textGroup.querySelector(".edit-save").addEventListener("click", async (e) => {
         e.stopPropagation();
+        const oldText = seg.text;
         seg.text = textGroup.querySelector(".edit-original").value.trim();
         seg.translation = textGroup.querySelector(".edit-translation").value.trim();
         div.classList.remove("editing");
@@ -2747,6 +2756,24 @@ function enterEditMode(div, i) {
         // 同步跟读面板
         if (followReadPanel.style.display !== "none" && i === currentIndex) {
             updateFollowReadContent();
+        }
+        // 原文改变时重新生成拼音（仅支持拼音的语言）
+        const lang = (language || "").toLowerCase().slice(0, 2);
+        if (seg.text !== oldText && _ROMAN_LANGS.has(lang)) {
+            try {
+                const res = await fetch("/api/romanize", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: seg.text, language: lang }),
+                });
+                const data = await res.json();
+                if (!data.error) {
+                    seg.romanization = data.romanization || "";
+                    if (i === currentIndex) updateSubtitle(seg);
+                }
+            } catch (err) {
+                console.warn("[romanize] update failed:", err);
+            }
         }
         // 保存到服务器
         await saveSubtitle();
@@ -3161,14 +3188,13 @@ function hideWordPopup() {
 }
 
 // ========== 字幕拖动定位 ==========
-let subtitleDragY = { original: 0, translation: 0, romanization: 0 };
+let subtitleDragY = { original: 0, translation: 0 };
 let subDragActive = false; // 拖动结束后短暂屏蔽 click
 
 function applySubtitleDragPos() {
-    subtitleOriginal.style.transform = subtitleDragY.original
+    // 拼音在 group 内，随 group 一起移动
+    subtitleOriginalGroup.style.transform = subtitleDragY.original
         ? `translateY(${subtitleDragY.original}px)` : "";
-    subtitleRomanization.style.transform = subtitleDragY.romanization
-        ? `translateY(${subtitleDragY.romanization}px)` : "";
     subtitleTranslation.style.transform = subtitleDragY.translation
         ? `translateY(${subtitleDragY.translation}px)` : "";
 }
@@ -3176,7 +3202,7 @@ function applySubtitleDragPos() {
 function saveSubtitleDragPos() {
     if (!currentVideoName) return;
     const storKey = `subtitle_pos_${currentVideoName}`;
-    if (!subtitleDragY.original && !subtitleDragY.translation && !subtitleDragY.romanization) {
+    if (!subtitleDragY.original && !subtitleDragY.translation) {
         localStorage.removeItem(storKey);
     } else {
         localStorage.setItem(storKey, JSON.stringify(subtitleDragY));
@@ -3184,7 +3210,7 @@ function saveSubtitleDragPos() {
 }
 
 function loadSubtitleDragPos() {
-    subtitleDragY = { original: 0, translation: 0, romanization: 0 };
+    subtitleDragY = { original: 0, translation: 0 };
     if (currentVideoName) {
         try {
             const s = localStorage.getItem(`subtitle_pos_${currentVideoName}`);
@@ -3245,8 +3271,7 @@ function initSubtitleDrag(el, key) {
     });
 }
 
-initSubtitleDrag(subtitleOriginal, "original");
-initSubtitleDrag(subtitleRomanization, "romanization");
+initSubtitleDrag(subtitleOriginalGroup, "original");
 initSubtitleDrag(subtitleTranslation, "translation");
 
 // 事件委托：点击字幕词（暂停视频 + 弹出释义）
@@ -3305,16 +3330,16 @@ function updateSubtitleVisibility() {
     subtitleOverlay.classList.toggle("sub-empty", mode === "none");
     const hasRoman = showRomanization && !!subtitleRomanization.textContent;
     if (mode === "none") {
-        subtitleOriginal.style.display = "none";
+        subtitleOriginalGroup.style.display = "none";
         subtitleRomanization.style.display = "none";
         subtitleTranslation.style.display = "none";
     } else if (mode === "original") {
-        subtitleOriginal.style.display = shown;
-        subtitleRomanization.style.display = hasRoman ? shown : "none";
+        subtitleOriginalGroup.style.display = shown;
+        subtitleRomanization.style.display = hasRoman ? "block" : "none";
         subtitleTranslation.style.display = "none";
     } else {
-        subtitleOriginal.style.display = shown;
-        subtitleRomanization.style.display = hasRoman ? shown : "none";
+        subtitleOriginalGroup.style.display = shown;
+        subtitleRomanization.style.display = hasRoman ? "block" : "none";
         subtitleTranslation.style.display = shown;
     }
     // 同步勾选框状态作为视觉反馈
@@ -3323,15 +3348,29 @@ function updateSubtitleVisibility() {
     chkRomanization.checked = showRomanization;
 }
 
-// 罗马拼音开关（功能完整，UI 入口暂未开放；可从控制台调用 toggleRomanization() 测试）
+// 罗马拼音开关
 function toggleRomanization(force) {
     showRomanization = (force !== undefined) ? !!force : !showRomanization;
+    // 同步按钮激活状态
+    if (mBtnRoman) mBtnRoman.classList.toggle("active", showRomanization);
+    if (dBtnRoman) dBtnRoman.classList.toggle("active", showRomanization);
     // 刷新当前句子字幕
     if (currentIndex >= 0 && segments[currentIndex]) {
         updateSubtitle(segments[currentIndex]);
     } else {
         updateSubtitleVisibility();
     }
+}
+
+// 根据课程语言决定是否显示拼音按钮
+const _ROMAN_LANGS = new Set(["th", "zh"]);
+function updateRomanizationBtnVisibility() {
+    const lang = (language || "").toLowerCase().slice(0, 2);
+    const show = _ROMAN_LANGS.has(lang);
+    if (mBtnRoman) mBtnRoman.style.display = show ? "" : "none";
+    if (dBtnRoman) dBtnRoman.style.display = show ? "" : "none";
+    // 切换到不支持拼音的语言时自动关闭
+    if (!show && showRomanization) toggleRomanization(false);
 }
 
 // ========== 高亮句子 ==========

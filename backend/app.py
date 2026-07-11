@@ -766,6 +766,22 @@ def api_tts_generate():
         return jsonify({"error": str(e)}), 502
 
 
+@app.route("/api/romanize", methods=["POST"])
+def api_romanize():
+    """为单句文本生成拼音/罗马拼音（编辑句子后同步更新用）"""
+    data = request.get_json()
+    text = (data.get("text") or "").strip()
+    language = (data.get("language") or "").lower()[:2]
+    if not text:
+        return jsonify({"romanization": ""})
+    try:
+        segs = [{"text": text}]
+        generate_romanization(segs, language)
+        return jsonify({"romanization": segs[0].get("romanization", "")})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/translate", methods=["POST"])
 def api_translate():
     """翻译句子"""
