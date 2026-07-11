@@ -1051,33 +1051,31 @@ video {
 }
 
 /* 拼音开关小按钮（浮在字幕区右上角） */
-.roman-toggle-btn {
+/* × 关闭拼音按钮（内联在拼音行末尾） */
+.roman-close-btn {
     pointer-events: auto;
-    position: absolute;
-    top: -22px;
-    right: 0;
-    background: rgba(0, 0, 0, 0.45);
-    color: rgba(255, 255, 255, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
+    display: inline-block;
+    margin-left: 5px;
+    vertical-align: middle;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
     line-height: 1;
-    padding: 3px 6px;
+    padding: 0 2px;
     cursor: pointer;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    transition: background 0.15s, color 0.15s;
-    z-index: 21;
+    /* 桌面：悬浮时才显示；触屏设备：始终可见 */
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
 }
-.roman-toggle-btn:hover {
-    background: rgba(0, 0, 0, 0.65);
-    color: #fff;
+@media (pointer: coarse) {
+    .roman-close-btn { opacity: 0.7; }
 }
-.roman-toggle-btn.active {
-    background: rgba(233, 69, 96, 0.85);
-    border-color: rgba(233, 69, 96, 0.6);
-    color: #fff;
+.subtitle-romanization:hover .roman-close-btn {
+    opacity: 1;
+}
+.roman-close-btn:hover {
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .subtitle-original,
@@ -1123,7 +1121,7 @@ video {
     font-style: italic;
     letter-spacing: 0.03em;
     margin-bottom: 2px;
-    pointer-events: none;
+    pointer-events: auto;
     user-select: none;
 }
 
@@ -1143,7 +1141,6 @@ video {
 }
 
 .subtitle-original:empty,
-.subtitle-romanization:empty,
 .subtitle-translation:empty {
     display: none;
 }
@@ -2510,37 +2507,6 @@ label {
 .m-list-btn.active {
     background: #e94560;
     border-color: #e94560;
-    color: #fff;
-}
-
-.m-roman-btn {
-    padding: 6px 10px;
-    font-size: 13px;
-    font-weight: 600;
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.m-roman-btn:active {
-    background: rgba(255, 255, 255, 0.15);
-}
-
-.m-roman-btn.active {
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.5);
-    color: #fff;
-}
-
-/* 桌面端拼音按钮 */
-.d-roman-btn {
-    font-size: 13px;
-    font-weight: 600;
-    padding: 4px 10px;
-}
-
-.d-roman-btn.active {
-    background: rgba(255, 255, 255, 0.15);
     color: #fff;
 }
 

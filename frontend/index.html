@@ -251,9 +251,10 @@
 
                 <!-- 字幕覆盖层 -->
                 <div class="subtitle-overlay" id="subtitleOverlay">
-                    <button class="roman-toggle-btn" id="btnRomanToggle" style="display:none;" title="拼音">拼</button>
                     <div class="subtitle-original-group" id="subtitleOriginalGroup">
-                        <div class="subtitle-romanization" id="subtitleRomanization" style="display:none;"></div>
+                        <div class="subtitle-romanization" id="subtitleRomanization" style="display:none;">
+                            <span id="romanizationText"></span><button class="roman-close-btn" id="btnRomanClose" title="关闭拼音">×</button>
+                        </div>
                         <div class="subtitle-original" id="subtitleOriginal"></div>
                     </div>
                     <div class="subtitle-translation" id="subtitleTranslation"></div>

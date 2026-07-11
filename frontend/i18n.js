@@ -247,6 +247,7 @@ const I18N = {
             "hint.videoName": "视频名",
             "hint.srtFiles": "将导出：{prefix}_泰语.srt、{prefix}_中文.srt",
             "hint.allFiles": "将导出：{prefix}.mp4、{prefix}_泰语.srt、{prefix}_中文.srt",
+            "roman.hideForever": "以后都不显示拼音/罗马拼音了吗？",
             "lang.switcher": "语言",
         },
 
@@ -485,6 +486,7 @@ const I18N = {
             "hint.videoName": "視頻名",
             "hint.srtFiles": "將導出：{prefix}_泰語.srt、{prefix}_中文.srt",
             "hint.allFiles": "將導出：{prefix}.mp4、{prefix}_泰語.srt、{prefix}_中文.srt",
+            "roman.hideForever": "以後都不顯示拼音/羅馬拼音了嗎？",
             "lang.switcher": "語言",
         },
 
@@ -723,6 +725,7 @@ const I18N = {
             "hint.videoName": "video name",
             "hint.srtFiles": "Will export: {prefix}_original.srt, {prefix}_chinese.srt",
             "hint.allFiles": "Will export: {prefix}.mp4, {prefix}_original.srt, {prefix}_chinese.srt",
+            "roman.hideForever": "Hide romanization permanently?",
             "lang.switcher": "Lang",
         },
 
@@ -961,6 +964,7 @@ const I18N = {
             "hint.videoName": "動画名",
             "hint.srtFiles": "書き出し：{prefix}_原文.srt、{prefix}_中文.srt",
             "hint.allFiles": "書き出し：{prefix}.mp4、{prefix}_原文.srt、{prefix}_中文.srt",
+            "roman.hideForever": "ローマ字表示を永久に非表示にしますか？",
             "lang.switcher": "言語",
         },
 
@@ -1199,6 +1203,7 @@ const I18N = {
             "hint.videoName": "영상 이름",
             "hint.srtFiles": "내보내기: {prefix}_원문.srt, {prefix}_중문.srt",
             "hint.allFiles": "내보내기: {prefix}.mp4, {prefix}_원문.srt, {prefix}_중문.srt",
+            "roman.hideForever": "로마자 표기를 영구적으로 숨기겠습니까?",
             "lang.switcher": "언어",
         },
 
@@ -1436,6 +1441,7 @@ const I18N = {
             "hint.videoName": "ชื่อวิดีโอ",
             "hint.srtFiles": "จะส่งออก: {prefix}_original.srt, {prefix}_thai.srt",
             "hint.allFiles": "จะส่งออก: {prefix}.mp4, {prefix}_original.srt, {prefix}_thai.srt",
+            "roman.hideForever": "ซ่อนคำอ่านถาวรเลยไหม?",
             "lang.switcher": "ภาษา",
         },
     },

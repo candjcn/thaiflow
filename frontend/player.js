@@ -56,7 +56,7 @@ let language = "";
 let currentVideoName = "";
 let isLoading = false;
 let threePassMode = false; // 3遍复读独立模式（第1遍无字幕/第2遍原文/第3遍双语）
-let showRomanization = false; // 罗马拼音显示开关（功能已实现，UI 入口暂未开放）
+let showRomanization = false; // 罗马拼音显示开关（由语言 + localStorage 偏好决定初始值）
 
 // ========== DOM 元素 ==========
 const phaseSelect = document.getElementById("phaseSelect");
@@ -86,8 +86,9 @@ const chkRomanization = document.getElementById("chkRomanization");
 const subtitleOriginalGroup = document.getElementById("subtitleOriginalGroup");
 const subtitleOriginal = document.getElementById("subtitleOriginal");
 const subtitleRomanization = document.getElementById("subtitleRomanization");
+const romanizationText = document.getElementById("romanizationText");
+const btnRomanClose = document.getElementById("btnRomanClose");
 const subtitleTranslation = document.getElementById("subtitleTranslation");
-const btnRomanToggle = document.getElementById("btnRomanToggle");
 const repeatInfo = document.getElementById("repeatInfo");
 const subtitleOverlay = document.getElementById("subtitleOverlay");
 const transcribeProvider = document.getElementById("transcribeProvider");
@@ -219,7 +220,7 @@ const mSpeedPicker = document.getElementById("mSpeedPicker");
 const mRepeatPicker = document.getElementById("mRepeatPicker");
 
 mBtnList.addEventListener("click", toggleDrawer);
-btnRomanToggle && btnRomanToggle.addEventListener("click", () => toggleRomanization());
+btnRomanClose && btnRomanClose.addEventListener("click", closeRomanization);
 
 // 返回按钮
 mBtnBack.addEventListener("click", () => {
@@ -1456,7 +1457,8 @@ async function playLocalWithSubtitle(videoFile, subtitleFile, coverFile) {
     video.play();
     initMobileOverlays();
     openDrawerIfDesktop();
-    updateRomanizationBtnVisibility();
+    updateRomanizationState();
+    _ensureRomanization(); // 后台补齐缺失的拼音
     // 手机端：手动打开的本地文件也存入课程库（下次列表直接点开，不用再翻文件夹）
     saveLessonToLibrary(videoFile, coverFile || null);
 }
@@ -2077,7 +2079,8 @@ async function loadSaved(videoName) {
     video.play();
     initMobileOverlays();
     openDrawerIfDesktop();
-    updateRomanizationBtnVisibility();
+    updateRomanizationState();
+    _ensureRomanization(); // 后台补齐缺失的拼音
     // 手机端：存入浏览器课程库（服务器被清空后仍可重播）
     saveLessonToLibrary();
 }
@@ -2236,7 +2239,8 @@ function finishLoading() {
     video.play();
     initMobileOverlays();
     openDrawerIfDesktop();
-    updateRomanizationBtnVisibility();
+    updateRomanizationState();
+    _ensureRomanization(); // 后台补齐缺失的拼音
 
     // 识别完成后自动进入全屏（移动端）
     // video.play() 算 user-activation 延续，此时可以请求全屏
@@ -3302,7 +3306,7 @@ document.addEventListener("click", (e) => {
 
 function updateSubtitle(seg) {
     renderKaraoke(seg);
-    subtitleRomanization.textContent = (showRomanization && seg.romanization) ? seg.romanization : "";
+    romanizationText.textContent = (showRomanization && seg.romanization) ? seg.romanization : "";
     subtitleTranslation.textContent = seg.translation || "";
     // 低置信度视觉提示
     const conf = seg.confidence;
@@ -3312,7 +3316,7 @@ function updateSubtitle(seg) {
 
 function clearSubtitle() {
     subtitleOriginal.textContent = "";
-    subtitleRomanization.textContent = "";
+    romanizationText.textContent = "";
     subtitleTranslation.textContent = "";
     kwSegKey = null;
     kwSpans = [];
@@ -3326,7 +3330,7 @@ function updateSubtitleVisibility() {
     const shown = videoContainer.classList.contains("lesson-mode") ? "block" : "inline-block";
     // 盲听遍：课程模式下连卡片背景一起隐藏
     subtitleOverlay.classList.toggle("sub-empty", mode === "none");
-    const hasRoman = showRomanization && !!subtitleRomanization.textContent;
+    const hasRoman = showRomanization && !!romanizationText.textContent;
     if (mode === "none") {
         subtitleOriginalGroup.style.display = "none";
         subtitleRomanization.style.display = "none";
@@ -3346,42 +3350,27 @@ function updateSubtitleVisibility() {
     chkRomanization.checked = showRomanization;
 }
 
-// 罗马拼音开关
-async function toggleRomanization(force) {
-    showRomanization = (force !== undefined) ? !!force : !showRomanization;
-    // 同步按钮激活状态
-    if (btnRomanToggle) btnRomanToggle.classList.toggle("active", showRomanization);
-
-    // 懒加载：首次开启时若 segments 缺少拼音，批量请求后端生成
-    if (showRomanization && _ROMAN_LANGS.has((language || "").toLowerCase().slice(0, 2))) {
-        const missing = segments.some(s => !s.romanization);
-        if (missing) {
-            try {
-                if (btnRomanToggle) btnRomanToggle.textContent = "…";
-                const res = await fetch("/api/romanize-batch", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        segments: segments.map(s => ({ text: s.text })),
-                        language,
-                    }),
-                });
-                const data = await res.json();
-                if (!data.error && data.segments) {
-                    data.segments.forEach((s, i) => {
-                        if (segments[i]) segments[i].romanization = s.romanization || "";
-                    });
-                    saveSubtitle(); // 后台保存，不 await
-                }
-            } catch (e) {
-                console.error("[romanize] batch fetch error:", e);
-            } finally {
-                if (btnRomanToggle) btnRomanToggle.textContent = "拼";
-            }
-        }
+// 罗马拼音：关闭并询问是否永久隐藏
+function closeRomanization() {
+    showRomanization = false;
+    if (currentIndex >= 0 && segments[currentIndex]) {
+        updateSubtitle(segments[currentIndex]);
+    } else {
+        updateSubtitleVisibility();
     }
+    if (confirm(t("roman.hideForever"))) {
+        localStorage.setItem("roman-pref", "off");
+    }
+}
 
-    // 刷新当前句子字幕
+// 根据语言和用户偏好决定是否显示拼音（每次切换视频时调用）
+const _ROMAN_LANGS = new Set(["th", "zh"]);
+function updateRomanizationState() {
+    const lang = (language || "").toLowerCase().slice(0, 2);
+    const supported = _ROMAN_LANGS.has(lang);
+    const userWantsOff = localStorage.getItem("roman-pref") === "off";
+    showRomanization = supported && !userWantsOff;
+    // 若当前字幕已渲染，刷新显示
     if (currentIndex >= 0 && segments[currentIndex]) {
         updateSubtitle(segments[currentIndex]);
     } else {
@@ -3389,14 +3378,31 @@ async function toggleRomanization(force) {
     }
 }
 
-// 根据课程语言决定是否显示拼音按钮
-const _ROMAN_LANGS = new Set(["th", "zh"]);
-function updateRomanizationBtnVisibility() {
+// 后台确保所有 segments 都有 romanization（懒生成）
+async function _ensureRomanization() {
     const lang = (language || "").toLowerCase().slice(0, 2);
-    const show = _ROMAN_LANGS.has(lang);
-    if (btnRomanToggle) btnRomanToggle.style.display = show ? "" : "none";
-    // 切换到不支持拼音的语言时自动关闭
-    if (!show && showRomanization) toggleRomanization(false);
+    if (!_ROMAN_LANGS.has(lang)) return;
+    if (!segments.some(s => !s.romanization)) return; // 全部已有
+    try {
+        const res = await fetch("/api/romanize-batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ segments: segments.map(s => ({ text: s.text })), language }),
+        });
+        const data = await res.json();
+        if (!data.error && data.segments) {
+            data.segments.forEach((s, i) => {
+                if (segments[i]) segments[i].romanization = s.romanization || "";
+            });
+            saveSubtitle(); // 后台持久化
+            // 若当前拼音正在显示，立即刷新
+            if (showRomanization && currentIndex >= 0 && segments[currentIndex]) {
+                updateSubtitle(segments[currentIndex]);
+            }
+        }
+    } catch (e) {
+        console.error("[romanize] ensure error:", e);
+    }
 }
 
 // ========== 高亮句子 ==========
