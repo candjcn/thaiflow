@@ -1290,7 +1290,53 @@ video {
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
 }
 
-/* 双模式入口（与手机版 mode tabs 逻辑一致） */
+/* 桌面字幕切换按钮 */
+.d-submode-btn {
+    font-size: 13px;
+    font-weight: 700;
+    min-width: 48px;
+    padding: 8px 14px;
+    color: rgba(255, 255, 255, 0.75);
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    letter-spacing: 0.02em;
+}
+.controls .d-submode-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+/* 桌面影子跟读按钮 */
+.d-follow-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.75);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.controls .d-follow-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+.controls .d-follow-btn.active {
+    background: #e94560;
+    border-color: #e94560;
+    color: #fff;
+}
+.controls .d-follow-btn.active kbd {
+    color: rgba(255, 255, 255, 0.75);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* 旧桌面 mode-tabs（保留不删，隐藏元素仍用其中 dModeStudy/dModeFollow 样式） */
 .d-mode-tabs {
     display: flex;
     gap: 6px;
@@ -2510,7 +2556,29 @@ label {
     color: #fff;
 }
 
-/* 精简模式切换 */
+/* 移动端字幕切换按钮 */
+.m-submode-btn {
+    font-size: 13px;
+    font-weight: 700;
+    min-width: 40px;
+    padding: 6px 10px;
+    letter-spacing: 0.02em;
+}
+
+/* 移动端影子跟读按钮 */
+.m-follow-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 8px;
+    white-space: nowrap;
+}
+.m-follow-btn.active {
+    background: #e94560;
+    border-color: #e94560;
+    color: #fff;
+}
+
+/* 旧精简模式切换（保留样式，元素已移入隐藏 div） */
 .m-mode-tabs-slim {
     display: flex;
     position: relative;

@@ -55,7 +55,7 @@ let sentenceMode = false;
 let language = "";
 let currentVideoName = "";
 let isLoading = false;
-let threePassMode = false; // 3遍复读独立模式（第1遍无字幕/第2遍原文/第3遍双语）
+let subtitleMode = "both"; // "both" | "original" | "translation" | "none"
 let showRomanization = false; // 罗马拼音显示开关（由语言 + localStorage 偏好决定初始值）
 
 // ========== DOM 元素 ==========
@@ -199,9 +199,11 @@ chkTranslation.addEventListener("change", updateSubtitleVisibility);
 
 // ========== 移动端控件 ==========
 const mobileControls = document.getElementById("mobileControls");
-const btnModeStudy = document.getElementById("btnModeStudy");
+const btnSubMode = document.getElementById("btnSubMode");       // 字幕模式切换（移动端）
+const btnModeStudy = document.getElementById("btnModeStudy");  // 废弃，保留避免报错
 const btnModeFollow = document.getElementById("btnModeFollow");
 const mModeBg = document.getElementById("mModeBg");
+const dBtnSubMode = document.getElementById("dBtnSubMode");    // 字幕模式切换（桌面端）
 const mBtnPause = document.getElementById("mBtnPause");
 const mBtnList = document.getElementById("mBtnList");
 const mRepeatInfo = document.getElementById("mRepeatInfo");
@@ -379,54 +381,32 @@ document.addEventListener("click", (e) => {
     }
 });
 
-// 模式切换：三遍复读 / 影子跟读（再次点击取消回到默认）
-btnModeStudy.addEventListener("click", () => {
-    switchMode(btnModeStudy.classList.contains("active") ? "normal" : "study");
-});
+// 字幕模式循环切换（移动端 + 桌面端）
+btnSubMode && btnSubMode.addEventListener("click", cycleSubtitleMode);
+dBtnSubMode && dBtnSubMode.addEventListener("click", cycleSubtitleMode);
+
+// 影子跟读 toggle（再次点击取消）
 btnModeFollow.addEventListener("click", () => {
     switchMode(btnModeFollow.classList.contains("active") ? "normal" : "follow");
 });
 
-// 桌面模式 tabs（与移动端 tabs 状态同步）
-const dModeStudy = document.getElementById("dModeStudy");
+// 桌面影子跟读
+const dModeStudy = document.getElementById("dModeStudy"); // 废弃，保留避免报错
 const dModeFollow = document.getElementById("dModeFollow");
-dModeStudy.addEventListener("click", () => {
-    switchMode(dModeStudy.classList.contains("active") ? "normal" : "study");
-});
 dModeFollow.addEventListener("click", () => {
     switchMode(dModeFollow.classList.contains("active") ? "normal" : "follow");
 });
 
 function switchMode(mode) {
-    [btnModeStudy, btnModeFollow, dModeStudy, dModeFollow].forEach(b => b.classList.remove("active"));
+    [btnModeFollow, dModeFollow].forEach(b => b.classList.remove("active"));
     if (mode === "normal") {
-        mModeBg.dataset.pos = "";
-        threePassMode = false;
-        // 不重置遍数——遍数由右侧数字按钮独立控制
         if (followReadPanel.style.display !== "none") {
             followReadPanel.style.display = "none";
         }
         mobileControls.classList.remove("follow-mode");
-    } else if (mode === "study") {
-        // 复读模式：激活渐进字幕逻辑，遍数保持用户选择不变
-        mModeBg.dataset.pos = "0";
-        threePassMode = true;
-        btnModeStudy.classList.add("active");
-        dModeStudy.classList.add("active");
-        // 不强制遍数=3——遍数由右侧数字按钮独立控制
-        if (followReadPanel.style.display !== "none") {
-            followReadPanel.style.display = "none";
-        }
-        mobileControls.classList.remove("follow-mode");
-        if (currentIndex >= 0) {
-            jumpToSentence(currentIndex);
-            video.play();
-        }
     } else if (mode === "follow") {
-        mModeBg.dataset.pos = "1";
         btnModeFollow.classList.add("active");
         dModeFollow.classList.add("active");
-        // 不修改遍数——遍数由右侧数字按钮独立控制
         openFollowRead();
     }
 }
@@ -2937,15 +2917,29 @@ function repeatCurrent() {
 }
 
 // ========== 字幕显示逻辑 ==========
-// threePassMode（3遍复读独立模式）：第1遍无字幕/第2遍原文/第3遍双语
-// 普通遍数模式：无论选几遍，每遍都显示双语
+// subtitleMode: "both" | "original" | "translation" | "none"
+// 用户点击字幕切换按钮循环切换，遍数与字幕模式完全独立
+const SUBTITLE_MODE_CYCLE = ["both", "original", "translation", "none"];
+
 function getSubtitleMode() {
-    if (threePassMode) {
-        if (repeatCount === 0) return "none";
-        if (repeatCount === 1) return "original";
-        return "both";
+    return subtitleMode;
+}
+
+function cycleSubtitleMode() {
+    const idx = SUBTITLE_MODE_CYCLE.indexOf(subtitleMode);
+    subtitleMode = SUBTITLE_MODE_CYCLE[(idx + 1) % SUBTITLE_MODE_CYCLE.length];
+    _syncSubModeBtn();
+    if (currentIndex >= 0 && segments[currentIndex]) {
+        updateSubtitle(segments[currentIndex]);
+    } else {
+        updateSubtitleVisibility();
     }
-    return "both";
+}
+
+function _syncSubModeBtn() {
+    const label = t("mode." + subtitleMode);
+    if (btnSubMode) btnSubMode.textContent = label;
+    if (dBtnSubMode) dBtnSubMode.textContent = label;
 }
 
 // ========== 卡拉OK逐词高亮（原文字幕） ==========
@@ -3339,7 +3333,11 @@ function updateSubtitleVisibility() {
         subtitleOriginalGroup.style.display = shown;
         subtitleRomanization.style.display = hasRoman ? "block" : "none";
         subtitleTranslation.style.display = "none";
-    } else {
+    } else if (mode === "translation") {
+        subtitleOriginalGroup.style.display = "none";
+        subtitleRomanization.style.display = "none";
+        subtitleTranslation.style.display = shown;
+    } else { // "both"
         subtitleOriginalGroup.style.display = shown;
         subtitleRomanization.style.display = hasRoman ? "block" : "none";
         subtitleTranslation.style.display = shown;
@@ -3366,6 +3364,7 @@ function closeRomanization() {
 // 根据语言和用户偏好决定是否显示拼音（每次切换视频时调用）
 const _ROMAN_LANGS = new Set(["th", "zh"]);
 function updateRomanizationState() {
+    _syncSubModeBtn(); // 确保字幕切换按钮显示当前模式
     const lang = (language || "").toLowerCase().slice(0, 2);
     const supported = _ROMAN_LANGS.has(lang);
     const userWantsOff = localStorage.getItem("roman-pref") === "off";
@@ -3605,7 +3604,7 @@ function escapeHtml(text) {
 }
 
 function updateRepeatInfo(maxRepeat) {
-    const modeLabels = { none: t("mode.none"), original: t("mode.original"), both: t("mode.both") };
+    const modeLabels = { none: t("mode.none"), original: t("mode.original"), translation: t("mode.translation"), both: t("mode.both") };
     const mode = getSubtitleMode();
     const label = modeLabels[mode];
     const info = `${currentIndex + 1}/${segments.length} | ${repeatCount + 1}/${maxRepeat} ${label}`;

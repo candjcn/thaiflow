@@ -263,15 +263,13 @@
 
             <!-- 播放控制（桌面：左=双模式入口，中=重复/速度，右=列表） -->
             <div class="controls" id="controlsBar">
-                <!-- 左组：双模式入口 -->
+                <!-- 左组：字幕切换 + 影子跟读 -->
                 <div class="ctrl-group ctrl-group-left">
-                    <div class="d-mode-tabs">
-                        <button class="d-mode-tab" id="dModeStudy" data-i18n="mobile.mode.study">三遍复读</button>
-                        <button class="d-mode-tab" id="dModeFollow">
-                            <span data-i18n="mobile.mode.follow">影子跟读</span>
-                            <kbd>S</kbd>
-                        </button>
-                    </div>
+                    <button class="ctrl-btn d-submode-btn" id="dBtnSubMode">双语</button>
+                    <button class="ctrl-btn d-follow-btn" id="dModeFollow">
+                        <span data-i18n="mobile.mode.follow">影子跟读</span>
+                        <kbd>S</kbd>
+                    </button>
                 </div>
 
                 <!-- 中组：重复次数 / 速度 -->
@@ -311,6 +309,9 @@
 
             <!-- 隐藏遗留元素：JS 逻辑仍引用这些 id（播放控制为纯键盘，返回/全屏在视频角落） -->
             <div style="display:none;">
+                <button id="btnModeStudy"></button>
+                <button id="dModeStudy"></button>
+                <div id="mModeTabs"><div id="mModeBg"></div></div>
                 <button id="btnPrev"></button>
                 <button id="btnPause"></button>
                 <button id="btnRepeat"></button>
@@ -335,11 +336,8 @@
                 <div class="m-slim-bar">
                     <button class="m-slim-btn m-speed-compact" id="mSpeedBtn">1x</button>
                     <button class="m-slim-btn m-repeat-compact" id="mRepeatBtn" data-i18n-suffix="ctrl.repeat.unit">1遍</button>
-                    <div class="m-mode-tabs-slim" id="mModeTabs">
-                        <div class="m-mode-bg-slim" id="mModeBg"></div>
-                        <button class="m-mode-tab-slim" id="btnModeStudy" data-mode="study" data-i18n="mobile.mode.study">三遍复读</button>
-                        <button class="m-mode-tab-slim" id="btnModeFollow" data-mode="follow" data-i18n="mobile.mode.follow">影子跟读</button>
-                    </div>
+                    <button class="m-slim-btn m-submode-btn" id="btnSubMode">双语</button>
+                    <button class="m-slim-btn m-follow-btn" id="btnModeFollow" data-i18n="mobile.mode.follow">影子跟读</button>
                     <button class="m-slim-btn m-list-btn" id="mBtnList" data-i18n-title="ctrl.list" title="句子列表">☰</button>
                 </div>
                 <!-- 速度选择弹出 -->
