@@ -782,6 +782,22 @@ def api_romanize():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/romanize-batch", methods=["POST"])
+def api_romanize_batch():
+    """批量为多个句子生成拼音/罗马拼音（懒加载：首次开启拼音开关时调用）"""
+    data = request.get_json()
+    segs = data.get("segments", [])   # [{"text": "..."}]
+    language = (data.get("language") or "").lower()[:2]
+    if not segs:
+        return jsonify({"segments": []})
+    try:
+        work = [{"text": (s.get("text") or "").strip()} for s in segs]
+        generate_romanization(work, language)
+        return jsonify({"segments": work})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/translate", methods=["POST"])
 def api_translate():
     """翻译句子"""

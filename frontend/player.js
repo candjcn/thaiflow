@@ -3347,10 +3347,40 @@ function updateSubtitleVisibility() {
 }
 
 // 罗马拼音开关
-function toggleRomanization(force) {
+async function toggleRomanization(force) {
     showRomanization = (force !== undefined) ? !!force : !showRomanization;
     // 同步按钮激活状态
     if (btnRomanToggle) btnRomanToggle.classList.toggle("active", showRomanization);
+
+    // 懒加载：首次开启时若 segments 缺少拼音，批量请求后端生成
+    if (showRomanization && _ROMAN_LANGS.has((language || "").toLowerCase().slice(0, 2))) {
+        const missing = segments.some(s => !s.romanization);
+        if (missing) {
+            try {
+                if (btnRomanToggle) btnRomanToggle.textContent = "…";
+                const res = await fetch("/api/romanize-batch", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        segments: segments.map(s => ({ text: s.text })),
+                        language,
+                    }),
+                });
+                const data = await res.json();
+                if (!data.error && data.segments) {
+                    data.segments.forEach((s, i) => {
+                        if (segments[i]) segments[i].romanization = s.romanization || "";
+                    });
+                    saveSubtitle(); // 后台保存，不 await
+                }
+            } catch (e) {
+                console.error("[romanize] batch fetch error:", e);
+            } finally {
+                if (btnRomanToggle) btnRomanToggle.textContent = "拼";
+            }
+        }
+    }
+
     // 刷新当前句子字幕
     if (currentIndex >= 0 && segments[currentIndex]) {
         updateSubtitle(segments[currentIndex]);
