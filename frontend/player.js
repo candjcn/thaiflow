@@ -87,8 +87,7 @@ const subtitleOriginalGroup = document.getElementById("subtitleOriginalGroup");
 const subtitleOriginal = document.getElementById("subtitleOriginal");
 const subtitleRomanization = document.getElementById("subtitleRomanization");
 const subtitleTranslation = document.getElementById("subtitleTranslation");
-const mBtnRoman = document.getElementById("mBtnRoman");
-const dBtnRoman = document.getElementById("dBtnRoman");
+const btnRomanToggle = document.getElementById("btnRomanToggle");
 const repeatInfo = document.getElementById("repeatInfo");
 const subtitleOverlay = document.getElementById("subtitleOverlay");
 const transcribeProvider = document.getElementById("transcribeProvider");
@@ -220,8 +219,7 @@ const mSpeedPicker = document.getElementById("mSpeedPicker");
 const mRepeatPicker = document.getElementById("mRepeatPicker");
 
 mBtnList.addEventListener("click", toggleDrawer);
-mBtnRoman && mBtnRoman.addEventListener("click", () => toggleRomanization());
-dBtnRoman && dBtnRoman.addEventListener("click", () => toggleRomanization());
+btnRomanToggle && btnRomanToggle.addEventListener("click", () => toggleRomanization());
 
 // 返回按钮
 mBtnBack.addEventListener("click", () => {
@@ -3352,8 +3350,7 @@ function updateSubtitleVisibility() {
 function toggleRomanization(force) {
     showRomanization = (force !== undefined) ? !!force : !showRomanization;
     // 同步按钮激活状态
-    if (mBtnRoman) mBtnRoman.classList.toggle("active", showRomanization);
-    if (dBtnRoman) dBtnRoman.classList.toggle("active", showRomanization);
+    if (btnRomanToggle) btnRomanToggle.classList.toggle("active", showRomanization);
     // 刷新当前句子字幕
     if (currentIndex >= 0 && segments[currentIndex]) {
         updateSubtitle(segments[currentIndex]);
@@ -3367,8 +3364,7 @@ const _ROMAN_LANGS = new Set(["th", "zh"]);
 function updateRomanizationBtnVisibility() {
     const lang = (language || "").toLowerCase().slice(0, 2);
     const show = _ROMAN_LANGS.has(lang);
-    if (mBtnRoman) mBtnRoman.style.display = show ? "" : "none";
-    if (dBtnRoman) dBtnRoman.style.display = show ? "" : "none";
+    if (btnRomanToggle) btnRomanToggle.style.display = show ? "" : "none";
     // 切换到不支持拼音的语言时自动关闭
     if (!show && showRomanization) toggleRomanization(false);
 }

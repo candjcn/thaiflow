@@ -1050,6 +1050,36 @@ video {
     width: 92%;
 }
 
+/* 拼音开关小按钮（浮在字幕区右上角） */
+.roman-toggle-btn {
+    pointer-events: auto;
+    position: absolute;
+    top: -22px;
+    right: 0;
+    background: rgba(0, 0, 0, 0.45);
+    color: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 3px 6px;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: background 0.15s, color 0.15s;
+    z-index: 21;
+}
+.roman-toggle-btn:hover {
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+}
+.roman-toggle-btn.active {
+    background: rgba(233, 69, 96, 0.85);
+    border-color: rgba(233, 69, 96, 0.6);
+    color: #fff;
+}
+
 .subtitle-original,
 .subtitle-translation {
     background: none;

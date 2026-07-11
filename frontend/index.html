@@ -251,6 +251,7 @@
 
                 <!-- 字幕覆盖层 -->
                 <div class="subtitle-overlay" id="subtitleOverlay">
+                    <button class="roman-toggle-btn" id="btnRomanToggle" style="display:none;" title="拼音">拼</button>
                     <div class="subtitle-original-group" id="subtitleOriginalGroup">
                         <div class="subtitle-romanization" id="subtitleRomanization" style="display:none;"></div>
                         <div class="subtitle-original" id="subtitleOriginal"></div>
@@ -298,9 +299,8 @@
                     </div>
                 </div>
 
-                <!-- 右组：拼音开关 + 句子列表 -->
+                <!-- 右组：句子列表 -->
                 <div class="ctrl-group ctrl-group-right">
-                    <button class="ctrl-btn d-roman-btn" id="dBtnRoman" title="拼音/罗马拼音" style="display:none;">拼</button>
                     <button class="ctrl-btn" id="btnList" data-key="KeyL" data-i18n-title="ctrl.list" title="句子列表">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="0.5"/><circle cx="4" cy="12" r="0.5"/><circle cx="4" cy="18" r="0.5"/></svg>
                         <kbd>L</kbd>
@@ -339,7 +339,6 @@
                         <button class="m-mode-tab-slim" id="btnModeStudy" data-mode="study" data-i18n="mobile.mode.study">三遍复读</button>
                         <button class="m-mode-tab-slim" id="btnModeFollow" data-mode="follow" data-i18n="mobile.mode.follow">影子跟读</button>
                     </div>
-                    <button class="m-slim-btn m-roman-btn" id="mBtnRoman" title="拼音" style="display:none;">拼</button>
                     <button class="m-slim-btn m-list-btn" id="mBtnList" data-i18n-title="ctrl.list" title="句子列表">☰</button>
                 </div>
                 <!-- 速度选择弹出 -->
