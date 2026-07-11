@@ -3,7 +3,7 @@
 
 支持语言：
   zh → 拼音（带声调，pypinyin）
-  th → 带音调标记的罗马拼音（Gemini 批量生成）
+  th → 带音调标记的罗马拼音（Gemini 优先；失败时降级 pythainlp RTGS）
 
 其他语言不处理，romanization 字段留空。
 """
@@ -20,61 +20,83 @@ def _romanize_zh(text):
         return ""
 
 
+def _romanize_th_pythainlp(texts):
+    """fallback: pythainlp RTGS（无音调标记，但本地可靠）"""
+    try:
+        from pythainlp.transliterate import romanize
+        out = []
+        for t in texts:
+            try:
+                out.append(romanize(t, engine="royin") if t.strip() else "")
+            except Exception:
+                out.append("")
+        return out
+    except Exception as e:
+        print(f"[romanize] pythainlp fallback error: {e}")
+        return [""] * len(texts)
+
+
 def _romanize_th_batch(texts):
     """用 Gemini 为泰语文本批量生成带音调标记的罗马拼音。
+    Gemini 失败时降级到 pythainlp RTGS（无音调，但保证有输出）。
 
-    音调标记规则（标在主元音上）：
+    Gemini 音调标记规则（标在主元音上）：
       中调  无标记   ma
       低调  grave   mà
       降调  circumflex  mâ
       高调  acute   má
       升调  caron   mǎ
     """
-    try:
-        from tts import _gemini_request
-    except ImportError as e:
-        print(f"[romanize] Gemini import error: {e}")
-        return [""] * len(texts)
-
     # 过滤空文本，记录原始索引
     indexed = [(i, t) for i, t in enumerate(texts) if t.strip()]
     if not indexed:
         return [""] * len(texts)
 
-    input_json = json.dumps([t for _, t in indexed], ensure_ascii=False)
-    prompt = (
-        "You are a Thai phonetics expert. Romanize each Thai string with tone marks on the main vowel:\n"
-        "  mid=no mark, low=grave(à), falling=circumflex(â), high=acute(á), rising=caron(ǎ)\n"
-        "Use hyphens between syllables; keep words separated by spaces.\n"
-        "Return ONLY a JSON array of strings in the same order as the input. No explanation.\n\n"
-        f"Input: {input_json}"
-    )
-
+    # ── 尝试 Gemini ──────────────────────────────────────────────
     try:
+        from tts import _gemini_request
+
+        input_json = json.dumps([t for _, t in indexed], ensure_ascii=False)
+        prompt = (
+            "You are a Thai phonetics expert. Romanize each Thai string with tone marks on the main vowel:\n"
+            "  mid=no mark, low=grave(à), falling=circumflex(â), high=acute(á), rising=caron(ǎ)\n"
+            "Use hyphens between syllables; keep words separated by spaces.\n"
+            "Return ONLY a JSON array of strings in the same order as the input. No explanation.\n\n"
+            f"Input: {input_json}"
+        )
         result = _gemini_request(
             "gemini-2.0-flash",
             {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.1},
             },
-            timeout=45,
+            timeout=30,
+            max_retries=2,          # 减少重试次数，失败快速降级
             tag="Romanize-TH",
         )
         content = result["candidates"][0]["content"]["parts"][0]["text"].strip()
         m = re.search(r"\[.*\]", content, re.DOTALL)
         if not m:
-            print(f"[romanize] th: no JSON array in response")
-            return [""] * len(texts)
+            raise ValueError(f"no JSON array in Gemini response: {content[:200]}")
         romanized = json.loads(m.group())
-    except Exception as e:
-        print(f"[romanize] th Gemini error: {e}")
-        return [""] * len(texts)
+        if not isinstance(romanized, list) or len(romanized) != len(indexed):
+            raise ValueError(f"unexpected Gemini array length: got {len(romanized)}, expected {len(indexed)}")
 
-    # 映射回原始位置
-    out = [""] * len(texts)
-    for (orig_i, _), rom in zip(indexed, romanized):
-        out[orig_i] = rom if isinstance(rom, str) else ""
-    return out
+        # 映射回原始位置（Gemini 成功）
+        out = [""] * len(texts)
+        for (orig_i, _), rom in zip(indexed, romanized):
+            out[orig_i] = rom if isinstance(rom, str) else ""
+        print(f"[romanize] th Gemini OK: {len(indexed)} segments")
+        return out
+
+    except Exception as e:
+        print(f"[romanize] th Gemini failed ({e}), falling back to pythainlp RTGS")
+
+    # ── Fallback: pythainlp RTGS ─────────────────────────────────
+    all_rtgs = _romanize_th_pythainlp(texts)
+    non_empty = sum(1 for x in all_rtgs if x)
+    print(f"[romanize] pythainlp RTGS: {non_empty}/{len(texts)} segments romanized")
+    return all_rtgs
 
 
 def generate_romanization(segments, language):
