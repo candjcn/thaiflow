@@ -357,9 +357,9 @@ mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(opt => {
         // 遍数与模式按钮完全独立，不退出复读模式
         repeatCountSelect.value = val;
         if (val === "9999") {
-            mRepeatBtn.textContent = "\u221E";
+            mRepeatBtn.textContent = "↺ \u221E";
         } else {
-            mRepeatBtn.textContent = val + t("ctrl.repeat.unit");
+            mRepeatBtn.textContent = "↺ " + val;
         }
         mRepeatPicker.querySelectorAll(".m-picker-opt").forEach(o => o.classList.remove("active"));
         opt.classList.add("active");
