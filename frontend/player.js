@@ -4034,6 +4034,7 @@ function playbackRecording() {
     }
 
     stopPlayback(); // 清理上一次残留状态
+    btnFrRecord.classList.remove("on"); // 确保录音按钮不红（onstop 可能还未执行）
     frAudioPlayer = new Audio(URL.createObjectURL(frRecordedBlob));
     btnFrPlayback.classList.add("on");
 
