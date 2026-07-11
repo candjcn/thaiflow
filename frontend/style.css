@@ -1085,8 +1085,15 @@ video {
     letter-spacing: 0.02em;
     margin-top: 1px;
     margin-bottom: 1px;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: grab;
     user-select: none;
+    touch-action: none;
+    will-change: transform;
+}
+
+.subtitle-romanization.sub-grabbing {
+    cursor: grabbing;
 }
 
 .subtitle-translation {

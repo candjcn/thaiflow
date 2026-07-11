@@ -3161,12 +3161,14 @@ function hideWordPopup() {
 }
 
 // ========== 字幕拖动定位 ==========
-let subtitleDragY = { original: 0, translation: 0 };
+let subtitleDragY = { original: 0, translation: 0, romanization: 0 };
 let subDragActive = false; // 拖动结束后短暂屏蔽 click
 
 function applySubtitleDragPos() {
     subtitleOriginal.style.transform = subtitleDragY.original
         ? `translateY(${subtitleDragY.original}px)` : "";
+    subtitleRomanization.style.transform = subtitleDragY.romanization
+        ? `translateY(${subtitleDragY.romanization}px)` : "";
     subtitleTranslation.style.transform = subtitleDragY.translation
         ? `translateY(${subtitleDragY.translation}px)` : "";
 }
@@ -3174,7 +3176,7 @@ function applySubtitleDragPos() {
 function saveSubtitleDragPos() {
     if (!currentVideoName) return;
     const storKey = `subtitle_pos_${currentVideoName}`;
-    if (!subtitleDragY.original && !subtitleDragY.translation) {
+    if (!subtitleDragY.original && !subtitleDragY.translation && !subtitleDragY.romanization) {
         localStorage.removeItem(storKey);
     } else {
         localStorage.setItem(storKey, JSON.stringify(subtitleDragY));
@@ -3182,11 +3184,11 @@ function saveSubtitleDragPos() {
 }
 
 function loadSubtitleDragPos() {
-    subtitleDragY = { original: 0, translation: 0 };
+    subtitleDragY = { original: 0, translation: 0, romanization: 0 };
     if (currentVideoName) {
         try {
             const s = localStorage.getItem(`subtitle_pos_${currentVideoName}`);
-            if (s) subtitleDragY = JSON.parse(s);
+            if (s) Object.assign(subtitleDragY, JSON.parse(s));
         } catch (e) { /* ignore */ }
     }
     applySubtitleDragPos();
@@ -3244,6 +3246,7 @@ function initSubtitleDrag(el, key) {
 }
 
 initSubtitleDrag(subtitleOriginal, "original");
+initSubtitleDrag(subtitleRomanization, "romanization");
 initSubtitleDrag(subtitleTranslation, "translation");
 
 // 事件委托：点击字幕词（暂停视频 + 弹出释义）
