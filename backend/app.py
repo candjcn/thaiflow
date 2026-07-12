@@ -6,7 +6,7 @@ import subprocess
 import threading
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
-from dotenv import load_dotenv
+from config import settings, providers, get_logger
 from transcribe import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps, get_video_duration
 from translate import translate_segments
 from romanize import generate_romanization
@@ -15,7 +15,7 @@ from pronounce import assess_pronunciation
 from tts import generate_audio_lesson, generate_cover_image, ocr_image
 from r2 import upload_audio
 
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+logger = get_logger(__name__)
 
 app = Flask(__name__)
 CORS(app)
@@ -32,8 +32,8 @@ def set_cache_headers(response):
         response.headers["Cache-Control"] = "public, max-age=86400"
     return response
 
-VIDEOS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "videos")
-FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+VIDEOS_DIR   = settings.VIDEOS_DIR
+FRONTEND_DIR = settings.FRONTEND_DIR
 
 
 def clean_video_title(title):
@@ -57,7 +57,7 @@ def subtitle_path(video_name):
 
 
 # ========== 使用日志（开发者分析用） ==========
-USAGE_LOG = os.path.join(VIDEOS_DIR, "usage_log.jsonl")
+USAGE_LOG = settings.USAGE_LOG
 
 
 def log_event(kind, **data):
@@ -69,7 +69,7 @@ def log_event(kind, **data):
         **data,
     }
     line = json.dumps(record, ensure_ascii=False)
-    print(f"[USAGE] {line}", flush=True)
+    logger.info(f"[USAGE] {line}")
     try:
         os.makedirs(VIDEOS_DIR, exist_ok=True)
         with open(USAGE_LOG, "a", encoding="utf-8") as f:
@@ -91,13 +91,14 @@ def normalize_audio(video_path):
         tmp_path,
     ]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=settings.TIMEOUT_FFMPEG_NORMALIZE)
         if r.returncode == 0 and os.path.getsize(tmp_path) > 0:
             os.replace(tmp_path, video_path)
             return True
-        print(f"[Normalize] 失败: {r.stderr[-200:]}")
+        logger.warning(f"[Normalize] 失败: {r.stderr[-200:]}")
     except Exception as e:
-        print(f"[Normalize] 异常: {e}")
+        logger.error(f"[Normalize] 异常: {e}")
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
@@ -108,7 +109,7 @@ def normalize_audio(video_path):
 @app.route("/api/admin/logs")
 def admin_logs():
     """开发者查看使用日志（需要 ADMIN_KEY）"""
-    admin_key = os.environ.get("ADMIN_KEY", "")
+    admin_key = settings.ADMIN_KEY
     if not admin_key or request.args.get("key") != admin_key:
         return jsonify({"error": "unauthorized"}), 403
     events = []
@@ -128,14 +129,14 @@ def admin_logs():
 def admin_gemini_models():
     """列出当前 GEMINI_API_KEY 可用的模型（诊断用）"""
     import requests as _req
-    key = os.environ.get("GEMINI_API_KEY", "")
+    key = providers.Gemini.API_KEY
     if not key:
         return jsonify({"error": "no GEMINI_API_KEY"}), 500
     results = {}
-    for ver in ("v1", "v1beta"):
-        url = f"https://generativelanguage.googleapis.com/{ver}/models?key={key}"
+    for ver, base in (("v1", providers.Gemini.BASE_V1), ("v1beta", providers.Gemini.BASE_V1BETA)):
+        url = f"{base}/models?key={key}"
         try:
-            r = _req.get(url, timeout=10)
+            r = _req.get(url, timeout=settings.TIMEOUT_GEMINI_MODELS)
             if r.status_code == 200:
                 names = [m["name"] for m in r.json().get("models", [])]
                 results[ver] = names
@@ -150,24 +151,23 @@ def admin_gemini_models():
 def admin_gemini_test():
     """直接测试 generateContent，看 key 是否真的能生成内容（诊断用）"""
     import requests as _req
-    key = os.environ.get("GEMINI_API_KEY", "")
+    key = providers.Gemini.API_KEY
     key_prefix = key[:12] + "..." if len(key) > 12 else key
     results = {"key_prefix": key_prefix, "key_length": len(key), "tests": {}}
-    for ver in ("v1",):
-        for model in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"):
-            label = f"{ver}/{model}"
-            url = f"https://generativelanguage.googleapis.com/{ver}/models/{model}:generateContent?key={key}"
-            try:
-                r = _req.post(url, json={
-                    "contents": [{"parts": [{"text": "Say hi"}]}],
-                    "generationConfig": {"maxOutputTokens": 5},
-                }, timeout=20)
-                if r.status_code == 200:
-                    results["tests"][label] = "OK"
-                else:
-                    results["tests"][label] = f"HTTP {r.status_code}: {r.text[:200]}"
-            except Exception as e:
-                results["tests"][label] = f"Exception: {e}"
+    for model in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"):
+        label = f"v1/{model}"
+        url = f"{providers.Gemini.BASE_V1}/models/{model}:generateContent?key={key}"
+        try:
+            r = _req.post(url, json={
+                "contents": [{"parts": [{"text": "Say hi"}]}],
+                "generationConfig": {"maxOutputTokens": 5},
+            }, timeout=settings.TIMEOUT_GEMINI_TEST)
+            if r.status_code == 200:
+                results["tests"][label] = "OK"
+            else:
+                results["tests"][label] = f"HTTP {r.status_code}: {r.text[:200]}"
+        except Exception as e:
+            results["tests"][label] = f"Exception: {e}"
     return jsonify(results)
 
 
@@ -276,10 +276,10 @@ def api_download_video():
 
     def ytdlp_cookie_args():
         """YouTube 数据中心 IP 反爬兜底：支持通过环境变量注入 cookies"""
-        cookies = os.environ.get("YOUTUBE_COOKIES", "")
+        cookies = settings.YOUTUBE_COOKIES
         if not cookies:
             return []
-        cookie_file = os.path.join(os.path.dirname(__file__), ".yt_cookies.txt")
+        cookie_file = settings.YT_COOKIES_FILE
         try:
             with open(cookie_file, "w", encoding="utf-8") as f:
                 f.write(cookies)
@@ -295,7 +295,7 @@ def api_download_video():
             # 先获取视频标题和时长
             info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
             info_result = subprocess.run(
-                info_cmd, capture_output=True, text=True, timeout=30
+                info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
             )
             if info_result.returncode != 0 and (
                 "Sign in" in info_result.stderr or "cookies" in info_result.stderr
@@ -305,7 +305,7 @@ def api_download_video():
                 extra_args = cookie_args + ["--extractor-args", "youtube:player_client=tv,web_embedded"]
                 info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
                 info_result = subprocess.run(
-                    info_cmd, capture_output=True, text=True, timeout=30
+                    info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
                 )
             if info_result.returncode != 0:
                 err = info_result.stderr[-300:]
@@ -602,7 +602,7 @@ def api_retranscribe():
                 if translated:
                     translation = translated[0].get("translation", "")
             except Exception as te:
-                print(f"[Retranscribe] 翻译失败: {te}")
+                logger.warning(f"[Retranscribe] 翻译失败: {te}")
 
         log_event("retranscribe", video=video_name, provider=provider,
                   range=f"{start:.1f}-{end:.1f}", language=language)
@@ -661,7 +661,7 @@ def api_retranscribe_audio():
                 if translated:
                     translation = translated[0].get("translation", "")
             except Exception as te:
-                print(f"[RetranscribeAudio] 翻译失败: {te}")
+                logger.warning(f"[RetranscribeAudio] 翻译失败: {te}")
 
         log_event("retranscribe_audio", provider=provider, language=language)
         return jsonify({"text": text, "translation": translation})
@@ -742,7 +742,7 @@ def api_tts_generate():
                     if idx is not None and 0 <= idx < len(segments):
                         segments[idx]["translation"] = tr.get("translation", "")
             except Exception as te:
-                print(f"[TTS] 翻译失败: {te}")
+                logger.warning(f"[TTS] 翻译失败: {te}")
 
         # 封面插画（卡通风格，根据文本内容生成；失败不影响主流程）
         cover_name = os.path.splitext(audio_name)[0] + ".jpg"
@@ -829,7 +829,7 @@ def api_word_define():
     if not word:
         return jsonify({"error": "缺少 word 参数"}), 400
 
-    api_key = os.getenv("DEEPSEEK_API_KEY")
+    api_key = providers.DeepSeek.API_KEY
     if not api_key:
         return jsonify({"error": "未配置 DEEPSEEK_API_KEY"}), 500
 
@@ -845,10 +845,10 @@ def api_word_define():
     try:
         import requests as req
         resp = req.post(
-            "https://api.deepseek.com/chat/completions",
+            providers.DeepSeek.BASE_URL,
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.2},
-            timeout=15,
+            json={"model": providers.DeepSeek.MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2},
+            timeout=settings.TIMEOUT_WORD_DEFINE,
         )
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"].strip()
@@ -858,11 +858,11 @@ def api_word_define():
         result = _json.loads(content)
         return jsonify(result)
     except Exception as e:
-        print(f"[WordDefine] 失败: {e}")
+        logger.error(f"[WordDefine] 失败: {e}")
         return jsonify({"error": str(e)}), 500
 
 
-EXPORT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "exports")
+EXPORT_DIR = settings.EXPORTS_DIR
 
 
 @app.route("/api/export-srt", methods=["POST"])
@@ -960,7 +960,7 @@ def api_export():
     return Response(generate(), mimetype="text/event-stream")
 
 
-UPLOAD_TMP = os.path.join(os.path.dirname(__file__), "tmp")
+UPLOAD_TMP = settings.TMP_DIR
 
 
 @app.route("/api/pronounce", methods=["POST"])
@@ -1075,5 +1075,4 @@ def api_bookmark_audio():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host="0.0.0.0", port=port)
+    app.run(debug=True, host="0.0.0.0", port=settings.PORT)

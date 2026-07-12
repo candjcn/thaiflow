@@ -1,7 +1,9 @@
 import os
-import json
 import subprocess
 import azure.cognitiveservices.speech as speechsdk
+from config import providers, get_logger
+
+logger = get_logger(__name__)
 
 
 def convert_to_wav(input_path, output_path):
@@ -30,8 +32,8 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
         words: [{ word, accuracy_score, error_type }, ...]
     }
     """
-    speech_key = os.environ.get("AZURE_SPEECH_KEY", "")
-    speech_region = os.environ.get("AZURE_SPEECH_REGION", "")
+    speech_key    = providers.Azure.SPEECH_KEY
+    speech_region = providers.Azure.SPEECH_REGION
 
     if not speech_key or not speech_region:
         raise RuntimeError("请在 .env 中配置 AZURE_SPEECH_KEY 和 AZURE_SPEECH_REGION")
@@ -42,8 +44,8 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
 
     # 检查 WAV 文件大小
     wav_size = os.path.getsize(wav_path) if os.path.exists(wav_path) else 0
-    print(f"[Pronounce] wav_size={wav_size} bytes, language={language}")
-    print(f"[Pronounce] reference_text={reference_text[:80]}")
+    logger.debug(f"[Pronounce] wav_size={wav_size} bytes, language={language}")
+    logger.debug(f"[Pronounce] reference_text={reference_text[:80]}")
 
     if wav_size < 1000:
         raise RuntimeError("录音太短，请重新录音")
@@ -75,15 +77,17 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
 
         result = recognizer.recognize_once_async().get()
 
-        print(f"[Pronounce] language={language}, ref_text={reference_text[:50]}")
-        print(f"[Pronounce] result.reason={result.reason}, text={result.text if hasattr(result, 'text') else 'N/A'}")
+        logger.debug(f"[Pronounce] language={language}, ref_text={reference_text[:50]}")
+        logger.debug(f"[Pronounce] result.reason={result.reason}, text={result.text if hasattr(result, 'text') else 'N/A'}")
 
         if result.reason == speechsdk.ResultReason.RecognizedSpeech:
             pron_result = speechsdk.PronunciationAssessmentResult(result)
 
-            print(f"[Pronounce] scores: pron={pron_result.pronunciation_score}, "
-                  f"acc={pron_result.accuracy_score}, flu={pron_result.fluency_score}, "
-                  f"comp={pron_result.completeness_score}")
+            logger.debug(
+                f"[Pronounce] scores: pron={pron_result.pronunciation_score}, "
+                f"acc={pron_result.accuracy_score}, flu={pron_result.fluency_score}, "
+                f"comp={pron_result.completeness_score}"
+            )
 
             # 提取每个词的评分
             words = []
@@ -106,7 +110,7 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
 
         elif result.reason == speechsdk.ResultReason.NoMatch:
             details = result.no_match_details if hasattr(result, 'no_match_details') else None
-            print(f"[Pronounce] NoMatch: {details}")
+            logger.warning(f"[Pronounce] NoMatch: {details}")
             return {
                 "recognized_text": "",
                 "overall_score": 0,
@@ -118,12 +122,12 @@ def assess_pronunciation(audio_path, reference_text, language="th-TH"):
             }
         elif result.reason == speechsdk.ResultReason.Canceled:
             cancellation = result.cancellation_details
-            print(f"[Pronounce] Canceled: {cancellation.reason} - {cancellation.error_details}")
+            logger.error(f"[Pronounce] Canceled: {cancellation.reason} - {cancellation.error_details}")
             raise RuntimeError(
                 f"语音识别失败: {cancellation.reason} - {cancellation.error_details}"
             )
         else:
-            print(f"[Pronounce] Unknown reason: {result.reason}")
+            logger.warning(f"[Pronounce] Unknown reason: {result.reason}")
             raise RuntimeError(f"语音识别返回未知状态: {result.reason}")
     finally:
         if os.path.exists(wav_path):

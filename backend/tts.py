@@ -11,9 +11,13 @@ import subprocess
 import tempfile
 
 import requests
+from config import settings, providers, get_logger
 
-GEMINI_URL    = "https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={key}"
-GEMINI_URL_BETA = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+logger = get_logger(__name__)
+
+# URL 模板来自 providers（保持模块内变量名不变，外部模块通过 url_tpl 参数引用）
+GEMINI_URL      = providers.Gemini.URL_V1
+GEMINI_URL_BETA = providers.Gemini.URL_V1BETA
 
 # Gemini 预置声音（多语言通用）
 GEMINI_VOICES = {
@@ -39,7 +43,7 @@ AZURE_VOICES = {
 
 
 def _gemini_key():
-    key = os.environ.get("GEMINI_API_KEY", "")
+    key = settings.GEMINI_API_KEY
     if not key:
         raise RuntimeError("请配置 GEMINI_API_KEY")
     return key
@@ -66,12 +70,12 @@ def _gemini_request(model, payload, timeout=60, max_retries=4, tag="Gemini", url
             last_err = f"{resp.status_code}: {resp.text[:300]}"
             if resp.status_code == 429:
                 wait = 15 * (attempt + 1)
-                print(f"[{tag}] 限流，{wait}s 后重试（{attempt + 1}/{max_retries}）")
+                logger.warning(f"[{tag}] 限流，{wait}s 后重试（{attempt + 1}/{max_retries}）")
                 time.sleep(wait)
                 continue
             if resp.status_code >= 500:
                 wait = 5 * (attempt + 1)
-                print(f"[{tag}] 服务繁忙 {resp.status_code}，{wait}s 后重试（{attempt + 1}/{max_retries}）")
+                logger.warning(f"[{tag}] 服务繁忙 {resp.status_code}，{wait}s 后重试（{attempt + 1}/{max_retries}）")
                 time.sleep(wait)
                 continue
             break  # 其他 4xx（含 404 模型不存在）不重试
@@ -123,11 +127,11 @@ def prepare_script(text, language="th"):
         '{"language": "th", "sentences": [{"text": "...", "speaker": "A", "gender": "female", "emotion": "..."}]}\n\n'
         + text
     )
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+    model = providers.Gemini.TEXT_MODEL
     result = _gemini_request(model, {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0},
-    }, timeout=60, tag="Gemini分句")
+    }, timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="Gemini分句")
     raw = result["candidates"][0]["content"]["parts"][0]["text"].strip()
     if raw.startswith("```"):
         raw = raw.strip("`")
@@ -212,12 +216,12 @@ def _split_long_sentences(script, language):
         "Return ONLY a JSON array of arrays: element i is the ordered list of "
         "chunks for input line i.\n\n" + numbered
     )
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+    model = providers.Gemini.TEXT_MODEL
     try:
         result = _gemini_request(model, {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0},
-        }, timeout=60, tag="长句拆分")
+        }, timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="长句拆分")
         raw = result["candidates"][0]["content"]["parts"][0]["text"].strip()
         if raw.startswith("```"):
             raw = raw.strip("`")
@@ -225,7 +229,7 @@ def _split_long_sentences(script, language):
                 raw = raw[4:]
         chunk_lists = json.loads(raw)
     except Exception as e:
-        print(f"[SplitLong] 拆分失败，保留原句: {e}")
+        logger.warning(f"[SplitLong] 拆分失败，保留原句: {e}")
         return script
 
     new_script = []
@@ -267,7 +271,7 @@ def _pcm_to_wav(pcm_bytes, sample_rate=24000):
 
 def gemini_tts_sentence(text, voice_slot, emotion, out_path):
     """Gemini TTS 生成单句，带情感指令（内置限流/高负载重试）"""
-    model = os.environ.get("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview")
+    model = providers.Gemini.TTS_MODEL
     voice = GEMINI_VOICES.get(voice_slot, "Kore")
     styled = f"Say in a {emotion} tone: {text}" if emotion else text
     result = _gemini_request(model, {
@@ -278,7 +282,7 @@ def gemini_tts_sentence(text, voice_slot, emotion, out_path):
                 "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}
             },
         },
-    }, timeout=120, tag="GeminiTTS", url_tpl=GEMINI_URL_BETA)
+    }, timeout=settings.TIMEOUT_GEMINI_TTS, tag="GeminiTTS", url_tpl=GEMINI_URL_BETA)
     parts = result["candidates"][0]["content"]["parts"]
     inline = next((p["inlineData"] for p in parts if "inlineData" in p), None)
     if inline is None:
@@ -292,8 +296,8 @@ def azure_tts_sentence(text, voice_slot, language, out_path):
     """Azure Neural TTS 生成单句（16kHz WAV）"""
     import azure.cognitiveservices.speech as speechsdk
 
-    key = os.environ.get("AZURE_SPEECH_KEY", "")
-    region = os.environ.get("AZURE_SPEECH_REGION", "")
+    key    = providers.Azure.SPEECH_KEY
+    region = providers.Azure.SPEECH_REGION
     if not key or not region:
         raise RuntimeError("请配置 AZURE_SPEECH_KEY/REGION")
 
@@ -327,8 +331,8 @@ def _wav_duration(path):
 
 # ========== 有道 Confucius TTS（Gradio 会话协议 + 声音克隆） ==========
 
-YOUDAO_BASE = "https://confucius4-tts.youdao.com/gradio"
-ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+YOUDAO_BASE = providers.Youdao.BASE_URL
+ASSETS_DIR  = settings.ASSETS_DIR
 YOUDAO_REFS = {"male": "ref_thai_male.wav", "female": "ref_thai_female.wav"}
 
 
@@ -339,12 +343,12 @@ class YoudaoTTS:
     def __init__(self):
         self.sessions = {}  # gender -> (session_hash, file_data)
 
-    def _run(self, session, fn_index, trigger_id, data, timeout=300):
+    def _run(self, session, fn_index, trigger_id, data, timeout=settings.TIMEOUT_YOUDAO_DEFAULT):
         import secrets
         r = requests.post(f"{YOUDAO_BASE}/queue/join", json={
             "data": data, "event_data": None, "fn_index": fn_index,
             "trigger_id": trigger_id, "session_hash": session,
-        }, timeout=30)
+        }, timeout=settings.TIMEOUT_YOUDAO_QUEUE)
         if r.status_code != 200:
             raise RuntimeError(f"有道 TTS 排队失败 {r.status_code}")
         with requests.get(f"{YOUDAO_BASE}/queue/data?session_hash={session}",
@@ -369,7 +373,8 @@ class YoudaoTTS:
             raise RuntimeError(f"缺少参考音频: {ref_file}")
         with open(ref_file, "rb") as f:
             r = requests.post(f"{YOUDAO_BASE}/upload",
-                              files={"files": ("ref.wav", f, "audio/wav")}, timeout=60)
+                              files={"files": ("ref.wav", f, "audio/wav")},
+                              timeout=settings.TIMEOUT_YOUDAO_UPLOAD)
         if r.status_code != 200:
             raise RuntimeError(f"参考音频上传失败 {r.status_code}")
         path = r.json()[0]
@@ -379,7 +384,7 @@ class YoudaoTTS:
             "mime_type": "audio/wav", "meta": {"_type": "gradio.FileData"},
         }
         session = secrets.token_hex(8)
-        self._run(session, 0, 6, [fdata], timeout=120)  # 触发参考音频预处理
+        self._run(session, 0, 6, [fdata], timeout=settings.TIMEOUT_YOUDAO_SESSION)  # 触发参考音频预处理
         self.sessions[gender] = (session, fdata)
 
     def tts_sentence(self, text, language, gender, out_path):
@@ -389,7 +394,7 @@ class YoudaoTTS:
         data = out.get("data")
         if not data or not data[0]:
             raise RuntimeError(f"有道 TTS 合成失败: {str(data)[:120]}")
-        audio = requests.get(data[0]["url"], timeout=60).content
+        audio = requests.get(data[0]["url"], timeout=settings.TIMEOUT_YOUDAO_AUDIO).content
         tmp = out_path + ".dl"
         with open(tmp, "wb") as f:
             f.write(audio)
@@ -408,7 +413,7 @@ class YoudaoTTS:
 
 def ocr_image(image_bytes, mime_type="image/png", language=""):
     """识别图片中的文字（隐藏测试功能：粘贴文本框支持直接贴图）"""
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+    model = providers.Gemini.TEXT_MODEL
     lang_name = {"th": "Thai", "en": "English"}.get((language or "")[:2].lower(), "")
     lang_hint = f"The text is mainly in {lang_name}. " if lang_name else ""
     prompt = (
@@ -425,7 +430,7 @@ def ocr_image(image_bytes, mime_type="image/png", language=""):
             ]
         }],
         "generationConfig": {"temperature": 0},
-    }, timeout=60, tag="OCR")
+    }, timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="OCR")
     parts = result["candidates"][0]["content"]["parts"]
     return "".join(p.get("text", "") for p in parts).strip()
 
@@ -434,7 +439,7 @@ def ocr_image(image_bytes, mime_type="image/png", language=""):
 
 def generate_cover_image(text, language, out_path):
     """根据文本内容生成一张卡通风格封面插画。失败时返回 False，不影响主流程。"""
-    model = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-lite-image")
+    model = providers.Gemini.IMAGE_MODEL
     lang_name = {"th": "Thai", "en": "English"}.get(language, "")
     prompt = (
         "Create ONE simple, warm, flat-design cartoon illustration that captures "
@@ -448,7 +453,7 @@ def generate_cover_image(text, language, out_path):
         result = _gemini_request(model, {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
-        }, timeout=90, max_retries=2, tag="Cover", url_tpl=GEMINI_URL_BETA)
+        }, timeout=settings.TIMEOUT_GEMINI_COVER, max_retries=2, tag="Cover", url_tpl=GEMINI_URL_BETA)
         for part in result["candidates"][0]["content"]["parts"]:
             inline = part.get("inlineData")
             if inline and inline.get("mimeType", "").startswith("image/"):
@@ -463,10 +468,10 @@ def generate_cover_image(text, language, out_path):
                     with open(out_path, "wb") as f:
                         f.write(img_bytes)
                 return True
-        print("[Cover] 返回中没有图片")
+        logger.warning("[Cover] 返回中没有图片")
         return False
     except Exception as e:
-        print(f"[Cover] 生成失败: {e}")
+        logger.warning(f"[Cover] 生成失败: {e}")
         return False
 
 
@@ -519,13 +524,13 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None):
                     else:  # gemini
                         gemini_tts_sentence(item["text"], slot, item["emotion"], clip)
                     if eng != current_engine:
-                        print(f"[TTS] 第{i+1}句起自动切换至 {eng}（{current_engine} 失败）")
+                        logger.info(f"[TTS] 第{i+1}句起自动切换至 {eng}（{current_engine} 失败）")
                         current_engine = eng  # 后续句子也用新引擎
                     last_err = None
                     break
                 except Exception as e:
                     last_err = e
-                    print(f"[TTS] {eng} 引擎第{i+1}句失败: {e}")
+                    logger.warning(f"[TTS] {eng} 引擎第{i+1}句失败: {e}")
 
             if last_err:
                 raise RuntimeError(f"所有 TTS 引擎均失败（第{i+1}句）: {last_err}")

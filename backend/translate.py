@@ -1,6 +1,6 @@
-import os
 import json
 import requests
+from config import providers, settings
 
 # 中文系目标语言 → DeepSeek；来源是中文 → DeepSeek；其他 → Gemini
 _CHINESE_TARGETS = {"中文", "繁體中文"}
@@ -37,22 +37,22 @@ def _parse_translations(content, segments):
 
 
 def _translate_deepseek(segments, source_lang, target_lang):
-    api_key = os.getenv("DEEPSEEK_API_KEY")
+    api_key = providers.DeepSeek.API_KEY
     if not api_key:
         raise ValueError("未配置 DEEPSEEK_API_KEY")
     prompt = _build_prompt(segments, source_lang, target_lang)
     response = requests.post(
-        "https://api.deepseek.com/chat/completions",
+        providers.DeepSeek.BASE_URL,
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
         json={
-            "model": "deepseek-chat",
+            "model": providers.DeepSeek.MODEL,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
         },
-        timeout=30,
+        timeout=settings.TIMEOUT_TRANSLATE,
     )
     response.raise_for_status()
     content = response.json()["choices"][0]["message"]["content"]
@@ -63,12 +63,12 @@ def _translate_gemini(segments, source_lang, target_lang):
     from tts import _gemini_request
     prompt = _build_prompt(segments, source_lang, target_lang)
     result = _gemini_request(
-        "gemini-3.1-flash-lite",
+        providers.Gemini.TEXT_MODEL,
         {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.3},
         },
-        timeout=30,
+        timeout=settings.TIMEOUT_TRANSLATE,
         tag="Gemini翻译",
     )
     content = result["candidates"][0]["content"]["parts"][0]["text"]

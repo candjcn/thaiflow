@@ -5,6 +5,9 @@ import subprocess
 import tempfile
 import threading
 from openai import OpenAI
+from config import settings, providers, get_logger
+
+logger = get_logger(__name__)
 
 
 def _safe_wav_path(video_path, suffix):
@@ -22,7 +25,7 @@ def get_video_duration(video_path):
     try:
         r = subprocess.run(
             ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", video_path],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, timeout=settings.TIMEOUT_FFPROBE,
         )
         if r.returncode == 0:
             return float(json.loads(r.stdout).get("format", {}).get("duration", 0))
@@ -52,7 +55,7 @@ def _transcribe_wav_openai(client, wav_path):
     """用 OpenAI whisper-1 识别一段 WAV，返回 (segments_raw, words_raw, language)"""
     with open(wav_path, "rb") as f:
         result = client.audio.transcriptions.create(
-            model="whisper-1",
+            model=providers.OpenAI.WHISPER_MODEL,
             file=f,
             response_format="verbose_json",
             timestamp_granularities=["segment", "word"],
@@ -66,7 +69,7 @@ def _transcribe_wav_groq(client, wav_path):
     """用 Groq whisper-large-v3 识别一段 WAV，返回 (segments_raw, words_raw, language)"""
     with open(wav_path, "rb") as f:
         result = client.audio.transcriptions.create(
-            model="whisper-large-v3",
+            model=providers.Groq.WHISPER_MODEL,
             file=f,
             response_format="verbose_json",
             timestamp_granularities=["segment", "word"],
@@ -119,16 +122,16 @@ def transcribe_chunked(video_path, provider, duration, progress_callback=None):
     total = len(chunk_starts)
 
     if provider == "openai":
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = providers.OpenAI.API_KEY
         if not api_key:
             raise ValueError("未配置 OPENAI_API_KEY")
-        client = OpenAI(api_key=api_key.strip(), timeout=300.0)
+        client = OpenAI(api_key=api_key.strip(), timeout=settings.TIMEOUT_OPENAI)
         transcribe_fn = _transcribe_wav_openai
     else:  # groq
-        api_key = os.getenv("GROQ_API_KEY")
+        api_key = providers.Groq.API_KEY
         if not api_key:
             raise ValueError("未配置 GROQ_API_KEY")
-        client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+        client = OpenAI(api_key=api_key, base_url=providers.Groq.BASE_URL)
         transcribe_fn = _transcribe_wav_groq
 
     all_segments = []
@@ -328,16 +331,16 @@ def _split_text(text, target_len):
 # ========== Groq Whisper ==========
 
 def transcribe_groq(video_path):
-    client = OpenAI(
-        api_key=os.getenv("GROQ_API_KEY"),
-        base_url="https://api.groq.com/openai/v1",
-    )
-    if not os.getenv("GROQ_API_KEY"):
+    if not providers.Groq.API_KEY:
         raise ValueError("未配置 GROQ_API_KEY")
+    client = OpenAI(
+        api_key=providers.Groq.API_KEY,
+        base_url=providers.Groq.BASE_URL,
+    )
 
     with open(video_path, "rb") as f:
         result = client.audio.transcriptions.create(
-            model="whisper-large-v3",
+            model=providers.Groq.WHISPER_MODEL,
             file=f,
             response_format="verbose_json",
             timestamp_granularities=["segment", "word"],
@@ -356,7 +359,7 @@ def transcribe_groq(video_path):
         logprob = seg_dict.get("avg_logprob")
         no_speech = seg_dict.get("no_speech_prob")
         if i == 0:
-            print(f"[Groq] segment fields: {list(seg_dict.keys())}")
+            logger.debug(f"[Groq] segment fields: {list(seg_dict.keys())}")
         if logprob is not None:
             s["_logprob"] = round(float(logprob), 4)
         if no_speech is not None:
@@ -390,11 +393,11 @@ def transcribe_groq(video_path):
 def transcribe_openai(video_path):
     """使用 OpenAI 官方 Whisper-1 模型进行语音识别。
     提取 WAV 音频（16kHz 单声道，通常 <10MB）避免超 OpenAI 25MB 限制。"""
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = providers.OpenAI.API_KEY
     if not api_key:
         raise ValueError("未配置 OPENAI_API_KEY")
 
-    client = OpenAI(api_key=api_key, timeout=300.0)
+    client = OpenAI(api_key=api_key, timeout=settings.TIMEOUT_OPENAI)
 
     # 提取 WAV 音频（16kHz 单声道，用独立 tmp 路径避免与 Azure 冲突）
     wav_path = _safe_wav_path(video_path, "openai")
@@ -408,7 +411,7 @@ def transcribe_openai(video_path):
     try:
         with open(wav_path, "rb") as f:
             result = client.audio.transcriptions.create(
-                model="whisper-1",
+                model=providers.OpenAI.WHISPER_MODEL,
                 file=f,
                 response_format="verbose_json",
                 timestamp_granularities=["segment", "word"],
@@ -474,7 +477,7 @@ def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
                                     progress_callback=None):
     """对 OpenAI 低置信度的句子，用 Groq whisper 重新识别并替换文本。
     时间戳保留 OpenAI 的（更精准），只替换识别文字。"""
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = providers.Groq.API_KEY
     if not api_key:
         return
 
@@ -485,8 +488,8 @@ def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
     if progress_callback:
         progress_callback(f"发现 {len(low_conf)} 句置信度偏低，用 Groq 补充识别...")
 
-    groq_client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1",
-                         timeout=60.0)
+    groq_client = OpenAI(api_key=api_key, base_url=providers.Groq.BASE_URL,
+                         timeout=settings.TIMEOUT_GROQ)
     lang_hint = language if language not in ("unknown", "") else None
 
     for seg in low_conf:
@@ -514,7 +517,7 @@ def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
             if r.returncode != 0:
                 continue
 
-            kwargs = dict(model="whisper-large-v3", response_format="text")
+            kwargs = dict(model=providers.Groq.WHISPER_MODEL, response_format="text")
             if lang_hint:
                 kwargs["language"] = lang_hint
 
@@ -523,13 +526,13 @@ def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
 
             new_text = (new_text if isinstance(new_text, str) else "").strip()
             if new_text:
-                print(f"[Retry] {start:.1f}s: {seg['text']!r} → {new_text!r}")
+                logger.info(f"[Retry] {start:.1f}s: {seg['text']!r} → {new_text!r}")
                 seg["text"] = new_text
                 seg.pop("_logprob",   None)
                 seg.pop("_no_speech", None)
 
         except Exception as e:
-            print(f"[Retry] 重识别失败 {start:.1f}s: {e}")
+            logger.warning(f"[Retry] 重识别失败 {start:.1f}s: {e}")
         finally:
             if os.path.exists(wav_path):
                 os.remove(wav_path)
@@ -561,8 +564,8 @@ def extract_audio_wav(video_path):
 def transcribe_azure(video_path):
     import azure.cognitiveservices.speech as speechsdk
 
-    speech_key = os.environ.get("AZURE_SPEECH_KEY", "")
-    speech_region = os.environ.get("AZURE_SPEECH_REGION", "")
+    speech_key    = providers.Azure.SPEECH_KEY
+    speech_region = providers.Azure.SPEECH_REGION
     if not speech_key or not speech_region:
         raise RuntimeError("请在 .env 中配置 AZURE_SPEECH_KEY 和 AZURE_SPEECH_REGION")
 
@@ -621,7 +624,7 @@ def transcribe_azure(video_path):
 
         def on_canceled(evt):
             if evt.cancellation_details.reason == speechsdk.CancellationReason.Error:
-                print(f"Azure Speech 错误: {evt.cancellation_details.error_details}")
+                logger.error(f"Azure Speech 错误: {evt.cancellation_details.error_details}")
             done_event.set()
 
         recognizer.recognized.connect(on_recognized)
@@ -629,7 +632,7 @@ def transcribe_azure(video_path):
         recognizer.canceled.connect(on_canceled)
 
         recognizer.start_continuous_recognition()
-        done_event.wait(timeout=300)
+        done_event.wait(timeout=settings.TIMEOUT_AZURE_RECOGNITION)
         recognizer.stop_continuous_recognition()
 
         for i, seg in enumerate(segments):
@@ -679,11 +682,11 @@ def transcribe_gemini_slice(wav_path, language=None):
     import base64
     import requests
 
-    api_key = os.environ.get("GEMINI_API_KEY", "")
+    api_key = providers.Gemini.API_KEY
     if not api_key:
         raise RuntimeError("请在 .env 中配置 GEMINI_API_KEY（在 aistudio.google.com 免费申请）")
 
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+    model = providers.Gemini.TEXT_MODEL
     short = (language or "")[:2].lower()
     lang_name = LANG_NAME_MAP.get(short, "")
     lang_hint = f"The audio is in {lang_name}. " if lang_name else ""
@@ -706,7 +709,7 @@ def transcribe_gemini_slice(wav_path, language=None):
         "generationConfig": {"temperature": 0},
     }
 
-    data = _gemini_request(model, payload, timeout=60, tag="Gemini识别")
+    data = _gemini_request(model, payload, timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="Gemini识别")
     try:
         text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
     except (KeyError, IndexError):
@@ -796,7 +799,7 @@ def add_word_spacing(texts, language="th"):
             result.append(" ".join(w for w in words if w.strip()))
         return result
     except Exception as e:
-        print(f"[WordSpacing] PyThaiNLP 失败: {e}，返回原文")
+        logger.warning(f"[WordSpacing] PyThaiNLP 失败: {e}，返回原文")
         return texts
 
 
@@ -874,8 +877,8 @@ def transcribe_azure_slice(wav_path, language=None):
     """用 Azure 识别短音频切片，明确指定语言（不用自动检测）"""
     import azure.cognitiveservices.speech as speechsdk
 
-    speech_key = os.environ.get("AZURE_SPEECH_KEY", "")
-    speech_region = os.environ.get("AZURE_SPEECH_REGION", "")
+    speech_key    = providers.Azure.SPEECH_KEY
+    speech_region = providers.Azure.SPEECH_REGION
     if not speech_key or not speech_region:
         raise RuntimeError("请在 .env 中配置 AZURE_SPEECH_KEY 和 AZURE_SPEECH_REGION")
 
@@ -910,7 +913,7 @@ def transcribe_azure_slice(wav_path, language=None):
 
     def on_canceled(evt):
         if evt.cancellation_details.reason == speechsdk.CancellationReason.Error:
-            print(f"Azure Slice 错误: {evt.cancellation_details.error_details}")
+            logger.error(f"Azure Slice 错误: {evt.cancellation_details.error_details}")
         done_event.set()
 
     recognizer.recognized.connect(on_recognized)
@@ -918,7 +921,7 @@ def transcribe_azure_slice(wav_path, language=None):
     recognizer.canceled.connect(on_canceled)
 
     recognizer.start_continuous_recognition()
-    done_event.wait(timeout=120)
+    done_event.wait(timeout=settings.TIMEOUT_AZURE_SLICE)
     recognizer.stop_continuous_recognition()
 
     for i, seg in enumerate(segments):
@@ -1127,7 +1130,7 @@ def align_and_calibrate(groq_segments, azure_full_text, azure_segments=None):
 
         # 泰语安全检查：如果 Azure 文本含无效字符序列（如重复声调符号），拒绝替换
         if not _thai_text_valid(azure_slice):
-            print(f"[Calibrate] #{i} Azure 文本含无效泰语序列，保留 Groq: {azure_slice[:40]}")
+            logger.debug(f"[Calibrate] #{i} Azure 文本含无效泰语序列，保留 Groq: {azure_slice[:40]}")
             seg = dict(seg)
             seg["_conf"] = round(_groq_confidence(seg), 4)
             seg["_source"] = "groq"
@@ -1136,7 +1139,7 @@ def align_and_calibrate(groq_segments, azure_full_text, azure_segments=None):
 
         # Groq 文本也检查
         if not _thai_text_valid(groq_text):
-            print(f"[Calibrate] #{i} Groq 文本含无效泰语序列，用 Azure: {groq_text[:40]}")
+            logger.debug(f"[Calibrate] #{i} Groq 文本含无效泰语序列，用 Azure: {groq_text[:40]}")
             seg = dict(seg)
             seg["text"] = azure_slice
             seg["_conf"] = round(get_azure_conf_for_range(seg["start"], seg["end"]), 4)
@@ -1156,7 +1159,7 @@ def align_and_calibrate(groq_segments, azure_full_text, azure_segments=None):
 
         if lcs_ratio < 0.3:
             # 两边差异太大，不可靠的对齐——保留 Groq（时间戳匹配更好）
-            print(f"[Calibrate] #{i} 差异过大(lcs={lcs_ratio:.2f})，保留 Groq")
+            logger.debug(f"[Calibrate] #{i} 差异过大(lcs={lcs_ratio:.2f})，保留 Groq")
             seg["_conf"] = round(groq_conf, 4)
             seg["_source"] = "groq"
         elif lcs_ratio > 0.9:
@@ -1266,10 +1269,10 @@ def transcribe_combined(video_path):
     if azure_segments[0]:
         azure_full_text = "".join(seg["text"] for seg in azure_segments[0])
         groq_full = "".join(seg["text"] for seg in result["segments"])
-        print(f"[Combined] Groq {len(result['segments'])} segs, "
-              f"Azure {len(azure_segments[0])} segs")
-        print(f"[Combined] Groq text: {groq_full[:100]}")
-        print(f"[Combined] Azure text: {azure_full_text[:100]}")
+        logger.info(f"[Combined] Groq {len(result['segments'])} segs, "
+                    f"Azure {len(azure_segments[0])} segs")
+        logger.debug(f"[Combined] Groq text: {groq_full[:100]}")
+        logger.debug(f"[Combined] Azure text: {azure_full_text[:100]}")
 
         # 逐句置信度择优校准
         result["segments"] = align_and_calibrate(

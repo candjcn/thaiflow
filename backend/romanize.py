@@ -9,6 +9,9 @@
 """
 import json
 import re
+from config import providers, get_logger
+
+logger = get_logger(__name__)
 
 
 def _romanize_zh(text):
@@ -16,7 +19,7 @@ def _romanize_zh(text):
         from pypinyin import lazy_pinyin, Style
         return " ".join(lazy_pinyin(text, style=Style.TONE))
     except Exception as e:
-        print(f"[romanize] zh error: {e}")
+        logger.warning(f"[romanize] zh error: {e}")
         return ""
 
 
@@ -32,7 +35,7 @@ def _romanize_th_pythainlp(texts):
                 out.append("")
         return out
     except Exception as e:
-        print(f"[romanize] pythainlp fallback error: {e}")
+        logger.warning(f"[romanize] pythainlp fallback error: {e}")
         return [""] * len(texts)
 
 
@@ -65,7 +68,7 @@ def _romanize_th_batch(texts):
             f"Input: {input_json}"
         )
         result = _gemini_request(
-            "gemini-3.5-flash",
+            providers.Gemini.ROMANIZE_MODEL,
             {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.1},
@@ -86,16 +89,16 @@ def _romanize_th_batch(texts):
         out = [""] * len(texts)
         for (orig_i, _), rom in zip(indexed, romanized):
             out[orig_i] = rom if isinstance(rom, str) else ""
-        print(f"[romanize] th Gemini OK: {len(indexed)} segments")
+        logger.info(f"[romanize] th Gemini OK: {len(indexed)} segments")
         return out
 
     except Exception as e:
-        print(f"[romanize] th Gemini failed ({e}), falling back to pythainlp RTGS")
+        logger.warning(f"[romanize] th Gemini failed ({e}), falling back to pythainlp RTGS")
 
     # ── Fallback: pythainlp RTGS ─────────────────────────────────
     all_rtgs = _romanize_th_pythainlp(texts)
     non_empty = sum(1 for x in all_rtgs if x)
-    print(f"[romanize] pythainlp RTGS: {non_empty}/{len(texts)} segments romanized")
+    logger.info(f"[romanize] pythainlp RTGS: {non_empty}/{len(texts)} segments romanized")
     return all_rtgs
 
 

@@ -3,6 +3,7 @@ import json
 import re
 import subprocess
 import unicodedata
+from config import settings
 
 
 def format_drawtext_time(seconds):
@@ -48,13 +49,7 @@ def get_video_info(video_path):
 
 def find_font():
     """查找系统中同时支持泰文和中文的字体"""
-    candidates = [
-        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-        "/Library/Fonts/Arial Unicode.ttf",
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Light.ttc",
-    ]
-    for f in candidates:
+    for f in settings.FONT_SEARCH_PATHS:
         if os.path.exists(f):
             return f
     return "Arial"
