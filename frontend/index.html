@@ -105,18 +105,7 @@
                             <button class="tts-img-close" id="ttsImgClose" type="button">✕</button>
                         </div>
 
-                        <!-- AI 生成展开区（默认隐藏，点右上角按钮展开） -->
-                        <div class="tts-ai-panel" id="ttsAiPanel" style="display:none;">
-                            <div class="tts-ai-prompt-wrap">
-                                <input type="text" id="ttsAiPrompt" maxlength="300"
-                                    data-i18n-placeholder="tts.ai.placeholder"
-                                    placeholder="描述场景、语言、句数和长度，如：10句泰语餐厅点餐对话，每句不超过8个词">
-                                <button class="btn-tts-ai-gen" id="btnTtsAiGen" data-i18n="tts.ai.generate">生成</button>
-                            </div>
-                            <p class="tts-hint" data-i18n="tts.ai.hint">💡 也可以生成词汇列表，如：餐厅常用词汇15个，泰语和中文</p>
-                        </div>
-
-                        <!-- 主文本框（右上角含 AI 生成切换按钮） -->
+                        <!-- 主文本框（右下角含 AI 生成按钮） -->
                         <div class="tts-textarea-wrap">
                             <button class="btn-tts-ai-toggle" id="btnTtsAiToggle" data-i18n="tts.tab.ai">✨ AI 生成</button>
                             <textarea id="ttsText" rows="5" data-i18n-placeholder="tts.placeholder" placeholder="粘贴一段文章或对话（泰语/英语）。对话会自动用两个声音朗读..."></textarea>

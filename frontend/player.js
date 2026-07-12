@@ -1083,16 +1083,62 @@ btnPasteUrl.addEventListener("click", async () => {
 const ttsContent     = document.getElementById("ttsContent");
 const ttsStatus      = document.getElementById("ttsStatus");
 const btnTtsGenerate = document.getElementById("btnTtsGenerate");
-const ttsAiPanel     = document.getElementById("ttsAiPanel");
 const btnTtsAiToggle = document.getElementById("btnTtsAiToggle");
 const ttsTextEl      = document.getElementById("ttsText");
 
-/** AI 生成面板展开 / 收起 */
-btnTtsAiToggle.addEventListener("click", () => {
-    const open = ttsAiPanel.style.display === "none" || ttsAiPanel.style.display === "";
-    ttsAiPanel.style.display = open ? "block" : "none";
-    btnTtsAiToggle.classList.toggle("active", open);
-    ttsStatus.textContent = "";
+// 记录 textarea 两种 placeholder（paste 模式 / AI 提示词模式）
+// 从 data-i18n-placeholder 属性延迟读，等 i18n 初始化后再用
+let _ttsPastePlaceholder = "";
+let _ttsAiPlaceholder    = "";
+function _ensurePlaceholders() {
+    if (!_ttsPastePlaceholder) _ttsPastePlaceholder = ttsTextEl.placeholder;
+    if (!_ttsAiPlaceholder)    _ttsAiPlaceholder    = t("tts.ai.placeholder");
+}
+
+/** 点击 "✨ AI 生成" 按钮：
+ *  - 框为空 → 切换到 AI 提示词模式，换 placeholder，聚焦让用户输入
+ *  - 框有内容 → 以框内文字为 prompt 调用 API，结果回填到框里
+ */
+btnTtsAiToggle.addEventListener("click", async () => {
+    _ensurePlaceholders();
+    const prompt = ttsTextEl.value.trim();
+    if (!prompt) {
+        // 切换到 AI prompt 模式
+        btnTtsAiToggle.classList.add("active");
+        ttsTextEl.placeholder = _ttsAiPlaceholder;
+        ttsTextEl.focus();
+        ttsStatus.textContent = "";
+        return;
+    }
+    // 有内容：调用 AI 生成
+    btnTtsAiToggle.disabled = true;
+    ttsStatus.textContent = t("tts.ai.generating");
+    ttsStatus.className = "url-status";
+    try {
+        const res = await fetch("/api/tts-content", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt, language: document.getElementById("ttsLang").value }),
+        });
+        const data = await res.json();
+        if (data.error) {
+            ttsStatus.textContent = t("tts.ai.fail") + data.error;
+            ttsStatus.className = "url-status error";
+            return;
+        }
+        ttsTextEl.value = data.text || "";
+        ttsTextEl.style.height = "auto";
+        ttsTextEl.style.height = Math.min(ttsTextEl.scrollHeight, 400) + "px";
+        ttsStatus.textContent = t("tts.ai.done");
+        ttsStatus.className = "url-status";
+    } catch (e) {
+        ttsStatus.textContent = t("tts.ai.fail") + e.message;
+        ttsStatus.className = "url-status error";
+    } finally {
+        btnTtsAiToggle.disabled = false;
+        btnTtsAiToggle.classList.remove("active");
+        ttsTextEl.placeholder = _ttsPastePlaceholder; // 恢复默认 placeholder
+    }
 });
 
 /** 获取文本内容 */
@@ -1187,53 +1233,7 @@ ttsTextEl.addEventListener("paste", async (e) => {
     }
 });
 
-// ========== AI 生成：调用 /api/tts-content ==========
-const btnTtsAiGen = document.getElementById("btnTtsAiGen");
-const ttsAiPrompt = document.getElementById("ttsAiPrompt");
-
-btnTtsAiGen.addEventListener("click", async () => {
-    const prompt = ttsAiPrompt.value.trim();
-    if (!prompt) {
-        ttsStatus.textContent = t("tts.ai.needPrompt");
-        ttsStatus.className = "url-status error";
-        return;
-    }
-    btnTtsAiGen.disabled = true;
-    ttsStatus.textContent = t("tts.ai.generating");
-    ttsStatus.className = "url-status";
-    try {
-        const res = await fetch("/api/tts-content", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                prompt,
-                language: document.getElementById("ttsLang").value,
-            }),
-        });
-        const data = await res.json();
-        if (data.error) {
-            ttsStatus.textContent = t("tts.ai.fail") + data.error;
-            ttsStatus.className = "url-status error";
-            return;
-        }
-        ttsTextEl.value = data.text || "";
-        // auto-grow
-        ttsTextEl.style.height = "auto";
-        ttsTextEl.style.height = Math.min(ttsTextEl.scrollHeight, 400) + "px";
-        ttsStatus.textContent = t("tts.ai.done");
-        ttsStatus.className = "url-status";
-        // 生成完自动收起 AI 面板
-        ttsAiPanel.style.display = "none";
-        btnTtsAiToggle.classList.remove("active");
-    } catch (e) {
-        ttsStatus.textContent = t("tts.ai.fail") + e.message;
-        ttsStatus.className = "url-status error";
-    } finally {
-        btnTtsAiGen.disabled = false;
-    }
-});
-
-// ========== 生成朗读课程（两个 Tab 共用） ==========
+// ========== 生成朗读课程 ==========
 btnTtsGenerate.addEventListener("click", async () => {
     const text = getActiveTtsText();
     if (!text) {
