@@ -146,8 +146,36 @@ def _split_bilingual_line(line, src_script, tgt_script):
     """
     尝试把"原文 译文"同行拆成 (original, translation)。
     失败返回 None。
-    优先级：多空格/Tab > " - " / " — " > 单空格
+    优先级：字符集边界 > 多空格/Tab > 分隔符 > 单空格（仅短词）
     """
+    _script_pat = {
+        "th": r"[\u0e00-\u0e7f]",
+        "zh": r"[\u4e00-\u9fff\uff00-\uffef]",
+        "ja": r"[\u3040-\u30ff\u4e00-\u9fff]",
+        "ko": r"[\uac00-\ud7af]",
+        "en": r"[a-zA-Z]",
+    }
+
+    # ── 最可靠：按字符集边界切分 ──────────────────────────────
+    # 找第一个目标脚本字符位置，前段为源语言，后段为目标语言
+    tgt_pat = _script_pat.get(tgt_script)
+    if tgt_pat:
+        m = re.search(tgt_pat, line)
+        if m and m.start() > 0:
+            a, b = line[:m.start()].strip(), line[m.start():].strip()
+            if a and b and _has_script(a, src_script):
+                return (a, b)
+
+    # 反向：目标语在前，源语在后
+    src_pat = _script_pat.get(src_script)
+    if src_pat:
+        m = re.search(src_pat, line)
+        if m and m.start() > 0:
+            a, b = line[:m.start()].strip(), line[m.start():].strip()
+            if a and b and _has_script(a, tgt_script):
+                return (b, a)
+
+    # ── 后备：显式分隔符 ─────────────────────────────────────
     for pattern in (r"\s{2,}|\t", r"\s+-\s+|\s+—\s+|\s+–\s+"):
         parts = re.split(pattern, line, maxsplit=1)
         if len(parts) == 2:
@@ -158,14 +186,16 @@ def _split_bilingual_line(line, src_script, tgt_script):
                 if _has_script(b, src_script) and _has_script(a, tgt_script):
                     return (b, a)
 
-    # 最后试单个空格（适用于短词对如 "เงินสด 现金"）
+    # ── 最后：单空格（仅适用于短词对如 "เงินสด 现金"）────────
     parts = line.split(None, 1)
     if len(parts) == 2:
         a, b = parts[0].strip(), parts[1].strip()
         if a and b:
-            if _has_script(a, src_script) and _has_script(b, tgt_script):
+            if _has_script(a, src_script) and not _has_script(a, tgt_script) \
+                    and _has_script(b, tgt_script) and not _has_script(b, src_script):
                 return (a, b)
-            if _has_script(b, src_script) and _has_script(a, tgt_script):
+            if _has_script(b, src_script) and not _has_script(b, tgt_script) \
+                    and _has_script(a, tgt_script) and not _has_script(a, src_script):
                 return (b, a)
     return None
 
@@ -183,8 +213,8 @@ def detect_input_mode(text, source_lang, target_lang):
     """
     lines = [l.strip() for l in text.splitlines() if l.strip()]
 
-    # 单行或有超长行 → 段落模式
-    if len(lines) < 2 or max(len(l) for l in lines) > 150:
+    # 单行 → 段落模式
+    if len(lines) < 2:
         return {"mode": "paragraph", "items": [], "language": source_lang}
 
     src_lang = source_lang if source_lang != "auto" else _guess_language(lines[0])
@@ -224,6 +254,10 @@ def detect_input_mode(text, source_lang, target_lang):
         if bilingual and len(bilingual) >= 2:
             logger.info(f"[InputMode] bilingual: {len(bilingual)} 行，跳过分句+翻译")
             return {"mode": "bilingual", "items": bilingual, "language": src_lang}
+
+    # 有超长行（非双语）→ 段落模式
+    if max(len(l) for l in lines) > 150:
+        return {"mode": "paragraph", "items": [], "language": source_lang}
 
     # ── 逐行模式：平均行长 < 80 字符 ────────────────────────────
     avg_len = sum(len(l) for l in content_lines) / len(content_lines)
