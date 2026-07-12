@@ -21,12 +21,13 @@ class SubtitleFile:
       cover     str            封面图文件名（TTS 课程专用，可选）
     """
 
-    __slots__ = ("segments", "language", "cover")
+    __slots__ = ("segments", "language", "cover", "type")
 
-    def __init__(self, segments, language: str, cover: str = ""):
+    def __init__(self, segments, language: str, cover: str = "", type: str = "standard"):
         self.segments = segments   # list[Segment]
         self.language = language
         self.cover = cover
+        self.type = type           # "standard" | "bilingual_audio"（预留）
 
     # ── 构造 ────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ class SubtitleFile:
             segments=segs,
             language=d.get("language", ""),
             cover=d.get("cover", ""),
+            type=d.get("type", "standard"),
         )
 
     # ── 序列化 ──────────────────────────────────────────────────────
@@ -50,6 +52,8 @@ class SubtitleFile:
         }
         if self.cover:
             d["cover"] = self.cover
+        if self.type and self.type != "standard":
+            d["type"] = self.type   # "standard" 时省略，不写入旧课程
         return d
 
     def __repr__(self) -> str:
