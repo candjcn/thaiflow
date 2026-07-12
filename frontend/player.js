@@ -138,6 +138,12 @@ const btnDirUp = document.getElementById("btnDirUp");
 const btnDirSelect = document.getElementById("btnDirSelect");
 const btnDirCancel = document.getElementById("btnDirCancel");
 
+// ========== 收藏播放单例（必须在 renderFavorites 调用前初始化，避免 TDZ） ==========
+let _favActiveAudio = null;
+let _favActiveBtn   = null;
+const _favIconPlay = `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>`;
+const _favIconStop = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
+
 // ========== 初始化 ==========
 loadVideoList();
 renderFavorites();
@@ -2516,12 +2522,6 @@ function animateStar(btn, alreadySaved) {
     btn.style.transform = "scale(1.4)";
     setTimeout(() => { btn.style.transform = ""; }, 200);
 }
-
-// 全局单例：同一时刻只允许一个收藏句子在播放
-let _favActiveAudio = null;
-let _favActiveBtn   = null;
-const _favIconPlay = `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>`;
-const _favIconStop = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
 
 function _favStopCurrent() {
     if (_favActiveAudio) {
