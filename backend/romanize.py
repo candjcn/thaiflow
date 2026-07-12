@@ -40,10 +40,10 @@ def _romanize_th_pythainlp(texts):
 
 
 def _romanize_th_batch(texts):
-    """用 Gemini 为泰语文本批量生成带音调标记的罗马拼音。
-    Gemini 失败时降级到 pythainlp RTGS（无音调，但保证有输出）。
+    """为泰语文本批量生成带音调标记的罗马拼音。
+    优先级：DeepSeek → Gemini → pythainlp RTGS（本地兜底）
 
-    Gemini 音调标记规则（标在主元音上）：
+    音调标记规则（标在主元音上）：
       中调  无标记   ma
       低调  grave   mà
       降调  circumflex  mâ
@@ -55,18 +55,43 @@ def _romanize_th_batch(texts):
     if not indexed:
         return [""] * len(texts)
 
-    # ── 尝试 Gemini ──────────────────────────────────────────────
+    input_json = json.dumps([t for _, t in indexed], ensure_ascii=False)
+    prompt = (
+        "You are a Thai phonetics expert. Romanize each Thai string with tone marks on the main vowel:\n"
+        "  mid=no mark, low=grave(à), falling=circumflex(â), high=acute(á), rising=caron(ǎ)\n"
+        "Use hyphens between syllables; keep words separated by spaces.\n"
+        "Return ONLY a JSON array of strings in the same order as the input. No explanation.\n\n"
+        f"Input: {input_json}"
+    )
+
+    def _parse_romanized(content):
+        m = re.search(r"\[.*\]", content, re.DOTALL)
+        if not m:
+            raise ValueError(f"no JSON array in response: {content[:200]}")
+        romanized = json.loads(m.group())
+        if not isinstance(romanized, list) or len(romanized) != len(indexed):
+            raise ValueError(f"unexpected array length: got {len(romanized)}, expected {len(indexed)}")
+        return romanized
+
+    def _map_out(romanized):
+        out = [""] * len(texts)
+        for (orig_i, _), rom in zip(indexed, romanized):
+            out[orig_i] = rom if isinstance(rom, str) else ""
+        return out
+
+    # ── DeepSeek（首选） ─────────────────────────────────────────
+    try:
+        from ai.provider import deepseek as deepseek_provider
+        content = deepseek_provider.chat(prompt, temperature=0.1, timeout=30)
+        romanized = _parse_romanized(content)
+        logger.info(f"[romanize] th DeepSeek OK: {len(indexed)} segments")
+        return _map_out(romanized)
+    except Exception as e:
+        logger.warning(f"[romanize] th DeepSeek failed ({e}), falling back to Gemini")
+
+    # ── Gemini（降级） ───────────────────────────────────────────
     try:
         from ai.provider import gemini as gemini_provider
-
-        input_json = json.dumps([t for _, t in indexed], ensure_ascii=False)
-        prompt = (
-            "You are a Thai phonetics expert. Romanize each Thai string with tone marks on the main vowel:\n"
-            "  mid=no mark, low=grave(à), falling=circumflex(â), high=acute(á), rising=caron(ǎ)\n"
-            "Use hyphens between syllables; keep words separated by spaces.\n"
-            "Return ONLY a JSON array of strings in the same order as the input. No explanation.\n\n"
-            f"Input: {input_json}"
-        )
         result = gemini_provider.request(
             providers.Gemini.ROMANIZE_MODEL,
             {
@@ -74,28 +99,17 @@ def _romanize_th_batch(texts):
                 "generationConfig": {"temperature": 0.1},
             },
             timeout=30,
-            max_retries=2,          # 减少重试次数，失败快速降级
+            max_retries=2,
             tag="Romanize-TH",
         )
         content = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-        m = re.search(r"\[.*\]", content, re.DOTALL)
-        if not m:
-            raise ValueError(f"no JSON array in Gemini response: {content[:200]}")
-        romanized = json.loads(m.group())
-        if not isinstance(romanized, list) or len(romanized) != len(indexed):
-            raise ValueError(f"unexpected Gemini array length: got {len(romanized)}, expected {len(indexed)}")
-
-        # 映射回原始位置（Gemini 成功）
-        out = [""] * len(texts)
-        for (orig_i, _), rom in zip(indexed, romanized):
-            out[orig_i] = rom if isinstance(rom, str) else ""
+        romanized = _parse_romanized(content)
         logger.info(f"[romanize] th Gemini OK: {len(indexed)} segments")
-        return out
-
+        return _map_out(romanized)
     except Exception as e:
         logger.warning(f"[romanize] th Gemini failed ({e}), falling back to pythainlp RTGS")
 
-    # ── Fallback: pythainlp RTGS ─────────────────────────────────
+    # ── pythainlp RTGS（本地兜底） ────────────────────────────────
     all_rtgs = _romanize_th_pythainlp(texts)
     non_empty = sum(1 for x in all_rtgs if x)
     logger.info(f"[romanize] pythainlp RTGS: {non_empty}/{len(texts)} segments romanized")

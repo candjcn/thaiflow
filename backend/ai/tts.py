@@ -100,9 +100,16 @@ def prepare_script(text, language="th"):
         + text
     )
 
-    # ── Gemini（首选） ───────────────────────────────────────────────
+    # ── DeepSeek（首选） ─────────────────────────────────────────────
     raw = None
     try:
+        raw = deepseek_provider.chat(prompt, temperature=0, timeout=60)
+        logger.info("[TTS] 分句: DeepSeek OK")
+    except Exception as e:
+        logger.warning(f"[TTS] 分句 DeepSeek 失败 ({e})，降级到 Gemini")
+
+    # ── Gemini（降级） ───────────────────────────────────────────────
+    if raw is None:
         result = gemini_provider.request(
             providers.Gemini.TEXT_MODEL,
             {"contents": [{"parts": [{"text": prompt}]}],
@@ -111,13 +118,6 @@ def prepare_script(text, language="th"):
         )
         raw = result["candidates"][0]["content"]["parts"][0]["text"]
         logger.info("[TTS] 分句: Gemini OK")
-    except Exception as e:
-        logger.warning(f"[TTS] 分句 Gemini 失败 ({e})，降级到 DeepSeek")
-
-    # ── DeepSeek（降级） ─────────────────────────────────────────────
-    if raw is None:
-        raw = deepseek_provider.chat(prompt, temperature=0, timeout=60)
-        logger.info("[TTS] 分句: DeepSeek OK")
 
     parsed = _parse_script_json(raw)
     if isinstance(parsed, dict):
@@ -193,20 +193,20 @@ def _split_long_sentences(script, language):
     )
     raw = None
     try:
-        result = gemini_provider.request(
-            providers.Gemini.TEXT_MODEL,
-            {"contents": [{"parts": [{"text": prompt}]}],
-             "generationConfig": {"temperature": 0}},
-            timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="长句拆分",
-        )
-        raw = result["candidates"][0]["content"]["parts"][0]["text"]
+        raw = deepseek_provider.chat(prompt, temperature=0, timeout=60)
     except Exception as e:
-        logger.warning(f"[SplitLong] Gemini 失败 ({e})，降级到 DeepSeek")
+        logger.warning(f"[SplitLong] DeepSeek 失败 ({e})，降级到 Gemini")
     if raw is None:
         try:
-            raw = deepseek_provider.chat(prompt, temperature=0, timeout=60)
+            result = gemini_provider.request(
+                providers.Gemini.TEXT_MODEL,
+                {"contents": [{"parts": [{"text": prompt}]}],
+                 "generationConfig": {"temperature": 0}},
+                timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="长句拆分",
+            )
+            raw = result["candidates"][0]["content"]["parts"][0]["text"]
         except Exception as e:
-            logger.warning(f"[SplitLong] DeepSeek 也失败，保留原句: {e}")
+            logger.warning(f"[SplitLong] Gemini 也失败，保留原句: {e}")
             return script
     try:
         raw = raw.strip()

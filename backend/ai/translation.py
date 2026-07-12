@@ -59,43 +59,40 @@ def translate_segments(segments, source_lang, target_lang, engine="auto"):
     """
     if not segments:
         return []
-    if engine == "auto":
-        engine = (
-            "deepseek"
-            if (target_lang in _CHINESE_TARGETS or source_lang in _CHINESE_SOURCES)
-            else "gemini"
-        )
 
     prompt = _build_prompt(segments, source_lang, target_lang)
 
-    if engine == "deepseek":
-        content = deepseek_provider.chat(
-            prompt, temperature=0.3, timeout=settings.TIMEOUT_TRANSLATE
-        )
-    elif engine == "gemini":
-        # Gemini 失败时自动降级到 DeepSeek
+    # engine="auto" 和 engine="deepseek" 都走 DeepSeek 首选 → Gemini 降级
+    # engine="gemini" 明确指定时才直接走 Gemini（仅用于手动调试）
+    if engine == "gemini":
+        content = _call_gemini(prompt, source_lang, target_lang)
+    else:
+        # auto / deepseek：DeepSeek 首选，失败降级 Gemini
         try:
-            result = gemini_provider.request(
-                providers.Gemini.TEXT_MODEL,
-                {
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.3},
-                },
-                timeout=settings.TIMEOUT_TRANSLATE,
-                tag="Gemini翻译",
-            )
-            content = result["candidates"][0]["content"]["parts"][0]["text"]
-            logger.info(f"[翻译] Gemini OK ({source_lang}→{target_lang})")
-        except Exception as e:
-            logger.warning(f"[翻译] Gemini 失败 ({e})，降级到 DeepSeek")
             content = deepseek_provider.chat(
                 prompt, temperature=0.3, timeout=settings.TIMEOUT_TRANSLATE
             )
             logger.info(f"[翻译] DeepSeek OK ({source_lang}→{target_lang})")
-    else:
-        raise ValueError(f"不支持的翻译引擎: {engine}")
+        except Exception as e:
+            logger.warning(f"[翻译] DeepSeek 失败 ({e})，降级到 Gemini")
+            content = _call_gemini(prompt, source_lang, target_lang)
 
     return _parse_translations(content, segments)
+
+
+def _call_gemini(prompt, source_lang, target_lang):
+    result = gemini_provider.request(
+        providers.Gemini.TEXT_MODEL,
+        {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.3},
+        },
+        timeout=settings.TIMEOUT_TRANSLATE,
+        tag="Gemini翻译",
+    )
+    content = result["candidates"][0]["content"]["parts"][0]["text"]
+    logger.info(f"[翻译] Gemini OK ({source_lang}→{target_lang})")
+    return content
 
 
 def word_define(word, source_lang, target_lang, context=""):

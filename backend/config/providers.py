@@ -28,7 +28,7 @@ class Gemini:
     TEXT_MODEL     = settings.GEMINI_TEXT_MODEL
     TTS_MODEL      = settings.GEMINI_TTS_MODEL
     IMAGE_MODEL    = settings.GEMINI_IMAGE_MODEL
-    ROMANIZE_MODEL = "gemini-3.5-flash"
+    ROMANIZE_MODEL = settings.GEMINI_TEXT_MODEL  # 复用最便宜的文本模型
 
 
 class DeepSeek:
