@@ -75,6 +75,7 @@ const btnPause = document.getElementById("btnPause");
 const btnRepeat = document.getElementById("btnRepeat");
 const btnBack = document.getElementById("btnBack");
 const btnList = document.getElementById("btnList");
+const controlsBar = document.getElementById("controlsBar");
 const btnFullscreen = document.getElementById("btnFullscreen");
 const btnExport = document.getElementById("btnExport");
 const btnCloseDrawer = document.getElementById("btnCloseDrawer");
@@ -785,6 +786,8 @@ function updateSubtitleWidth() {
         const containerCenter = containerRect.width / 2;
         const offset = videoCenter - containerCenter;
         subtitleOverlay.style.left = `calc(50% + ${offset}px)`;
+        // 控制栏宽度对齐视频实际渲染宽度
+        if (controlsBar) controlsBar.style.width = videoDisplayWidth + "px";
         return;
     }
 

@@ -264,17 +264,8 @@
 
             <!-- 播放控制（桌面：左=双模式入口，中=重复/速度，右=列表） -->
             <div class="controls" id="controlsBar">
-                <!-- 左组：字幕切换 + 影子跟读 -->
+                <!-- 左组：重复次数 / 速度 -->
                 <div class="ctrl-group ctrl-group-left">
-                    <button class="ctrl-btn d-submode-btn" id="dBtnSubMode">双语</button>
-                    <button class="ctrl-btn d-follow-btn" id="dModeFollow">
-                        <span data-i18n="mobile.mode.follow">影子跟读</span>
-                        <kbd>S</kbd>
-                    </button>
-                </div>
-
-                <!-- 中组：重复次数 / 速度 -->
-                <div class="ctrl-group ctrl-group-center">
                     <div class="ctrl-field">
                         <label data-i18n="ctrl.repeat.label">重复</label>
                         <select id="repeatCount">
@@ -297,6 +288,15 @@
                         </select>
                         <kbd>↑↓</kbd>
                     </div>
+                </div>
+
+                <!-- 中组：字幕切换 + 影子跟读 -->
+                <div class="ctrl-group ctrl-group-center">
+                    <button class="ctrl-btn d-submode-btn" id="dBtnSubMode">双语</button>
+                    <button class="ctrl-btn d-follow-btn" id="dModeFollow">
+                        <span data-i18n="mobile.mode.follow">影子跟读</span>
+                        <kbd>S</kbd>
+                    </button>
                 </div>
 
                 <!-- 右组：句子列表 -->
