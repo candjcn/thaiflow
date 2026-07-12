@@ -1079,69 +1079,60 @@ btnPasteUrl.addEventListener("click", async () => {
     }
 });
 
-// ========== TTS Tab 切换 ==========
-const ttsContent    = document.getElementById("ttsContent");
-const ttsStatus     = document.getElementById("ttsStatus");
+// ========== TTS 面板 ==========
+const ttsContent     = document.getElementById("ttsContent");
+const ttsStatus      = document.getElementById("ttsStatus");
 const btnTtsGenerate = document.getElementById("btnTtsGenerate");
-const ttsTabAi      = document.getElementById("ttsTabAi");
-const ttsTabPaste   = document.getElementById("ttsTabPaste");
-const ttsPanelAi    = document.getElementById("ttsPanelAi");
-const ttsPanelPaste = document.getElementById("ttsPanelPaste");
-let ttsActiveTab    = "paste"; // 默认粘贴文本 Tab（入口卡片即是"粘贴文本"）
+const ttsAiPanel     = document.getElementById("ttsAiPanel");
+const btnTtsAiToggle = document.getElementById("btnTtsAiToggle");
+const ttsTextEl      = document.getElementById("ttsText");
 
-function switchTtsTab(tab) {
-    ttsActiveTab = tab;
-    ttsTabAi.classList.toggle("active", tab === "ai");
-    ttsTabPaste.classList.toggle("active", tab === "paste");
-    ttsPanelAi.style.display    = tab === "ai"    ? "" : "none";
-    ttsPanelPaste.style.display = tab === "paste" ? "" : "none";
+/** AI 生成面板展开 / 收起 */
+btnTtsAiToggle.addEventListener("click", () => {
+    const open = ttsAiPanel.style.display === "none" || ttsAiPanel.style.display === "";
+    ttsAiPanel.style.display = open ? "block" : "none";
+    btnTtsAiToggle.classList.toggle("active", open);
     ttsStatus.textContent = "";
-}
-ttsTabAi.addEventListener("click",    () => switchTtsTab("ai"));
-ttsTabPaste.addEventListener("click", () => switchTtsTab("paste"));
+});
 
-/** 获取当前激活 Tab 的文本内容 */
+/** 获取文本内容 */
 function getActiveTtsText() {
-    if (ttsActiveTab === "ai") {
-        return document.getElementById("ttsText").value.trim();
-    }
-    return document.getElementById("ttsTextPaste").value.trim();
+    return ttsTextEl.value.trim();
 }
 
 document.getElementById("btnTtsToggle").addEventListener("click", () => {
     ttsContent.style.display = ttsContent.style.display === "none" ? "flex" : "none";
 });
 
-// ========== 粘贴 Tab：粘贴按钮 ==========
-const ttsTextPasteEl = document.getElementById("ttsTextPaste");
-ttsTextPasteEl.addEventListener("focus", async () => {
-    if (ttsTextPasteEl.value.trim()) return;
+// ========== 粘贴按钮 ==========
+ttsTextEl.addEventListener("focus", async () => {
+    if (ttsTextEl.value.trim()) return;
     try {
         const text = await navigator.clipboard.readText();
         if (text) btnPasteTts.style.display = "block";
     } catch (e) { /* 权限被拒时不显示 */ }
 });
-ttsTextPasteEl.addEventListener("blur", () => {
+ttsTextEl.addEventListener("blur", () => {
     setTimeout(() => { btnPasteTts.style.display = "none"; }, 200);
 });
-ttsTextPasteEl.addEventListener("input", () => {
-    if (ttsTextPasteEl.value.trim()) btnPasteTts.style.display = "none";
+ttsTextEl.addEventListener("input", () => {
+    if (ttsTextEl.value.trim()) btnPasteTts.style.display = "none";
 });
 btnPasteTts.addEventListener("click", async () => {
     try {
         const text = await navigator.clipboard.readText();
         if (text) {
-            ttsTextPasteEl.value = text.trim();
+            ttsTextEl.value = text.trim();
             btnPasteTts.style.display = "none";
-            ttsTextPasteEl.focus();
+            ttsTextEl.focus();
         }
     } catch (e) {
-        ttsTextPasteEl.focus();
+        ttsTextEl.focus();
         document.execCommand("paste");
     }
 });
 
-// ========== 粘贴 Tab：图片粘贴 → OCR ==========
+// ========== 图片粘贴 → OCR ==========
 const ttsImgPreview = document.getElementById("ttsImgPreview");
 const ttsImgThumb   = document.getElementById("ttsImgThumb");
 const ttsImgClose   = document.getElementById("ttsImgClose");
@@ -1156,7 +1147,7 @@ function closeTtsImgPreview() {
 }
 ttsImgClose.addEventListener("click", closeTtsImgPreview);
 
-ttsTextPasteEl.addEventListener("paste", async (e) => {
+ttsTextEl.addEventListener("paste", async (e) => {
     const items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
     const imgItem = Array.from(items).find(it => it.type.startsWith("image/"));
@@ -1183,8 +1174,8 @@ ttsTextPasteEl.addEventListener("paste", async (e) => {
             ttsStatus.className = "url-status error";
             return;
         }
-        ttsTextPasteEl.value = ttsTextPasteEl.value
-            ? ttsTextPasteEl.value + "\n" + (data.text || "")
+        ttsTextEl.value = ttsTextEl.value
+            ? ttsTextEl.value + "\n" + (data.text || "")
             : (data.text || "");
         ttsStatus.textContent = data.text ? "" : "图片中没有识别到文字";
         ttsStatus.className = "url-status";
@@ -1196,10 +1187,9 @@ ttsTextPasteEl.addEventListener("paste", async (e) => {
     }
 });
 
-// ========== AI 生成 Tab：调用 /api/tts-content ==========
-const btnTtsAiGen   = document.getElementById("btnTtsAiGen");
-const ttsAiPrompt   = document.getElementById("ttsAiPrompt");
-const ttsAiTextarea = document.getElementById("ttsText"); // AI tab 的结果框
+// ========== AI 生成：调用 /api/tts-content ==========
+const btnTtsAiGen = document.getElementById("btnTtsAiGen");
+const ttsAiPrompt = document.getElementById("ttsAiPrompt");
 
 btnTtsAiGen.addEventListener("click", async () => {
     const prompt = ttsAiPrompt.value.trim();
@@ -1226,12 +1216,15 @@ btnTtsAiGen.addEventListener("click", async () => {
             ttsStatus.className = "url-status error";
             return;
         }
-        ttsAiTextarea.value = data.text || "";
+        ttsTextEl.value = data.text || "";
         // auto-grow
-        ttsAiTextarea.style.height = "auto";
-        ttsAiTextarea.style.height = Math.min(ttsAiTextarea.scrollHeight, 400) + "px";
+        ttsTextEl.style.height = "auto";
+        ttsTextEl.style.height = Math.min(ttsTextEl.scrollHeight, 400) + "px";
         ttsStatus.textContent = t("tts.ai.done");
         ttsStatus.className = "url-status";
+        // 生成完自动收起 AI 面板
+        ttsAiPanel.style.display = "none";
+        btnTtsAiToggle.classList.remove("active");
     } catch (e) {
         ttsStatus.textContent = t("tts.ai.fail") + e.message;
         ttsStatus.className = "url-status error";
@@ -1269,9 +1262,7 @@ btnTtsGenerate.addEventListener("click", async () => {
             return;
         }
         ttsStatus.textContent = "";
-        // 清空当前 Tab 的输入
-        if (ttsActiveTab === "ai") ttsAiTextarea.value = "";
-        else ttsTextPasteEl.value = "";
+        ttsTextEl.value = "";
         await loadSaved(data.name);
         saveToLocal(false, false, "json");
     } catch (e) {

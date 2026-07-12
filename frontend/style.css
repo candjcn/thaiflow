@@ -424,29 +424,41 @@ html, body {
     margin-bottom: 16px;
 }
 
-/* TTS Tab 切换 */
-.tts-tabs {
-    display: flex;
-    gap: 4px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    padding-bottom: 8px;
-    margin-bottom: 4px;
+/* AI 生成展开区 */
+.tts-ai-panel {
+    margin-bottom: 8px;
 }
-.tts-tab {
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: rgba(255,255,255,0.45);
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 6px 14px;
-    transition: background 0.15s, color 0.15s;
-}
-.tts-tab:hover { color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.06); }
-.tts-tab.active { color: #fff; background: rgba(255,255,255,0.1); }
 
-/* AI 生成 Tab：prompt 行 */
+/* AI 生成 toggle 按钮（右上角悬浮在 textarea 上） */
+.tts-textarea-wrap {
+    position: relative;
+}
+.btn-tts-ai-toggle {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    background: rgba(233,69,96,0.14);
+    border: 1px solid rgba(233,69,96,0.35);
+    border-radius: 20px;
+    color: #e94560;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+.btn-tts-ai-toggle:hover { background: rgba(233,69,96,0.25); }
+.btn-tts-ai-toggle.active {
+    background: rgba(233,69,96,0.3);
+    border-color: rgba(233,69,96,0.6);
+}
+#ttsText {
+    padding-top: 36px; /* avoid overlap with toggle button */
+}
+
+/* AI prompt 行 */
 .tts-ai-prompt-wrap {
     display: flex;
     gap: 8px;
@@ -481,7 +493,7 @@ html, body {
 .btn-tts-ai-gen:hover { background: rgba(233,69,96,0.3); }
 .btn-tts-ai-gen:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* AI Tab 结果 textarea：可自动撑高 */
+/* textarea 自动撑高 */
 #ttsText {
     resize: none;
     overflow-y: auto;

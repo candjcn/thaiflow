@@ -98,14 +98,15 @@
                 <!-- TTS 展开区（点击卡片后显示） -->
                 <div class="tts-section">
                     <div class="tts-content" id="ttsContent" style="display:none;">
-                        <!-- Tab 切换 -->
-                        <div class="tts-tabs">
-                            <button class="tts-tab" id="ttsTabAi" data-i18n="tts.tab.ai">✨ AI 生成</button>
-                            <button class="tts-tab active" id="ttsTabPaste" data-i18n="tts.tab.paste">粘贴文本</button>
+                        <!-- 图片粘贴预览（OCR 识别中） -->
+                        <div class="tts-img-preview" id="ttsImgPreview" style="display:none;">
+                            <img id="ttsImgThumb" alt="">
+                            <div class="tts-img-spinner" id="ttsImgSpinner"></div>
+                            <button class="tts-img-close" id="ttsImgClose" type="button">✕</button>
                         </div>
 
-                        <!-- AI 生成 Tab -->
-                        <div class="tts-tab-panel" id="ttsPanelAi" style="display:none;">
+                        <!-- AI 生成展开区（默认隐藏，点右上角按钮展开） -->
+                        <div class="tts-ai-panel" id="ttsAiPanel" style="display:none;">
                             <div class="tts-ai-prompt-wrap">
                                 <input type="text" id="ttsAiPrompt" maxlength="300"
                                     data-i18n-placeholder="tts.ai.placeholder"
@@ -113,27 +114,17 @@
                                 <button class="btn-tts-ai-gen" id="btnTtsAiGen" data-i18n="tts.ai.generate">生成</button>
                             </div>
                             <p class="tts-hint" data-i18n="tts.ai.hint">💡 也可以生成词汇列表，如：餐厅常用词汇15个，泰语和中文</p>
-                            <div class="tts-textarea-wrap">
-                                <textarea id="ttsText" rows="6" data-i18n-placeholder="tts.placeholder" placeholder="AI 生成的内容会显示在这里，你可以在生成语音前修改..."></textarea>
-                            </div>
                         </div>
 
-                        <!-- 粘贴文本 Tab -->
-                        <div class="tts-tab-panel" id="ttsPanelPaste">
-                            <!-- 图片粘贴预览（OCR 识别中） -->
-                            <div class="tts-img-preview" id="ttsImgPreview" style="display:none;">
-                                <img id="ttsImgThumb" alt="">
-                                <div class="tts-img-spinner" id="ttsImgSpinner"></div>
-                                <button class="tts-img-close" id="ttsImgClose" type="button">✕</button>
-                            </div>
-                            <div class="tts-textarea-wrap">
-                                <textarea id="ttsTextPaste" rows="5" data-i18n-placeholder="tts.placeholder" placeholder="粘贴一段文章或对话（泰语/英语）。对话会自动用两个声音朗读..."></textarea>
-                                <button id="btnPasteTts" class="tts-paste-btn" style="display:none;" data-i18n="app.add.url.paste">粘贴</button>
-                            </div>
-                            <p class="tts-hint" data-i18n="tts.hint">💡 每行一句/一词效果最好；「泰文 中文」同行可自动识别译文，跳过翻译步骤</p>
+                        <!-- 主文本框（右上角含 AI 生成切换按钮） -->
+                        <div class="tts-textarea-wrap">
+                            <button class="btn-tts-ai-toggle" id="btnTtsAiToggle" data-i18n="tts.tab.ai">✨ AI 生成</button>
+                            <textarea id="ttsText" rows="5" data-i18n-placeholder="tts.placeholder" placeholder="粘贴一段文章或对话（泰语/英语）。对话会自动用两个声音朗读..."></textarea>
+                            <button id="btnPasteTts" class="tts-paste-btn" style="display:none;" data-i18n="app.add.url.paste">粘贴</button>
                         </div>
+                        <p class="tts-hint" data-i18n="tts.hint">💡 每行一句/一词效果最好；「泰文 中文」同行可自动识别译文，跳过翻译步骤</p>
 
-                        <!-- 语言 / 引擎（两个 Tab 共用） -->
+                        <!-- 语言 / 引擎 -->
                         <div class="provider-row">
                             <label data-i18n="tts.lang">文本语言：</label>
                             <select id="ttsLang">
