@@ -60,6 +60,66 @@ _TARGET_LANG_SCRIPT = {
     "ไทย": "th",
 }
 
+# ── 角色标签识别 ──────────────────────────────────────────────────────────────
+
+_ROLE_LABEL_RE = re.compile(
+    r'^([A-Za-z\u4e00-\u9fff\u0e00-\u0e7f]{1,10})[：:]\s*(.+)$'
+)
+
+_MALE_ROLES = {
+    "男", "男生", "男方", "男声", "男士", "男人", "男孩", "男同学",
+    "ชาย", "ผู้ชาย", "นาย",
+    "male", "man", "boy", "m",
+}
+_FEMALE_ROLES = {
+    "女", "女生", "女方", "女声", "女士", "女人", "女孩", "女同学",
+    "หญิง", "ผู้หญิง", "นาง", "นางสาว",
+    "female", "woman", "girl", "f",
+}
+_NARRATOR_ROLES = {"n", "旁白", "旁述", "narrator", "narration"}
+
+
+def _parse_role_label(line):
+    """检测行首角色标签，返回 (role_name, text_without_label) 或 None。"""
+    m = _ROLE_LABEL_RE.match(line.strip())
+    if not m:
+        return None
+    role, text = m.group(1).strip(), m.group(2).strip()
+    return (role, text) if text else None
+
+
+def _role_to_speaker_gender(role, role_map):
+    """
+    根据角色名推断 (speaker, gender)，同名角色保持一致。
+    role_map: {role_name: (speaker, gender)}  — 跨行共享，原地修改
+    """
+    if role in role_map:
+        return role_map[role]
+
+    rl = role.lower()
+
+    if rl in _NARRATOR_ROLES:
+        result = ("N", "female")
+    elif rl in _MALE_ROLES:
+        # 第一个男声用 B，第二个也暂时用 B（不超过两声道）
+        result = ("B", "male")
+    elif rl in _FEMALE_ROLES:
+        result = ("A", "female")
+    elif len(role) == 1 and role.upper().isalpha():
+        # 单字母：A→女A，B→男B，C→女A，D→男B …
+        idx = ord(role.upper()) - ord("A")
+        gender = "male" if idx % 2 == 1 else "female"
+        speaker = role.upper() if role.upper() in ("A", "B") else ("B" if gender == "male" else "A")
+        result = (speaker, gender)
+    else:
+        # 未知角色名：按出现顺序交替
+        n = len(role_map)
+        result = ("B", "male") if n % 2 == 1 else ("A", "female")
+
+    role_map[role] = result
+    return result
+
+
 def _has_script(text, script):
     """检测文本是否含有指定脚本的字符"""
     patterns = {
@@ -119,12 +179,7 @@ def detect_input_mode(text, source_lang, target_lang):
       "per_line"   — 每行一句/一词，可跳过 AI 分句
       "paragraph"  — 整段文本，走原有 AI 分句流程
 
-    返回:
-      {
-        "mode": str,
-        "items": [{"text": str, "translation": str}, ...],  # bilingual/per_line 时
-        "language": str,   # 检测到的语言（auto 时有效）
-      }
+    每个 item 可含 speaker / gender 字段（从角色标签解析而来）。
     """
     lines = [l.strip() for l in text.splitlines() if l.strip()]
 
@@ -136,13 +191,33 @@ def detect_input_mode(text, source_lang, target_lang):
     src_script = src_lang[:2].lower()
     tgt_script = _TARGET_LANG_SCRIPT.get(target_lang, "zh")
 
+    # 先剥角色标签，保留角色信息供后续使用
+    role_map = {}
+    parsed_lines = []   # [{"raw": line, "text": content, "speaker": ..., "gender": ...}]
+    for line in lines:
+        role_result = _parse_role_label(line)
+        if role_result:
+            role_name, content = role_result
+            speaker, gender = _role_to_speaker_gender(role_name, role_map)
+            parsed_lines.append({"raw": line, "text": content,
+                                  "speaker": speaker, "gender": gender})
+        else:
+            parsed_lines.append({"raw": line, "text": line,
+                                  "speaker": None, "gender": None})
+
+    content_lines = [p["text"] for p in parsed_lines]
+
     # ── 尝试双语模式 ─────────────────────────────────────────────
     if src_script != tgt_script:
         bilingual = []
-        for line in lines:
-            result = _split_bilingual_line(line, src_script, tgt_script)
+        for p in parsed_lines:
+            result = _split_bilingual_line(p["text"], src_script, tgt_script)
             if result:
-                bilingual.append({"text": result[0], "translation": result[1]})
+                item = {"text": result[0], "translation": result[1]}
+                if p["speaker"]:
+                    item["speaker"] = p["speaker"]
+                    item["gender"]  = p["gender"]
+                bilingual.append(item)
             else:
                 bilingual = None
                 break
@@ -151,9 +226,15 @@ def detect_input_mode(text, source_lang, target_lang):
             return {"mode": "bilingual", "items": bilingual, "language": src_lang}
 
     # ── 逐行模式：平均行长 < 80 字符 ────────────────────────────
-    avg_len = sum(len(l) for l in lines) / len(lines)
+    avg_len = sum(len(l) for l in content_lines) / len(content_lines)
     if avg_len < 80:
-        items = [{"text": l, "translation": ""} for l in lines]
+        items = []
+        for p in parsed_lines:
+            item = {"text": p["text"], "translation": ""}
+            if p["speaker"]:
+                item["speaker"] = p["speaker"]
+                item["gender"]  = p["gender"]
+            items.append(item)
         logger.info(f"[InputMode] per_line: {len(items)} 行，跳过 AI 分句")
         return {"mode": "per_line", "items": items, "language": src_lang}
 
@@ -490,10 +571,20 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
     if pre_items is not None:
         # 逐行/双语模式：直接构建 script，跳过 AI 分句
         report("正在准备文本...")
-        script = [
-            {"text": item["text"], "speaker": "N", "gender": "female", "emotion": "natural"}
-            for item in pre_items if item["text"].strip()
-        ]
+        # 如果有角色标签，A/B 对话模式；否则全部用旁白 N
+        has_dialogue = any(item.get("speaker") in ("A", "B") for item in pre_items)
+        script = []
+        for item in pre_items:
+            t = item["text"].strip()
+            if not t:
+                continue
+            if has_dialogue:
+                speaker = item.get("speaker") or "N"
+                gender  = item.get("gender")  or "female"
+            else:
+                speaker, gender = "N", "female"
+            script.append({"text": t, "speaker": speaker,
+                           "gender": gender, "emotion": "natural"})
         if not script:
             raise RuntimeError("文本内容为空")
         script = _split_long_sentences(script, language)
