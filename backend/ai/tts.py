@@ -579,9 +579,11 @@ def generate_cover_image(text, language, out_path):
     """
     lang_name = {"th": "Thai", "en": "English", "zh": "Chinese",
                  "ja": "Japanese", "ko": "Korean"}.get(language, "")
+    # 把文本内容摘要传给模型，否则生成图片和主题毫无关联
+    text_snippet = text[:300].strip()
     prompt = (
         "Simple warm flat-design cartoon illustration capturing the scene or "
-        f"theme of this {lang_name} text. "
+        f"theme of the following {lang_name} text:\n\n{text_snippet}\n\n"
         "Style: minimalist flat cartoon, soft pastel colors, cozy friendly mood. "
         "No words, no letters, no text in the image."
     )
