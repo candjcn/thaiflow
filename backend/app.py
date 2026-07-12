@@ -9,7 +9,7 @@ from flask_cors import CORS
 from config import settings, providers, get_logger
 from ai.speech import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps, get_video_duration
 from ai.translation import translate_segments, word_define as _word_define
-from ai.tts import generate_audio_lesson, generate_cover_image, ocr_image
+from ai.tts import generate_audio_lesson, generate_cover_image, ocr_image, detect_input_mode
 from ai.pronunciation import assess_pronunciation
 from romanize import generate_romanization
 from export import export_video_with_subtitles, export_srt
@@ -709,10 +709,19 @@ def api_tts_generate():
         return jsonify({"error": "不支持的语音引擎"}), 400
 
     os.makedirs(VIDEOS_DIR, exist_ok=True)
+    target_lang = data.get("target_lang", "中文")
     try:
-        # language="auto" 时返回的是检测到的语言
+        # ── 检测输入格式（逐行/双语/段落） ───────────────────────
+        detected = detect_input_mode(text, language, target_lang)
+        mode = detected["mode"]
+        pre_items = detected["items"] if mode in ("bilingual", "per_line") else None
+        # auto 语言：从检测结果中获取
+        if language == "auto" and mode != "paragraph":
+            language = detected["language"]
+
+        # ── 生成音频课程 ──────────────────────────────────────────
         audio_name, segments, language = generate_audio_lesson(
-            text, language, engine, VIDEOS_DIR
+            text, language, engine, VIDEOS_DIR, pre_items=pre_items
         )
         source_lang_name = {"th": "泰语", "en": "英语", "zh": "中文",
                             "ja": "日语", "ko": "韩语"}.get(language, "外语")
@@ -726,24 +735,31 @@ def api_tts_generate():
             for s, sp in zip(seg_objs, spaced):
                 s.text = sp
 
-        # 翻译（目标语言由前端界面语言决定；源语言与目标一致时跳过）
-        target_lang = data.get("target_lang", "中文")
-        same_lang = (language == "zh" and target_lang in ("中文", "繁體中文")) or \
-                    (language == "ja" and target_lang == "日本語") or \
-                    (language == "ko" and target_lang == "한국어") or \
-                    (language == "en" and target_lang == "English")
-        if not same_lang:
-            try:
-                translated = translate_segments(
-                    [{"index": s.index, "text": s.text} for s in seg_objs],
-                    source_lang_name, target_lang,
-                )
-                for tr in translated:
-                    idx = tr.get("index")
-                    if idx is not None and 0 <= idx < len(seg_objs):
-                        seg_objs[idx].translation = tr.get("translation", "")
-            except Exception as te:
-                logger.warning(f"[TTS] 翻译失败: {te}")
+        # ── 翻译 ──────────────────────────────────────────────────
+        # 双语模式：用户已提供译文，直接填入，跳过 API
+        if mode == "bilingual" and pre_items:
+            for seg, item in zip(seg_objs, pre_items):
+                if item.get("translation"):
+                    seg.translation = item["translation"]
+            logger.info(f"[TTS] 双语模式：跳过翻译，直接使用用户提供译文")
+        else:
+            # 其他模式：调用翻译（源语言与目标一致时跳过）
+            same_lang = (language == "zh" and target_lang in ("中文", "繁體中文")) or \
+                        (language == "ja" and target_lang == "日本語") or \
+                        (language == "ko" and target_lang == "한국어") or \
+                        (language == "en" and target_lang == "English")
+            if not same_lang:
+                try:
+                    translated = translate_segments(
+                        [{"index": s.index, "text": s.text} for s in seg_objs],
+                        source_lang_name, target_lang,
+                    )
+                    for tr in translated:
+                        idx = tr.get("index")
+                        if idx is not None and 0 <= idx < len(seg_objs):
+                            seg_objs[idx].translation = tr.get("translation", "")
+                except Exception as te:
+                    logger.warning(f"[TTS] 翻译失败: {te}")
 
         # 封面插画（卡通风格；失败不影响主流程）
         cover_name = os.path.splitext(audio_name)[0] + ".jpg"

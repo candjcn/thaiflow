@@ -49,6 +49,116 @@ AZURE_VOICES = {
 
 # ========== 第一步：分句 + 说话人/性别/情感标注 ==========
 
+# ========== 输入格式检测 ==========
+
+_TARGET_LANG_SCRIPT = {
+    "中文": "zh", "繁體中文": "zh",
+    "English": "en",
+    "日本語": "ja",
+    "한국어": "ko",
+    "ไทย": "th",
+}
+
+def _has_script(text, script):
+    """检测文本是否含有指定脚本的字符"""
+    patterns = {
+        "th": r"[\u0e00-\u0e7f]",
+        "zh": r"[\u4e00-\u9fff]",
+        "ja": r"[\u3040-\u30ff\u4e00-\u9fff]",
+        "ko": r"[\uac00-\ud7af]",
+        "en": r"[a-zA-Z]",
+    }
+    p = patterns.get(script)
+    return bool(re.search(p, text)) if p else False
+
+
+def _guess_language(text):
+    """从字符集简单猜测语言"""
+    if re.search(r"[\u0e00-\u0e7f]", text): return "th"
+    if re.search(r"[\u3040-\u30ff]",  text): return "ja"
+    if re.search(r"[\uac00-\ud7af]",  text): return "ko"
+    if re.search(r"[\u4e00-\u9fff]",  text): return "zh"
+    return "en"
+
+
+def _split_bilingual_line(line, src_script, tgt_script):
+    """
+    尝试把"原文 译文"同行拆成 (original, translation)。
+    失败返回 None。
+    优先级：多空格/Tab > " - " / " — " > 单空格
+    """
+    for pattern in (r"\s{2,}|\t", r"\s+-\s+|\s+—\s+|\s+–\s+"):
+        parts = re.split(pattern, line, maxsplit=1)
+        if len(parts) == 2:
+            a, b = parts[0].strip(), parts[1].strip()
+            if a and b:
+                if _has_script(a, src_script) and _has_script(b, tgt_script):
+                    return (a, b)
+                if _has_script(b, src_script) and _has_script(a, tgt_script):
+                    return (b, a)
+
+    # 最后试单个空格（适用于短词对如 "เงินสด 现金"）
+    parts = line.split(None, 1)
+    if len(parts) == 2:
+        a, b = parts[0].strip(), parts[1].strip()
+        if a and b:
+            if _has_script(a, src_script) and _has_script(b, tgt_script):
+                return (a, b)
+            if _has_script(b, src_script) and _has_script(a, tgt_script):
+                return (b, a)
+    return None
+
+
+def detect_input_mode(text, source_lang, target_lang):
+    """
+    检测用户输入格式，返回解析结果。
+
+    三种模式：
+      "bilingual"  — 每行含原文+译文，可跳过翻译 API
+      "per_line"   — 每行一句/一词，可跳过 AI 分句
+      "paragraph"  — 整段文本，走原有 AI 分句流程
+
+    返回:
+      {
+        "mode": str,
+        "items": [{"text": str, "translation": str}, ...],  # bilingual/per_line 时
+        "language": str,   # 检测到的语言（auto 时有效）
+      }
+    """
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+
+    # 单行或有超长行 → 段落模式
+    if len(lines) < 2 or max(len(l) for l in lines) > 150:
+        return {"mode": "paragraph", "items": [], "language": source_lang}
+
+    src_lang = source_lang if source_lang != "auto" else _guess_language(lines[0])
+    src_script = src_lang[:2].lower()
+    tgt_script = _TARGET_LANG_SCRIPT.get(target_lang, "zh")
+
+    # ── 尝试双语模式 ─────────────────────────────────────────────
+    if src_script != tgt_script:
+        bilingual = []
+        for line in lines:
+            result = _split_bilingual_line(line, src_script, tgt_script)
+            if result:
+                bilingual.append({"text": result[0], "translation": result[1]})
+            else:
+                bilingual = None
+                break
+        if bilingual and len(bilingual) >= 2:
+            logger.info(f"[InputMode] bilingual: {len(bilingual)} 行，跳过分句+翻译")
+            return {"mode": "bilingual", "items": bilingual, "language": src_lang}
+
+    # ── 逐行模式：平均行长 < 80 字符 ────────────────────────────
+    avg_len = sum(len(l) for l in lines) / len(lines)
+    if avg_len < 80:
+        items = [{"text": l, "translation": ""} for l in lines]
+        logger.info(f"[InputMode] per_line: {len(items)} 行，跳过 AI 分句")
+        return {"mode": "per_line", "items": items, "language": src_lang}
+
+    return {"mode": "paragraph", "items": [], "language": source_lang}
+
+
 def _parse_script_json(raw):
     """从模型返回文本中提取并解析分句 JSON。"""
     raw = raw.strip()
@@ -366,16 +476,29 @@ def generate_cover_image(text, language, out_path):
 GAP_SEC = 0.4  # 句间停顿
 
 
-def generate_audio_lesson(text, language, engine, out_dir, progress=None):
+def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_items=None):
     """完整流程：文本 → 音频文件 + segments。
     返回 (audio_filename, segments, detected_language)
+
+    pre_items: [{"text": str, "translation": str}, ...] — 已解析好的条目，跳过 AI 分句
     """
     def report(msg):
         if progress:
             progress(msg)
 
-    report("正在分析文本、分配角色...")
-    script, language = prepare_script(text, language)
+    if pre_items is not None:
+        # 逐行/双语模式：直接构建 script，跳过 AI 分句
+        report("正在准备文本...")
+        script = [
+            {"text": item["text"], "speaker": "N", "gender": "female", "emotion": "natural"}
+            for item in pre_items if item["text"].strip()
+        ]
+        if not script:
+            raise RuntimeError("文本内容为空")
+        script = _split_long_sentences(script, language)
+    else:
+        report("正在分析文本、分配角色...")
+        script, language = prepare_script(text, language)
 
     _FALLBACK = {
         "gemini": ["gemini", "azure"],
