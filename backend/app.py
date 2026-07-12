@@ -753,7 +753,14 @@ def api_tts_content():
 
 @app.route("/api/tts-generate", methods=["POST"])
 def api_tts_generate():
-    """粘贴文本 → 生成语音课程（音频 + 逐句时间戳字幕）"""
+    """粘贴文本 → 生成语音课程（SSE 流式进度 + 最终 JSON 结果）
+
+    响应格式：text/event-stream
+      data: {"type":"progress","msg":"正在生成语音 1/12..."}\n\n
+      ...
+      data: {"type":"done","result":{...}}\n\n
+      data: {"type":"error","error":"..."}\n\n
+    """
     data = request.get_json()
     text = (data.get("text") or "").strip()
     language = data.get("language", "th")
@@ -770,79 +777,104 @@ def api_tts_generate():
 
     os.makedirs(VIDEOS_DIR, exist_ok=True)
     target_lang = data.get("target_lang", "中文")
-    try:
-        # ── 检测输入格式（逐行/双语/段落） ───────────────────────
-        detected = detect_input_mode(text, language, target_lang)
-        mode = detected["mode"]
-        pre_items = detected["items"] if mode in ("bilingual", "per_line") else None
-        # auto 语言：从检测结果中获取
-        if language == "auto" and mode != "paragraph":
-            language = detected["language"]
 
-        # ── 生成音频课程 ──────────────────────────────────────────
-        audio_name, segments, language, tts_meta = generate_audio_lesson(
-            text, language, engine, VIDEOS_DIR, pre_items=pre_items
-        )
-        source_lang_name = {"th": "泰语", "en": "英语", "zh": "中文",
-                            "ja": "日语", "ko": "韩语"}.get(language, "外语")
+    # ── SSE 生成器 ────────────────────────────────────────────────
+    def generate():
+        q = queue.Queue()
 
-        # 转为 Segment 对象统一处理
-        seg_objs = [Segment.from_json(s) for s in segments]
+        def progress(msg):
+            q.put(("progress", msg))
 
-        # 泰语：显示文本按词加空格（朗读音频已用原文生成，不受影响）
-        if language == "th":
-            spaced = add_word_spacing([s.text for s in seg_objs], "th")
-            for s, sp in zip(seg_objs, spaced):
-                s.text = sp
+        def worker():
+            try:
+                # 检测输入格式
+                detected = detect_input_mode(text, language, target_lang)
+                mode = detected["mode"]
+                pre_items = detected["items"] if mode in ("bilingual", "per_line") else None
+                lang = language
+                if lang == "auto" and mode != "paragraph":
+                    lang = detected["language"]
 
-        # ── 翻译 ──────────────────────────────────────────────────
-        translate_provider = "skipped"
-        if mode == "bilingual" and pre_items:
-            # 双语模式：用户已提供译文，直接填入，跳过 API
-            for seg, item in zip(seg_objs, pre_items):
-                if item.get("translation"):
-                    seg.translation = item["translation"]
-            logger.info("[TTS] 双语模式：跳过翻译，直接使用用户提供译文")
-        else:
-            same_lang = (language == "zh" and target_lang in ("中文", "繁體中文")) or \
-                        (language == "ja" and target_lang == "日本語") or \
-                        (language == "ko" and target_lang == "한국어") or \
-                        (language == "en" and target_lang == "English")
-            if not same_lang:
-                try:
-                    translated, translate_provider = translate_segments(
-                        [{"index": s.index, "text": s.text} for s in seg_objs],
-                        source_lang_name, target_lang,
-                    )
-                    for tr in translated:
-                        idx = tr.get("index")
-                        if idx is not None and 0 <= idx < len(seg_objs):
-                            seg_objs[idx].translation = tr.get("translation", "")
-                except Exception as te:
-                    logger.warning(f"[TTS] 翻译失败: {te}")
+                audio_name, segments, lang, tts_meta = generate_audio_lesson(
+                    text, lang, engine, VIDEOS_DIR,
+                    progress=progress, pre_items=pre_items,
+                )
+                source_lang_name = {"th": "泰语", "en": "英语", "zh": "中文",
+                                    "ja": "日语", "ko": "韩语"}.get(lang, "外语")
 
-        # 封面插画（卡通风格；失败不影响主流程）
-        cover_name = os.path.splitext(audio_name)[0] + ".jpg"
-        cover = ""
-        if generate_cover_image(text, language, os.path.join(VIDEOS_DIR, cover_name)):
-            cover = cover_name
+                seg_objs = [Segment.from_json(s) for s in segments]
 
-        # 落盘字幕 JSON（SubtitleFile 保证格式统一）
-        subtitle_file = SubtitleFile(segments=seg_objs, language=language, cover=cover)
-        with open(subtitle_path(audio_name), "w", encoding="utf-8") as f:
-            json.dump(subtitle_file.to_json(), f, ensure_ascii=False, indent=2)
+                if lang == "th":
+                    spaced = add_word_spacing([s.text for s in seg_objs], "th")
+                    for s, sp in zip(seg_objs, spaced):
+                        s.text = sp
 
-        log_event("tts_generate", engine=engine, language=language,
-                  chars=len(text), sentences=len(seg_objs),
-                  input_mode=mode,
-                  split_provider=tts_meta.get("split_provider", "unknown"),
-                  translate_provider=translate_provider)
-        response_data = subtitle_file.to_json()
-        response_data["name"] = audio_name
-        return jsonify(response_data)
-    except Exception as e:
-        log_event("tts_generate_fail", engine=engine, error=str(e)[:200])
-        return jsonify({"error": str(e)}), 502
+                translate_provider = "skipped"
+                if mode == "bilingual" and pre_items:
+                    for seg, item in zip(seg_objs, pre_items):
+                        if item.get("translation"):
+                            seg.translation = item["translation"]
+                else:
+                    same_lang = (lang == "zh" and target_lang in ("中文", "繁體中文")) or \
+                                (lang == "ja" and target_lang == "日本語") or \
+                                (lang == "ko" and target_lang == "한국어") or \
+                                (lang == "en" and target_lang == "English")
+                    if not same_lang:
+                        try:
+                            q.put(("progress", "正在翻译..."))
+                            translated, translate_provider = translate_segments(
+                                [{"index": s.index, "text": s.text} for s in seg_objs],
+                                source_lang_name, target_lang,
+                            )
+                            for tr in translated:
+                                idx = tr.get("index")
+                                if idx is not None and 0 <= idx < len(seg_objs):
+                                    seg_objs[idx].translation = tr.get("translation", "")
+                        except Exception as te:
+                            logger.warning(f"[TTS] 翻译失败: {te}")
+
+                cover_name = os.path.splitext(audio_name)[0] + ".jpg"
+                cover = ""
+                if generate_cover_image(text, lang, os.path.join(VIDEOS_DIR, cover_name)):
+                    cover = cover_name
+
+                subtitle_file = SubtitleFile(segments=seg_objs, language=lang, cover=cover)
+                with open(subtitle_path(audio_name), "w", encoding="utf-8") as f:
+                    json.dump(subtitle_file.to_json(), f, ensure_ascii=False, indent=2)
+
+                log_event("tts_generate", engine=engine, language=lang,
+                          chars=len(text), sentences=len(seg_objs),
+                          input_mode=mode,
+                          split_provider=tts_meta.get("split_provider", "unknown"),
+                          translate_provider=translate_provider)
+
+                result = subtitle_file.to_json()
+                result["name"] = audio_name
+                q.put(("done", result))
+            except Exception as e:
+                log_event("tts_generate_fail", engine=engine, error=str(e)[:200])
+                q.put(("error", str(e)))
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+
+        while True:
+            try:
+                kind, payload = q.get(timeout=300)
+            except queue.Empty:
+                yield "data: {\"type\":\"error\",\"error\":\"生成超时\"}\n\n"
+                break
+            if kind == "progress":
+                yield f"data: {json.dumps({'type':'progress','msg':payload}, ensure_ascii=False)}\n\n"
+            elif kind == "done":
+                yield f"data: {json.dumps({'type':'done','result':payload}, ensure_ascii=False)}\n\n"
+                break
+            elif kind == "error":
+                yield f"data: {json.dumps({'type':'error','error':payload}, ensure_ascii=False)}\n\n"
+                break
+
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.route("/api/romanize", methods=["POST"])

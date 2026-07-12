@@ -1229,7 +1229,7 @@ ttsTextEl.addEventListener("paste", async (e) => {
     }
 });
 
-// ========== 生成朗读课程 ==========
+// ========== 生成朗读课程 (SSE 流式) ==========
 btnTtsGenerate.addEventListener("click", async () => {
     const text = getActiveTtsText();
     if (!text) {
@@ -1251,16 +1251,42 @@ btnTtsGenerate.addEventListener("click", async () => {
                 target_lang: getTargetLang(),
             }),
         });
-        const data = await res.json();
-        if (data.error) {
-            ttsStatus.textContent = t("tts.fail") + data.error;
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            ttsStatus.textContent = t("tts.fail") + (err.error || res.statusText);
             ttsStatus.className = "url-status error";
             return;
         }
-        ttsStatus.textContent = "";
-        ttsTextEl.value = "";
-        await loadSaved(data.name);
-        saveToLocal(false, false, "json");
+        // 逐行读取 SSE 流
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        let done = false;
+        while (!done) {
+            const { value, done: streamDone } = await reader.read();
+            if (streamDone) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split("\n");
+            buf = lines.pop(); // 保留未完成行
+            for (const line of lines) {
+                if (!line.startsWith("data:")) continue;
+                let evt;
+                try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
+                if (evt.type === "progress") {
+                    ttsStatus.textContent = evt.msg;
+                } else if (evt.type === "done") {
+                    ttsStatus.textContent = "";
+                    ttsTextEl.value = "";
+                    await loadSaved(evt.result.name);
+                    saveToLocal(false, false, "json");
+                    done = true;
+                } else if (evt.type === "error") {
+                    ttsStatus.textContent = t("tts.fail") + evt.error;
+                    ttsStatus.className = "url-status error";
+                    done = true;
+                }
+            }
+        }
     } catch (e) {
         ttsStatus.textContent = t("tts.fail") + e.message;
         ttsStatus.className = "url-status error";
