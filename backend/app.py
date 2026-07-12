@@ -695,7 +695,6 @@ def api_ocr():
 def api_tts_content():
     """AI 生成双语学习内容（对话 / 词汇列表）"""
     from ai.provider import deepseek as deepseek_provider
-    from ai.tts import _gemini_request
     data = request.get_json()
     prompt   = (data.get("prompt") or "").strip()[:300]
     language = (data.get("language") or "th").lower()[:2]
@@ -721,12 +720,17 @@ def api_tts_content():
             text = deepseek_provider.chat(full_prompt, temperature=0.7, timeout=30)
         else:
             # 其他语言用 Gemini
-            text = _gemini_request(
+            from ai.provider import gemini as gemini_provider
+            result = gemini_provider.request(
                 model=providers.Gemini.TEXT_MODEL,
-                contents=[{"role": "user", "parts": [{"text": user_msg}]}],
-                system_instruction=system,
+                payload={
+                    "contents": [{"parts": [{"text": system + "\n\n" + user_msg}]}],
+                    "generationConfig": {"temperature": 0.7},
+                },
                 timeout=30,
+                tag="TTS-content",
             )
+            text = result["candidates"][0]["content"]["parts"][0]["text"]
         # 清理：去掉 AI 可能加的前言/后记（非格式行）
         lines = []
         for line in text.splitlines():
