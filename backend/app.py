@@ -14,6 +14,7 @@ from ai.pronunciation import assess_pronunciation
 from romanize import generate_romanization
 from export import export_video_with_subtitles, export_srt
 from r2 import upload_audio
+from domain import Segment, SubtitleFile
 
 logger = get_logger(__name__)
 
@@ -505,22 +506,20 @@ def api_transcribe():
                     align_word_timestamps(result["segments"], raw_words)
                     result.pop("words", None)
 
-            # 清理内部字段，保留前端需要的置信度信息
-            for s in result.get("segments", []):
-                if "_conf" in s:
-                    s["confidence"] = s.pop("_conf")
-                if "_source" in s:
-                    s["source"] = s.pop("_source")
-                s.pop("_logprob", None)
-                s.pop("_no_speech", None)
-            result.pop("words", None)
+            # 构造 Segment 对象（同时清洗内部私有字段 _conf/_source/_logprob 等）
+            language_code = result.get("language", "")
+            segments = [Segment.from_internal_dict(s) for s in result.get("segments", [])]
 
             # 生成拼音 / 罗马拼音（中文→带声调拼音，泰语→RTGS）
-            generate_romanization(result["segments"], result.get("language", ""))
+            generate_romanization(segments, language_code)
+
+            # 序列化回 dict 供 SSE 传输（100% 兼容原 JSON 格式）
+            result["segments"] = [s.to_json() for s in segments]
+            result.pop("words", None)
 
             log_event("transcribe", video=video_name, provider=provider,
-                      language=result.get("language", ""),
-                      segments=len(result.get("segments", [])))
+                      language=language_code,
+                      segments=len(segments))
             progress_queue.put(("done", result))
         except Exception as e:
             log_event("transcribe_fail", video=video_name, provider=provider, error=str(e)[:200])
@@ -718,12 +717,14 @@ def api_tts_generate():
         source_lang_name = {"th": "泰语", "en": "英语", "zh": "中文",
                             "ja": "日语", "ko": "韩语"}.get(language, "外语")
 
-        # 泰语：显示文本按词加空格 + 发音时长权重（朗读音频已用原文生成，不受影响）
+        # 转为 Segment 对象统一处理
+        seg_objs = [Segment.from_json(s) for s in segments]
+
+        # 泰语：显示文本按词加空格（朗读音频已用原文生成，不受影响）
         if language == "th":
-            texts = [s["text"] for s in segments]
-            spaced = add_word_spacing(texts, "th")
-            for s, sp in zip(segments, spaced):
-                s["text"] = sp
+            spaced = add_word_spacing([s.text for s in seg_objs], "th")
+            for s, sp in zip(seg_objs, spaced):
+                s.text = sp
 
         # 翻译（目标语言由前端界面语言决定；源语言与目标一致时跳过）
         target_lang = data.get("target_lang", "中文")
@@ -734,33 +735,32 @@ def api_tts_generate():
         if not same_lang:
             try:
                 translated = translate_segments(
-                    [{"index": s["index"], "text": s["text"]} for s in segments],
+                    [{"index": s.index, "text": s.text} for s in seg_objs],
                     source_lang_name, target_lang,
                 )
                 for tr in translated:
                     idx = tr.get("index")
-                    if idx is not None and 0 <= idx < len(segments):
-                        segments[idx]["translation"] = tr.get("translation", "")
+                    if idx is not None and 0 <= idx < len(seg_objs):
+                        seg_objs[idx].translation = tr.get("translation", "")
             except Exception as te:
                 logger.warning(f"[TTS] 翻译失败: {te}")
 
-        # 封面插画（卡通风格，根据文本内容生成；失败不影响主流程）
+        # 封面插画（卡通风格；失败不影响主流程）
         cover_name = os.path.splitext(audio_name)[0] + ".jpg"
         cover = ""
         if generate_cover_image(text, language, os.path.join(VIDEOS_DIR, cover_name)):
             cover = cover_name
 
-        # 落盘字幕 JSON（与视频字幕同格式，播放器直接复用）
-        subtitle_data = {"segments": segments, "language": language}
-        if cover:
-            subtitle_data["cover"] = cover
+        # 落盘字幕 JSON（SubtitleFile 保证格式统一）
+        subtitle_file = SubtitleFile(segments=seg_objs, language=language, cover=cover)
         with open(subtitle_path(audio_name), "w", encoding="utf-8") as f:
-            json.dump(subtitle_data, f, ensure_ascii=False, indent=2)
+            json.dump(subtitle_file.to_json(), f, ensure_ascii=False, indent=2)
 
         log_event("tts_generate", engine=engine, language=language,
-                  chars=len(text), sentences=len(segments))
-        return jsonify({"name": audio_name, "segments": segments,
-                        "language": language, "cover": cover})
+                  chars=len(text), sentences=len(seg_objs))
+        response_data = subtitle_file.to_json()
+        response_data["name"] = audio_name
+        return jsonify(response_data)
     except Exception as e:
         log_event("tts_generate_fail", engine=engine, error=str(e)[:200])
         return jsonify({"error": str(e)}), 502
@@ -775,9 +775,9 @@ def api_romanize():
     if not text:
         return jsonify({"romanization": ""})
     try:
-        segs = [{"text": text}]
+        segs = [Segment(index=0, text=text, start=0, end=0)]
         generate_romanization(segs, language)
-        return jsonify({"romanization": segs[0].get("romanization", "")})
+        return jsonify({"romanization": segs[0].romanization})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -791,9 +791,10 @@ def api_romanize_batch():
     if not segs:
         return jsonify({"segments": []})
     try:
-        work = [{"text": (s.get("text") or "").strip()} for s in segs]
+        work = [Segment(index=i, text=(s.get("text") or "").strip(), start=0, end=0)
+                for i, s in enumerate(segs)]
         generate_romanization(work, language)
-        return jsonify({"segments": work})
+        return jsonify({"segments": [{"text": w.text, "romanization": w.romanization} for w in work]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -856,14 +857,13 @@ def api_export_srt():
         return jsonify({"error": "字幕文件不存在，请先识别翻译"}), 400
 
     with open(sub_path, "r", encoding="utf-8") as f:
-        subtitle_data = json.load(f)
+        subtitle_file = SubtitleFile.from_json(json.load(f))
 
     target_dir = export_dir if export_dir else EXPORT_DIR
     os.makedirs(target_dir, exist_ok=True)
 
     base = file_prefix if file_prefix else os.path.splitext(video_name)[0]
-    lang = subtitle_data.get("language", "")
-    srt_names = export_srt(subtitle_data, target_dir, base, lang)
+    srt_names = export_srt(subtitle_file, target_dir, base)
 
     return jsonify({"dir": target_dir, "files": srt_names})
 
@@ -888,7 +888,7 @@ def api_export():
         return jsonify({"error": "字幕文件不存在，请先识别翻译"}), 400
 
     with open(sub_path, "r", encoding="utf-8") as f:
-        subtitle_data = json.load(f)
+        subtitle_file = SubtitleFile.from_json(json.load(f))
 
     # 确定导出目录和文件名前缀
     target_dir = export_dir if export_dir else EXPORT_DIR
@@ -899,8 +899,7 @@ def api_export():
     output_path = os.path.join(target_dir, output_name)
 
     # 导出两个独立 SRT 文件
-    lang = subtitle_data.get("language", "")
-    srt_names = export_srt(subtitle_data, target_dir, base, lang)
+    srt_names = export_srt(subtitle_file, target_dir, base)
 
     # 用 SSE 流式推送进度
     progress_queue = queue.Queue()
@@ -908,7 +907,7 @@ def api_export():
     def do_export():
         try:
             export_video_with_subtitles(
-                video_path, subtitle_data, output_path,
+                video_path, subtitle_file, output_path,
                 progress_callback=lambda pct: progress_queue.put(("progress", pct)),
             )
             progress_queue.put(("done", {

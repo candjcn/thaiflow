@@ -104,10 +104,10 @@ def _romanize_th_batch(texts):
 
 def generate_romanization(segments, language):
     """
-    为 segments 列表中每个 dict 添加 'romanization' 字段。
+    为 segments 列表中每个 Segment 写入 romanization 字段。
 
     Args:
-        segments: list of segment dicts（含 'text' 字段）
+        segments: list of Segment（domain.Segment 对象）
         language: Whisper 返回的语言代码，如 "th" / "zh" / "en"
 
     不支持的语言直接返回，不修改 segments。
@@ -116,13 +116,13 @@ def generate_romanization(segments, language):
 
     if lang == "zh":
         for seg in segments:
-            text = (seg.get("text") or "").strip()
-            seg["romanization"] = _romanize_zh(text) if text else ""
+            text = seg.text.strip()
+            seg.romanization = _romanize_zh(text) if text else ""
 
     elif lang == "th":
-        texts = [(seg.get("text") or "").strip() for seg in segments]
+        texts = [seg.text.strip() for seg in segments]
         romanized = _romanize_th_batch(texts)
         for seg, rom in zip(segments, romanized):
-            seg["romanization"] = rom
+            seg.romanization = rom
 
-    # 其他语言（英/日/韩等）：不添加 romanization 字段
+    # 其他语言（英/日/韩等）：不修改 romanization 字段

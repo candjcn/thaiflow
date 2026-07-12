@@ -298,46 +298,46 @@ def wrap_text(text, font_size, max_width):
 # ========== SRT 导出 ==========
 
 def generate_srt_single(segments, field):
-    """生成单语 SRT 字幕，field 为 'text' 或 'translation'"""
+    """生成单语 SRT 字幕，field 为 'text' 或 'translation'（接受 Segment 对象列表）"""
     lines = []
     seq = 0
     for seg in segments:
-        content = seg.get(field, "").strip()
+        content = getattr(seg, field, "").strip()
         if not content:
             continue
         seq += 1
-        start = format_srt_time(seg["start"])
-        end = format_srt_time(seg["end"])
         lines.append(f"{seq}")
-        lines.append(f"{start} --> {end}")
+        lines.append(f"{format_srt_time(seg.start)} --> {format_srt_time(seg.end)}")
         lines.append(content)
         lines.append("")
     return "\n".join(lines)
 
 
-def export_srt(subtitle_data, export_dir, base_name, language):
-    """导出两个独立的 SRT 字幕文件，返回文件名列表"""
+def export_srt(subtitle_file, export_dir, base_name, language=None):
+    """导出两个独立的 SRT 字幕文件，返回文件名列表。
+
+    Args:
+        subtitle_file: SubtitleFile 对象
+        export_dir:    导出目录
+        base_name:     文件名前缀
+        language:      语言代码（省略时从 subtitle_file.language 读取）
+    """
+    lang = (language or subtitle_file.language or "")[:2]
     lang_label = {
         "th": "泰语", "en": "英语", "ja": "日语", "ko": "韩语",
         "zh": "中文", "fr": "法语", "de": "德语", "es": "西班牙语",
         "pt": "葡萄牙语", "ru": "俄语", "it": "意大利语", "vi": "越南语",
         "hi": "印地语", "ar": "阿拉伯语",
     }
-    orig_label = lang_label.get((language or "")[:2], "原文")
+    orig_label = lang_label.get(lang, "原文")
 
     orig_name = f"{base_name}_{orig_label}.srt"
     zh_name = f"{base_name}_中文.srt"
 
-    orig_path = os.path.join(export_dir, orig_name)
-    zh_path = os.path.join(export_dir, zh_name)
-
-    orig_content = generate_srt_single(subtitle_data["segments"], "text")
-    zh_content = generate_srt_single(subtitle_data["segments"], "translation")
-
-    with open(orig_path, "w", encoding="utf-8") as f:
-        f.write(orig_content)
-    with open(zh_path, "w", encoding="utf-8") as f:
-        f.write(zh_content)
+    with open(os.path.join(export_dir, orig_name), "w", encoding="utf-8") as f:
+        f.write(generate_srt_single(subtitle_file.segments, "text"))
+    with open(os.path.join(export_dir, zh_name), "w", encoding="utf-8") as f:
+        f.write(generate_srt_single(subtitle_file.segments, "translation"))
 
     return [orig_name, zh_name]
 
@@ -366,10 +366,10 @@ def build_drawtext_filter(segments, video_width, video_height, font_path):
 
     filters = []
     for seg in segments:
-        start = format_drawtext_time(seg["start"])
-        end = format_drawtext_time(seg["end"])
-        text = seg.get("text", "").strip()
-        translation = seg.get("translation", "").strip()
+        start = format_drawtext_time(seg.start)
+        end = format_drawtext_time(seg.end)
+        text = seg.text.strip()
+        translation = seg.translation.strip()
 
         orig_lines = wrap_text(text, font_size_orig, max_sub_width) if text else []
         trans_lines = wrap_text(translation, font_size_trans, max_sub_width) if translation else []
@@ -415,12 +415,16 @@ def build_drawtext_filter(segments, video_width, video_height, font_path):
     return ",".join(filters)
 
 
-def export_video_with_subtitles(video_path, subtitle_data, output_path, progress_callback=None):
-    """将双语字幕烧录进视频"""
+def export_video_with_subtitles(video_path, subtitle_file, output_path, progress_callback=None):
+    """将双语字幕烧录进视频。
+
+    Args:
+        subtitle_file: SubtitleFile 对象
+    """
     width, height, duration = get_video_info(video_path)
     font_path = find_font()
 
-    vf = build_drawtext_filter(subtitle_data["segments"], width, height, font_path)
+    vf = build_drawtext_filter(subtitle_file.segments, width, height, font_path)
     if not vf:
         raise RuntimeError("没有字幕内容可烧录")
 
