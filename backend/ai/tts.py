@@ -264,7 +264,15 @@ def detect_input_mode(text, source_lang, target_lang):
     if avg_len < 80:
         items = []
         for p in parsed_lines:
-            item = {"text": p["text"], "translation": ""}
+            # 逐行也尝试双语拆分：成功则只取源语言为 text，译文放 translation
+            # 避免把整行（含中文/日文）整个送去 TTS
+            translation = ""
+            tts_text = p["text"]
+            if src_script != tgt_script:
+                split = _split_bilingual_line(p["text"], src_script, tgt_script)
+                if split:
+                    tts_text, translation = split[0], split[1]
+            item = {"text": tts_text, "translation": translation}
             if p["speaker"]:
                 item["speaker"] = p["speaker"]
                 item["gender"]  = p["gender"]
