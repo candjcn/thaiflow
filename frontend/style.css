@@ -424,6 +424,72 @@ html, body {
     margin-bottom: 16px;
 }
 
+/* TTS Tab 切换 */
+.tts-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+}
+.tts-tab {
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: rgba(255,255,255,0.45);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 14px;
+    transition: background 0.15s, color 0.15s;
+}
+.tts-tab:hover { color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.06); }
+.tts-tab.active { color: #fff; background: rgba(255,255,255,0.1); }
+
+/* AI 生成 Tab：prompt 行 */
+.tts-ai-prompt-wrap {
+    display: flex;
+    gap: 8px;
+}
+.tts-ai-prompt-wrap input[type="text"] {
+    flex: 1;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    color: #eee;
+    font-size: 13px;
+    padding: 8px 12px;
+    font-family: inherit;
+}
+.tts-ai-prompt-wrap input[type="text"]::placeholder { color: rgba(255,255,255,0.3); }
+.tts-ai-prompt-wrap input[type="text"]:focus {
+    outline: none;
+    border-color: rgba(255,255,255,0.3);
+}
+.btn-tts-ai-gen {
+    background: rgba(233,69,96,0.18);
+    border: 1px solid rgba(233,69,96,0.4);
+    border-radius: 8px;
+    color: #e94560;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.btn-tts-ai-gen:hover { background: rgba(233,69,96,0.3); }
+.btn-tts-ai-gen:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* AI Tab 结果 textarea：可自动撑高 */
+#ttsText {
+    resize: none;
+    overflow-y: auto;
+    min-height: 120px;
+    max-height: 400px;
+    transition: height 0.15s;
+}
+
 .tts-content {
     margin-top: 0;
     padding: 14px;

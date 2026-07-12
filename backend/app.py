@@ -691,6 +691,58 @@ def api_ocr():
         return jsonify({"error": str(e)}), 502
 
 
+@app.route("/api/tts-content", methods=["POST"])
+def api_tts_content():
+    """AI 生成双语学习内容（对话 / 词汇列表）"""
+    from ai.provider import deepseek as deepseek_provider
+    from ai.tts import _gemini_request
+    data = request.get_json()
+    prompt   = (data.get("prompt") or "").strip()[:300]
+    language = (data.get("language") or "th").lower()[:2]
+    if not prompt:
+        return jsonify({"error": "prompt is required"}), 400
+
+    # 系统提示：严格要求双语格式，支持对话和词汇两种输出
+    system = (
+        "你是语言学习内容生成专家。根据用户要求生成双语学习材料。\n"
+        "输出格式规则（必须严格遵守）：\n"
+        "- 对话：每行格式为「A: [外语原文]    [中文翻译]」或「B: [外语原文]    [中文翻译]」\n"
+        "- 词汇：每行格式为「[外语词汇/短语]    [中文翻译]」\n"
+        "- 原文与中文翻译之间用4个空格分隔\n"
+        "- 每行一句或一词，不加编号\n"
+        "- 直接输出内容，不要有任何前言、后记或说明文字"
+    )
+    user_msg = f"目标语言：{language}\n用户要求：{prompt}"
+
+    try:
+        if language == "zh":
+            # 中文内容用 DeepSeek
+            full_prompt = system + "\n\n" + user_msg
+            text = deepseek_provider.chat(full_prompt, temperature=0.7, timeout=30)
+        else:
+            # 其他语言用 Gemini
+            text = _gemini_request(
+                model=providers.Gemini.TEXT_MODEL,
+                contents=[{"role": "user", "parts": [{"text": user_msg}]}],
+                system_instruction=system,
+                timeout=30,
+            )
+        # 清理：去掉 AI 可能加的前言/后记（非格式行）
+        lines = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # 保留含外语字符或明显是词汇/对话格式的行
+            lines.append(line)
+        result = "\n".join(lines)
+        log_event("tts_content_gen", language=language, prompt_len=len(prompt))
+        return jsonify({"text": result})
+    except Exception as e:
+        logger.warning(f"[TTS content] 生成失败: {e}")
+        return jsonify({"error": str(e)}), 502
+
+
 @app.route("/api/tts-generate", methods=["POST"])
 def api_tts_generate():
     """粘贴文本 → 生成语音课程（音频 + 逐句时间戳字幕）"""

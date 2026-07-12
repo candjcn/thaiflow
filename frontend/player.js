@@ -1079,48 +1079,72 @@ btnPasteUrl.addEventListener("click", async () => {
     }
 });
 
-// ========== ttsText 粘贴按钮（同 URL 输入框行为）==========
-const ttsTextEl = document.getElementById("ttsText");
-ttsTextEl.addEventListener("focus", async () => {
-    if (ttsTextEl.value.trim()) return;
-    try {
-        const text = await navigator.clipboard.readText();
-        if (text) btnPasteTts.style.display = "block";
-    } catch (e) { /* 权限被拒时不显示 */ }
-});
-ttsTextEl.addEventListener("blur", () => {
-    setTimeout(() => { btnPasteTts.style.display = "none"; }, 200);
-});
-ttsTextEl.addEventListener("input", () => {
-    if (ttsTextEl.value.trim()) btnPasteTts.style.display = "none";
-});
-btnPasteTts.addEventListener("click", async () => {
-    try {
-        const text = await navigator.clipboard.readText();
-        if (text) {
-            ttsTextEl.value = text.trim();
-            btnPasteTts.style.display = "none";
-            ttsTextEl.focus();
-        }
-    } catch (e) {
-        ttsTextEl.focus();
-        document.execCommand("paste");
-    }
-});
-
-// ========== 粘贴文本生成朗读课程 ==========
-const ttsContent = document.getElementById("ttsContent");
-const ttsStatus = document.getElementById("ttsStatus");
+// ========== TTS Tab 切换 ==========
+const ttsContent    = document.getElementById("ttsContent");
+const ttsStatus     = document.getElementById("ttsStatus");
 const btnTtsGenerate = document.getElementById("btnTtsGenerate");
+const ttsTabAi      = document.getElementById("ttsTabAi");
+const ttsTabPaste   = document.getElementById("ttsTabPaste");
+const ttsPanelAi    = document.getElementById("ttsPanelAi");
+const ttsPanelPaste = document.getElementById("ttsPanelPaste");
+let ttsActiveTab    = "ai"; // 默认 AI 生成 Tab
+
+function switchTtsTab(tab) {
+    ttsActiveTab = tab;
+    ttsTabAi.classList.toggle("active", tab === "ai");
+    ttsTabPaste.classList.toggle("active", tab === "paste");
+    ttsPanelAi.style.display    = tab === "ai"    ? "" : "none";
+    ttsPanelPaste.style.display = tab === "paste" ? "" : "none";
+    ttsStatus.textContent = "";
+}
+ttsTabAi.addEventListener("click",    () => switchTtsTab("ai"));
+ttsTabPaste.addEventListener("click", () => switchTtsTab("paste"));
+
+/** 获取当前激活 Tab 的文本内容 */
+function getActiveTtsText() {
+    if (ttsActiveTab === "ai") {
+        return document.getElementById("ttsText").value.trim();
+    }
+    return document.getElementById("ttsTextPaste").value.trim();
+}
 
 document.getElementById("btnTtsToggle").addEventListener("click", () => {
     ttsContent.style.display = ttsContent.style.display === "none" ? "flex" : "none";
 });
 
-// 隐藏测试功能：文本框里直接粘贴图片 → 预览 + 转圈 → OCR 识别成文字
+// ========== 粘贴 Tab：粘贴按钮 ==========
+const ttsTextPasteEl = document.getElementById("ttsTextPaste");
+ttsTextPasteEl.addEventListener("focus", async () => {
+    if (ttsTextPasteEl.value.trim()) return;
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) btnPasteTts.style.display = "block";
+    } catch (e) { /* 权限被拒时不显示 */ }
+});
+ttsTextPasteEl.addEventListener("blur", () => {
+    setTimeout(() => { btnPasteTts.style.display = "none"; }, 200);
+});
+ttsTextPasteEl.addEventListener("input", () => {
+    if (ttsTextPasteEl.value.trim()) btnPasteTts.style.display = "none";
+});
+btnPasteTts.addEventListener("click", async () => {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            ttsTextPasteEl.value = text.trim();
+            btnPasteTts.style.display = "none";
+            ttsTextPasteEl.focus();
+        }
+    } catch (e) {
+        ttsTextPasteEl.focus();
+        document.execCommand("paste");
+    }
+});
+
+// ========== 粘贴 Tab：图片粘贴 → OCR ==========
 const ttsImgPreview = document.getElementById("ttsImgPreview");
-const ttsImgThumb = document.getElementById("ttsImgThumb");
-const ttsImgClose = document.getElementById("ttsImgClose");
+const ttsImgThumb   = document.getElementById("ttsImgThumb");
+const ttsImgClose   = document.getElementById("ttsImgClose");
 let ttsImgAutoCloseTimer = null;
 
 function closeTtsImgPreview() {
@@ -1130,19 +1154,16 @@ function closeTtsImgPreview() {
     if (ttsImgThumb.src.startsWith("blob:")) URL.revokeObjectURL(ttsImgThumb.src);
     ttsImgThumb.removeAttribute("src");
 }
-
 ttsImgClose.addEventListener("click", closeTtsImgPreview);
 
-document.getElementById("ttsText").addEventListener("paste", async (e) => {
+ttsTextPasteEl.addEventListener("paste", async (e) => {
     const items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
     const imgItem = Array.from(items).find(it => it.type.startsWith("image/"));
-    if (!imgItem) return; // 纯文字粘贴走默认行为
+    if (!imgItem) return;
 
     e.preventDefault();
     const blob = imgItem.getAsFile();
-
-    // 1. 显示图片预览 + 转圈（识别中）
     closeTtsImgPreview();
     ttsImgThumb.src = URL.createObjectURL(blob);
     ttsImgPreview.style.display = "block";
@@ -1156,25 +1177,18 @@ document.getElementById("ttsText").addEventListener("paste", async (e) => {
         formData.append("language", document.getElementById("ttsLang").value);
         const res = await fetch("/api/ocr", { method: "POST", body: formData });
         const data = await res.json();
-
         ttsImgPreview.classList.remove("loading");
-
         if (data.error) {
             ttsStatus.textContent = "图片识别失败: " + data.error;
             ttsStatus.className = "url-status error";
-            return; // 保留预览，手动关闭
+            return;
         }
-
-        // 2. 识别结果填入文本框（已有文字则追加）
-        const ta = document.getElementById("ttsText");
-        ta.value = ta.value ? ta.value + "\n" + (data.text || "") : (data.text || "");
+        ttsTextPasteEl.value = ttsTextPasteEl.value
+            ? ttsTextPasteEl.value + "\n" + (data.text || "")
+            : (data.text || "");
         ttsStatus.textContent = data.text ? "" : "图片中没有识别到文字";
         ttsStatus.className = "url-status";
-
-        // 3. 成功后 2 秒自动关闭预览（也可手动点 ✕）
-        if (data.text) {
-            ttsImgAutoCloseTimer = setTimeout(closeTtsImgPreview, 2000);
-        }
+        if (data.text) ttsImgAutoCloseTimer = setTimeout(closeTtsImgPreview, 2000);
     } catch (err) {
         ttsImgPreview.classList.remove("loading");
         ttsStatus.textContent = "图片识别失败: " + err.message;
@@ -1182,18 +1196,61 @@ document.getElementById("ttsText").addEventListener("paste", async (e) => {
     }
 });
 
+// ========== AI 生成 Tab：调用 /api/tts-content ==========
+const btnTtsAiGen   = document.getElementById("btnTtsAiGen");
+const ttsAiPrompt   = document.getElementById("ttsAiPrompt");
+const ttsAiTextarea = document.getElementById("ttsText"); // AI tab 的结果框
+
+btnTtsAiGen.addEventListener("click", async () => {
+    const prompt = ttsAiPrompt.value.trim();
+    if (!prompt) {
+        ttsStatus.textContent = t("tts.ai.needPrompt");
+        ttsStatus.className = "url-status error";
+        return;
+    }
+    btnTtsAiGen.disabled = true;
+    ttsStatus.textContent = t("tts.ai.generating");
+    ttsStatus.className = "url-status";
+    try {
+        const res = await fetch("/api/tts-content", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                prompt,
+                language: document.getElementById("ttsLang").value,
+            }),
+        });
+        const data = await res.json();
+        if (data.error) {
+            ttsStatus.textContent = t("tts.ai.fail") + data.error;
+            ttsStatus.className = "url-status error";
+            return;
+        }
+        ttsAiTextarea.value = data.text || "";
+        // auto-grow
+        ttsAiTextarea.style.height = "auto";
+        ttsAiTextarea.style.height = Math.min(ttsAiTextarea.scrollHeight, 400) + "px";
+        ttsStatus.textContent = t("tts.ai.done");
+        ttsStatus.className = "url-status";
+    } catch (e) {
+        ttsStatus.textContent = t("tts.ai.fail") + e.message;
+        ttsStatus.className = "url-status error";
+    } finally {
+        btnTtsAiGen.disabled = false;
+    }
+});
+
+// ========== 生成朗读课程（两个 Tab 共用） ==========
 btnTtsGenerate.addEventListener("click", async () => {
-    const text = document.getElementById("ttsText").value.trim();
+    const text = getActiveTtsText();
     if (!text) {
         ttsStatus.textContent = t("tts.needText");
         ttsStatus.className = "url-status error";
         return;
     }
-
     btnTtsGenerate.disabled = true;
     ttsStatus.textContent = t("tts.generating");
     ttsStatus.className = "url-status";
-
     try {
         const res = await fetch("/api/tts-generate", {
             method: "POST",
@@ -1212,10 +1269,10 @@ btnTtsGenerate.addEventListener("click", async () => {
             return;
         }
         ttsStatus.textContent = "";
-        document.getElementById("ttsText").value = "";
-        // 进入播放器（音频 + 字幕 JSON 已在服务器）
+        // 清空当前 Tab 的输入
+        if (ttsActiveTab === "ai") ttsAiTextarea.value = "";
+        else ttsTextPasteEl.value = "";
         await loadSaved(data.name);
-        // 自动保存到本地：音频 + JSON（本地回放学习用）
         saveToLocal(false, false, "json");
     } catch (e) {
         ttsStatus.textContent = t("tts.fail") + e.message;
