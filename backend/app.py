@@ -309,9 +309,13 @@ def api_download_video():
                     info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
                 )
             if info_result.returncode != 0:
-                err = info_result.stderr[-300:]
-                if "Sign in" in err or "cookies" in err:
+                err = info_result.stderr[-600:]
+                if "DRM protected" in err:
+                    err = "该视频受 DRM 版权保护，无法下载。请尝试其他视频。"
+                elif "Sign in" in err or "cookies" in err:
                     err = "YouTube 阻止了服务器访问（反爬验证）。请改用 TikTok 链接，或联系开发者配置 YouTube cookies。"
+                elif "JavaScript runtime" in err or "challenge solver" in err or "rmats" in err:
+                    err = "YouTube 验证升级，服务器正在更新中。请稍后重试，或改用 TikTok / 抖音链接。"
                 progress_queue.put(("error", f"无法获取视频信息: {err}"))
                 return
 

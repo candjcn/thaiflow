@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["ffmpeg", "yt-dlp"]
+nixPkgs = ["ffmpeg", "nodejs"]
 
 [phases.install]
-cmds = ["pip install -r backend/requirements.txt"]
+cmds = ["pip install -r backend/requirements.txt", "pip install -U yt-dlp"]
 
 [start]
 cmd = "cd backend && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 2"
