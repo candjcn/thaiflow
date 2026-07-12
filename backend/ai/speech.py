@@ -117,7 +117,20 @@ def _parse_result_obj(result_obj, index_start=0):
             we = (w.end   if hasattr(w, "end")   else w.get("end",   0))
             words.append({"word": wt.strip(), "start": round(ws, 3), "end": round(we, 3)})
 
-    language = getattr(result_obj, "language", "unknown")
+    language = getattr(result_obj, "language", "unknown") or "unknown"
+    # OpenAI Whisper-1 返回全名（如 "chinese"），Groq 返回 ISO 码（如 "zh"）
+    # 统一转成 ISO 2-letter 代码
+    _LANG_NAME_TO_ISO = {
+        "chinese": "zh", "english": "en", "japanese": "ja", "korean": "ko",
+        "thai": "th", "french": "fr", "german": "de", "spanish": "es",
+        "portuguese": "pt", "russian": "ru", "italian": "it", "vietnamese": "vi",
+        "hindi": "hi", "arabic": "ar", "dutch": "nl", "polish": "pl",
+        "turkish": "tr", "indonesian": "id", "malay": "ms", "swedish": "sv",
+        "danish": "da", "norwegian": "no", "finnish": "fi", "czech": "cs",
+        "romanian": "ro", "hungarian": "hu", "greek": "el", "hebrew": "he",
+        "ukrainian": "uk", "catalan": "ca", "croatian": "hr",
+    }
+    language = _LANG_NAME_TO_ISO.get(language.lower(), language)
     return segments, words, language
 
 
