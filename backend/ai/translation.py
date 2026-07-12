@@ -1,0 +1,113 @@
+"""
+翻译服务层
+业务模块通过此模块访问翻译能力，不知道底层是 DeepSeek 还是 Gemini。
+保持与原 translate.py 完全相同的函数签名和返回格式。
+"""
+import json
+from config import providers, settings, get_logger
+from ai.provider import gemini as gemini_provider
+from ai.provider import deepseek as deepseek_provider
+
+logger = get_logger(__name__)
+
+_CHINESE_TARGETS = {"中文", "繁體中文"}
+_CHINESE_SOURCES = {"中文", "繁體中文", "普通话"}
+
+
+def _build_prompt(segments, source_lang, target_lang):
+    lines = [f'{seg["index"]}. {seg["text"]}' for seg in segments]
+    examples = {
+        "中文":    '[{"index":0,"translation":"你好"},{"index":1,"translation":"谢谢"}]',
+        "繁體中文": '[{"index":0,"translation":"你好"},{"index":1,"translation":"謝謝"}]',
+        "English": '[{"index":0,"translation":"Hello"},{"index":1,"translation":"Thank you"}]',
+        "ไทย":    '[{"index":0,"translation":"สวัสดี"},{"index":1,"translation":"ขอบคุณ"}]',
+    }
+    example = examples.get(target_lang, '[{"index":0,"translation":"..."}]')
+    return (
+        f"请将以下{source_lang}句子逐句翻译为{target_lang}。\n"
+        f"严格按照 JSON 数组格式返回，每个元素包含 index 和 translation 字段。\n"
+        f"只返回 JSON，不要任何其他文字。\n\n"
+        f"示例返回格式：\n{example}\n\n"
+        f"待翻译内容：\n" + "\n".join(lines)
+    )
+
+
+def _parse_translations(content, segments):
+    content = content.strip()
+    if content.startswith("```"):
+        content = content.split("\n", 1)[1]
+        content = content.rsplit("```", 1)[0]
+    translations = json.loads(content)
+    trans_map = {t["index"]: t["translation"] for t in translations}
+    return [
+        {"index": s["index"], "text": s["text"],
+         "translation": trans_map.get(s["index"], "")}
+        for s in segments
+    ]
+
+
+def translate_segments(segments, source_lang, target_lang, engine="auto"):
+    """翻译句子列表。
+
+    Args:
+        segments: [{"index": int, "text": str}, ...]
+        source_lang: 源语言名称（如 "泰语"）
+        target_lang: 目标语言名称（如 "中文"）
+        engine: "auto" | "deepseek" | "gemini"
+    Returns:
+        [{"index": int, "text": str, "translation": str}, ...]
+    """
+    if not segments:
+        return []
+    if engine == "auto":
+        engine = (
+            "deepseek"
+            if (target_lang in _CHINESE_TARGETS or source_lang in _CHINESE_SOURCES)
+            else "gemini"
+        )
+
+    prompt = _build_prompt(segments, source_lang, target_lang)
+
+    if engine == "deepseek":
+        content = deepseek_provider.chat(
+            prompt, temperature=0.3, timeout=settings.TIMEOUT_TRANSLATE
+        )
+    elif engine == "gemini":
+        result = gemini_provider.request(
+            providers.Gemini.TEXT_MODEL,
+            {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.3},
+            },
+            timeout=settings.TIMEOUT_TRANSLATE,
+            tag="Gemini翻译",
+        )
+        content = result["candidates"][0]["content"]["parts"][0]["text"]
+    else:
+        raise ValueError(f"不支持的翻译引擎: {engine}")
+
+    return _parse_translations(content, segments)
+
+
+def word_define(word, source_lang, target_lang, context=""):
+    """查询单词释义（DeepSeek）。
+
+    Returns:
+        {"meaning": str, "pos": str}
+    Raises:
+        json.JSONDecodeError / requests.HTTPError
+    """
+    ctx_hint = f'\n该词出现在以下句子中："{context}"' if context else ""
+    prompt = (
+        f"请用{target_lang}简洁解释以下{source_lang}单词的含义。{ctx_hint}\n"
+        f"单词：{word}\n\n"
+        f"严格按 JSON 返回，格式：{{\"meaning\": \"释义\", \"pos\": \"词性\"}}\n"
+        f"释义不超过15个字，词性用缩写（n./v./adj./adv./conj./prep./pron./interj.）。\n"
+        f"只返回 JSON，不要其他文字。"
+    )
+    content = deepseek_provider.chat(
+        prompt, temperature=0.2, timeout=settings.TIMEOUT_WORD_DEFINE
+    )
+    if content.startswith("```"):
+        content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+    return json.loads(content.strip())

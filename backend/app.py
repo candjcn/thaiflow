@@ -7,12 +7,12 @@ import threading
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from config import settings, providers, get_logger
-from transcribe import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps, get_video_duration
-from translate import translate_segments
+from ai.speech import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps, get_video_duration
+from ai.translation import translate_segments, word_define as _word_define
+from ai.tts import generate_audio_lesson, generate_cover_image, ocr_image
+from ai.pronunciation import assess_pronunciation
 from romanize import generate_romanization
 from export import export_video_with_subtitles, export_srt
-from pronounce import assess_pronunciation
-from tts import generate_audio_lesson, generate_cover_image, ocr_image
 from r2 import upload_audio
 
 logger = get_logger(__name__)
@@ -829,33 +829,8 @@ def api_word_define():
     if not word:
         return jsonify({"error": "缺少 word 参数"}), 400
 
-    api_key = providers.DeepSeek.API_KEY
-    if not api_key:
-        return jsonify({"error": "未配置 DEEPSEEK_API_KEY"}), 500
-
-    ctx_hint = f'\n该词出现在以下句子中："{context}"' if context else ""
-    prompt = (
-        f"请用{target_lang}简洁解释以下{source_lang}单词的含义。{ctx_hint}\n"
-        f"单词：{word}\n\n"
-        f"严格按 JSON 返回，格式：{{\"meaning\": \"释义\", \"pos\": \"词性\"}}\n"
-        f"释义不超过15个字，词性用缩写（n./v./adj./adv./conj./prep./pron./interj.）。\n"
-        f"只返回 JSON，不要其他文字。"
-    )
-
     try:
-        import requests as req
-        resp = req.post(
-            providers.DeepSeek.BASE_URL,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": providers.DeepSeek.MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2},
-            timeout=settings.TIMEOUT_WORD_DEFINE,
-        )
-        resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"].strip()
-        if content.startswith("```"):
-            content = content.split("\n", 1)[1].rsplit("```", 1)[0]
-        import json as _json
-        result = _json.loads(content)
+        result = _word_define(word, source_lang, target_lang, context)
         return jsonify(result)
     except Exception as e:
         logger.error(f"[WordDefine] 失败: {e}")

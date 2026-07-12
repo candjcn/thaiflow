@@ -57,7 +57,7 @@ def _romanize_th_batch(texts):
 
     # ── 尝试 Gemini ──────────────────────────────────────────────
     try:
-        from tts import _gemini_request
+        from ai.provider import gemini as gemini_provider
 
         input_json = json.dumps([t for _, t in indexed], ensure_ascii=False)
         prompt = (
@@ -67,7 +67,7 @@ def _romanize_th_batch(texts):
             "Return ONLY a JSON array of strings in the same order as the input. No explanation.\n\n"
             f"Input: {input_json}"
         )
-        result = _gemini_request(
+        result = gemini_provider.request(
             providers.Gemini.ROMANIZE_MODEL,
             {
                 "contents": [{"parts": [{"text": prompt}]}],
