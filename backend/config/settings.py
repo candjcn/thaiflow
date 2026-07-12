@@ -48,6 +48,9 @@ R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
 R2_BUCKET_NAME      = os.getenv("R2_BUCKET_NAME", "reelspeak-audio")
 R2_PUBLIC_URL       = os.getenv("R2_PUBLIC_URL", "")
 
+# ── Cloudflare Workers AI ─────────────────────────────────────────────────────
+CF_AI_API_TOKEN     = os.getenv("CF_AI_API_TOKEN", "")   # Workers AI 专用 Token
+
 # ── 服务器 ────────────────────────────────────────────────────────────────────
 PORT = int(os.getenv("PORT", "5000"))
 

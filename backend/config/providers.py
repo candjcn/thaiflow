@@ -54,5 +54,13 @@ class R2:
     )
 
 
+class CloudflareAI:
+    API_TOKEN  = settings.CF_AI_API_TOKEN
+    ACCOUNT_ID = settings.R2_ACCOUNT_ID   # 与 R2 共用同一 Account ID
+    # 图片生成模型（FLUX Schnell：4步快速，插画质量好）
+    IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
+    BASE_URL    = "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}"
+
+
 class Youdao:
     BASE_URL = "https://confucius4-tts.youdao.com/gradio"

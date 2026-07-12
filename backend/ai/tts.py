@@ -517,21 +517,47 @@ def ocr_image(image_bytes, mime_type="image/png", language=""):
 
 # ========== 封面插画（Gemini 图片生成）==========
 
-def generate_cover_image(text, language, out_path):
-    """根据文本内容生成卡通风格封面插画。失败时返回 False，不影响主流程。"""
-    model     = providers.Gemini.IMAGE_MODEL
-    lang_name = {"th": "Thai", "en": "English"}.get(language, "")
-    prompt    = (
-        "Create ONE simple, warm, flat-design cartoon illustration that captures "
-        f"the scene or theme of this {lang_name} text. "
-        "Style: minimalist flat cartoon, soft colors, cozy mood. "
-        "Square 1:1 aspect ratio. "
-        "Absolutely NO words, NO letters, NO text in the image.\n\n"
-        + text[:400]
-    )
+def _save_cover_image(img_bytes, out_path):
+    """将图片字节保存为 512×512 JPEG。"""
     try:
-        result = gemini_provider.request(model, {
-            "contents": [{"parts": [{"text": prompt}]}],
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(img_bytes))
+        img = img.resize((512, 512), Image.LANCZOS)
+        img.save(out_path, "JPEG", quality=82, optimize=True)
+    except Exception:
+        with open(out_path, "wb") as f:
+            f.write(img_bytes)
+
+
+def generate_cover_image(text, language, out_path):
+    """根据文本内容生成卡通风格封面插画。
+    优先用 Cloudflare Workers AI（免费），失败降级到 Gemini。
+    失败时返回 False，不影响主流程。
+    """
+    lang_name = {"th": "Thai", "en": "English", "zh": "Chinese",
+                 "ja": "Japanese", "ko": "Korean"}.get(language, "")
+    prompt = (
+        "Simple warm flat-design cartoon illustration capturing the scene or "
+        f"theme of this {lang_name} text. "
+        "Style: minimalist flat cartoon, soft pastel colors, cozy friendly mood. "
+        "No words, no letters, no text in the image."
+    )
+
+    # ── Cloudflare Workers AI（首选，免费） ──────────────────────
+    try:
+        from ai.provider import cloudflare as cf_provider
+        img_bytes = cf_provider.generate_image(prompt, timeout=30)
+        _save_cover_image(img_bytes, out_path)
+        logger.info("[Cover] Cloudflare Workers AI OK")
+        return True
+    except Exception as e:
+        logger.warning(f"[Cover] Cloudflare 失败 ({e})，降级到 Gemini")
+
+    # ── Gemini（降级） ───────────────────────────────────────────
+    try:
+        result = gemini_provider.request(providers.Gemini.IMAGE_MODEL, {
+            "contents": [{"parts": [{"text": prompt + "\n\n" + text[:400]}]}],
             "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
         }, timeout=settings.TIMEOUT_GEMINI_COVER, max_retries=2,
             tag="Cover", url_tpl=GEMINI_URL_BETA)
@@ -539,20 +565,13 @@ def generate_cover_image(text, language, out_path):
             inline = part.get("inlineData")
             if inline and inline.get("mimeType", "").startswith("image/"):
                 img_bytes = base64.b64decode(inline["data"])
-                try:
-                    from PIL import Image
-                    import io
-                    img = Image.open(io.BytesIO(img_bytes))
-                    img = img.resize((512, 512), Image.LANCZOS)
-                    img.save(out_path, "JPEG", quality=82, optimize=True)
-                except Exception:
-                    with open(out_path, "wb") as f:
-                        f.write(img_bytes)
+                _save_cover_image(img_bytes, out_path)
+                logger.info("[Cover] Gemini OK")
                 return True
-        logger.warning("[Cover] 返回中没有图片")
+        logger.warning("[Cover] Gemini 返回中没有图片")
         return False
     except Exception as e:
-        logger.warning(f"[Cover] 生成失败: {e}")
+        logger.warning(f"[Cover] Gemini 也失败: {e}")
         return False
 
 
