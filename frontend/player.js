@@ -1,13 +1,5 @@
 const APP_REV = "20260708i"; // 与 index.html 的 ?v= 同步更新
 
-// ========== i18n 初始化 ==========
-I18N.init();
-document.querySelectorAll(".lang-switcher-select").forEach(sel => {
-    sel.addEventListener("change", () => {
-        I18N.setLang(sel.value);
-    });
-});
-
 // ========== 获取用户翻译目标语言 ==========
 function getTargetLang() {
     // 跟随界面语言（右上角下拉切换），不再依赖浏览器上报语言
@@ -144,18 +136,6 @@ let _favActiveBtn   = null;
 const _favIconPlay = `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>`;
 const _favIconStop = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
 
-// ========== 初始化 ==========
-loadVideoList();
-renderFavorites();
-// 注意：loadLocalVideoList() 的启动调用在文件末尾——
-// 它依赖后面声明的 const（LESSON_DB 等），在这里调用会踩 TDZ
-// 页面版本标识（排查缓存问题用）
-(() => {
-    const rev = document.createElement("div");
-    rev.style.cssText = "text-align:center;font-size:10px;color:#333;padding:8px;";
-    rev.textContent = "rev " + APP_REV;
-    document.getElementById("videoListPanel").appendChild(rev);
-})();
 
 btnPrev.addEventListener("click", prevSentence);
 btnNext.addEventListener("click", nextSentence);
@@ -4835,5 +4815,18 @@ async function getLocalAudioSliceWav(startSec, endSec) {
     }
 }
 
-// 启动时加载本地视频列表（必须在所有声明之后执行）
+// ========== 启动初始化（必须在文件末尾，所有 let/const 声明之后执行）==========
+I18N.init();
+document.querySelectorAll(".lang-switcher-select").forEach(sel => {
+    sel.addEventListener("change", () => I18N.setLang(sel.value));
+});
+loadVideoList();
+renderFavorites();
 loadLocalVideoList();
+// 页面版本标识（排查缓存用）
+(() => {
+    const rev = document.createElement("div");
+    rev.style.cssText = "text-align:center;font-size:10px;color:#333;padding:8px;";
+    rev.textContent = "rev " + APP_REV;
+    document.getElementById("videoListPanel").appendChild(rev);
+})();
