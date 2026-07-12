@@ -1960,18 +1960,6 @@ label {
     overflow-y: auto;
 }
 
-.fr-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-}
-
-.fr-header h3 {
-    font-size: 15px;
-    color: #e94560;
-}
-
 .fr-reference {
     font-size: 18px;
     color: #ffd700;
@@ -2795,10 +2783,6 @@ label {
 
     .fr-fixed {
         padding: 14px 18px 12px;
-    }
-
-    .fr-header h3 {
-        font-size: 18px;
     }
 
     .fr-reference {

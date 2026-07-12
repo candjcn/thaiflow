@@ -108,7 +108,7 @@ const btnFollowRead = document.getElementById("btnFollowRead");
 const followReadPanel = document.getElementById("followReadPanel");
 const frReference = document.getElementById("frReference");
 const frTranslation = document.getElementById("frTranslation");
-const btnFrClose = document.getElementById("btnFrClose");
+const btnFrClose = document.getElementById("btnFrClose"); // 已从 HTML 移除，保留引用避免报错
 const btnFrPlayOriginal = document.getElementById("btnFrPlayOriginal");
 const btnFrRecord = document.getElementById("btnFrRecord");
 const btnFrPlayback = document.getElementById("btnFrPlayback");
@@ -178,7 +178,7 @@ btnFollowRead.addEventListener("click", openFollowRead);
 document.getElementById("btnSaveLocal").addEventListener("click", () => saveToLocal(false, true, "all"));
 btnDownloadUrl.addEventListener("click", downloadFromUrl);
 document.getElementById("localFiles").addEventListener("change", openLocalFiles);
-btnFrClose.addEventListener("click", _closeFollowReadDirect);
+if (btnFrClose) btnFrClose.addEventListener("click", _closeFollowReadDirect);
 btnFrPlayOriginal.addEventListener("click", toggleShadowRead);
 btnFrRecord.addEventListener("click", toggleRecording);
 btnFrPlayback.addEventListener("click", playbackRecording);
