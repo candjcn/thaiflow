@@ -429,13 +429,10 @@ html, body {
     margin-bottom: 8px;
 }
 
-/* AI 生成 toggle 按钮（右上角悬浮在 textarea 上） */
-.tts-textarea-wrap {
-    position: relative;
-}
+/* AI 生成 toggle 按钮（右下角悬浮在 textarea 上） */
 .btn-tts-ai-toggle {
     position: absolute;
-    top: 8px;
+    bottom: 8px;
     right: 8px;
     z-index: 2;
     background: rgba(233,69,96,0.14);
@@ -455,7 +452,7 @@ html, body {
     border-color: rgba(233,69,96,0.6);
 }
 #ttsText {
-    padding-top: 36px; /* avoid overlap with toggle button */
+    padding-bottom: 36px; /* avoid overlap with toggle button */
 }
 
 /* AI prompt 行 */
