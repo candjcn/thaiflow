@@ -23,6 +23,19 @@ logger = get_logger(__name__)
 _CHUNK_THRESHOLD = 300   # 5 分钟以上才切段
 _CHUNK_SIZE      = 180   # 每段 3 分钟
 
+# OpenAI Whisper-1 返回英文全名（"chinese"），Groq 返回 ISO 码（"zh"）
+# 所有读取 result_obj.language 的地方必须经过此表归一化
+_LANG_NAME_TO_ISO = {
+    "chinese": "zh", "english": "en", "japanese": "ja", "korean": "ko",
+    "thai": "th", "french": "fr", "german": "de", "spanish": "es",
+    "portuguese": "pt", "russian": "ru", "italian": "it", "vietnamese": "vi",
+    "hindi": "hi", "arabic": "ar", "dutch": "nl", "polish": "pl",
+    "turkish": "tr", "indonesian": "id", "malay": "ms", "swedish": "sv",
+    "danish": "da", "norwegian": "no", "finnish": "fi", "czech": "cs",
+    "romanian": "ro", "hungarian": "hu", "greek": "el", "hebrew": "he",
+    "ukrainian": "uk", "catalan": "ca", "croatian": "hr",
+}
+
 
 # ── 工具函数 ────────────────────────────────────────────────────────────────────
 
@@ -118,18 +131,6 @@ def _parse_result_obj(result_obj, index_start=0):
             words.append({"word": wt.strip(), "start": round(ws, 3), "end": round(we, 3)})
 
     language = getattr(result_obj, "language", "unknown") or "unknown"
-    # OpenAI Whisper-1 返回全名（如 "chinese"），Groq 返回 ISO 码（如 "zh"）
-    # 统一转成 ISO 2-letter 代码
-    _LANG_NAME_TO_ISO = {
-        "chinese": "zh", "english": "en", "japanese": "ja", "korean": "ko",
-        "thai": "th", "french": "fr", "german": "de", "spanish": "es",
-        "portuguese": "pt", "russian": "ru", "italian": "it", "vietnamese": "vi",
-        "hindi": "hi", "arabic": "ar", "dutch": "nl", "polish": "pl",
-        "turkish": "tr", "indonesian": "id", "malay": "ms", "swedish": "sv",
-        "danish": "da", "norwegian": "no", "finnish": "fi", "czech": "cs",
-        "romanian": "ro", "hungarian": "hu", "greek": "el", "hebrew": "he",
-        "ukrainian": "uk", "catalan": "ca", "croatian": "hr",
-    }
     language = _LANG_NAME_TO_ISO.get(language.lower(), language)
     return segments, words, language
 
@@ -294,7 +295,10 @@ def transcribe_chunked(video_path, provider, duration, progress_callback=None):
                 )
             segs_raw  = result_obj.segments or []
             words_raw = result_obj.words or []
-            lang      = getattr(result_obj, "language", "unknown")
+            lang      = _LANG_NAME_TO_ISO.get(
+                (getattr(result_obj, "language", None) or "unknown").lower(),
+                getattr(result_obj, "language", "unknown") or "unknown",
+            )
         finally:
             if os.path.exists(wav_path):
                 os.remove(wav_path)
