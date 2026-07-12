@@ -2950,23 +2950,27 @@ function _syncSubModeBtn() {
 
 // ========== 卡拉OK逐词高亮（原文字幕） ==========
 // 词级精度：wordTimings（Groq 词级时间戳对齐）> 字符数等比 fallback
-let kwSegKey = null;   // 当前已渲染句子的标识
-let kwSpans = [];      // 词 span 元素
-let kwBounds = [];     // 每词归一化结束位置 (0,1]  —— 用于 weight 模式
-let kwTimings = null;  // [{start, end}, ...]      —— 用于 timing 模式
+let kwSegKey = null;      // 当前已渲染句子的标识（含 showRomanization 状态）
+let kwSpans = [];         // 原文词 span 元素
+let kwRomanSpans = [];    // 拼音/罗马拼音 span 元素（与 kwSpans 1-to-1，或为空）
+let kwBounds = [];        // 每词归一化结束位置 (0,1]  —— 用于 weight 模式
+let kwTimings = null;     // [{start, end}, ...]      —— 用于 timing 模式
 let kwActive = -1;
 let kwRaf = null;
 
 function renderKaraoke(seg) {
     const text = seg.text || "";
-    const key = `${seg.index ?? -1}|${text}`;
+    // key 含 showRomanization，确保切换拼音显示时重建
+    const key = `${seg.index ?? -1}|${text}|${showRomanization ? "r" : ""}`;
     if (kwSegKey === key) return; // 同句复读时不重建
     kwSegKey = key;
     kwActive = -1;
     kwSpans = [];
+    kwRomanSpans = [];
     kwBounds = [];
     kwTimings = null;
     subtitleOriginal.textContent = "";
+    romanizationText.textContent = "";
 
     if (!text) return;
 
@@ -3001,6 +3005,26 @@ function renderKaraoke(seg) {
         }
         kwSpans.push(span);
     });
+
+    // 拼音 / 罗马拼音高亮 spans
+    const roman = (showRomanization && seg.romanization) ? seg.romanization : "";
+    if (roman) {
+        const romanTokens = roman.split(/\s+/).filter(Boolean);
+        if (romanTokens.length === tokens.length) {
+            // 1-to-1 对齐（中文必然满足；泰语词数一致时满足）
+            romanTokens.forEach((rt, i) => {
+                if (i > 0) romanizationText.appendChild(document.createTextNode(" "));
+                const span = document.createElement("span");
+                span.className = "kw-roman";
+                span.textContent = rt;
+                romanizationText.appendChild(span);
+                kwRomanSpans.push(span);
+            });
+        } else {
+            // 泰语词数不一致：降级为纯文本，不高亮
+            romanizationText.textContent = roman;
+        }
+    }
 }
 
 function updateKaraoke() {
@@ -3028,8 +3052,12 @@ function updateKaraoke() {
     }
 
     if (idx !== kwActive) {
-        if (kwActive >= 0 && kwSpans[kwActive]) kwSpans[kwActive].classList.remove("kw-active");
-        kwSpans[idx].classList.add("kw-active");
+        if (kwActive >= 0) {
+            if (kwSpans[kwActive]) kwSpans[kwActive].classList.remove("kw-active");
+            if (kwRomanSpans[kwActive]) kwRomanSpans[kwActive].classList.remove("kw-roman-active");
+        }
+        if (kwSpans[idx]) kwSpans[idx].classList.add("kw-active");
+        if (kwRomanSpans[idx]) kwRomanSpans[idx].classList.add("kw-roman-active");
         kwActive = idx;
     }
 }
@@ -3305,8 +3333,7 @@ document.addEventListener("click", (e) => {
 });
 
 function updateSubtitle(seg) {
-    renderKaraoke(seg);
-    romanizationText.textContent = (showRomanization && seg.romanization) ? seg.romanization : "";
+    renderKaraoke(seg); // 同时处理原文 spans 和拼音 spans
     subtitleTranslation.textContent = seg.translation || "";
     // 低置信度视觉提示
     const conf = seg.confidence;
@@ -3320,6 +3347,7 @@ function clearSubtitle() {
     subtitleTranslation.textContent = "";
     kwSegKey = null;
     kwSpans = [];
+    kwRomanSpans = [];
     kwBounds = [];
     kwActive = -1;
 }

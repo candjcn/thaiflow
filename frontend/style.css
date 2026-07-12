@@ -1173,6 +1173,14 @@ video {
         0 0 14px rgba(233, 69, 96, 0.55);
 }
 
+/* 拼音 / 罗马拼音逐词高亮：跟随原文节奏，视觉权重低于原文 */
+#romanizationText .kw-roman {
+    transition: color 0.15s;
+}
+#romanizationText .kw-roman-active {
+    color: #e94560;
+}
+
 /* 单词释义气泡 — Apple iOS 白色毛玻璃风格 */
 .word-popup {
     display: none;
