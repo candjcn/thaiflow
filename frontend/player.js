@@ -2517,15 +2517,37 @@ function animateStar(btn, alreadySaved) {
     setTimeout(() => { btn.style.transform = ""; }, 200);
 }
 
+// 全局单例：同一时刻只允许一个收藏句子在播放
+let _favActiveAudio = null;
+let _favActiveBtn   = null;
+const _favIconPlay = `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>`;
+const _favIconStop = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
+
+function _favStopCurrent() {
+    if (_favActiveAudio) {
+        _favActiveAudio.pause();
+        _favActiveAudio.currentTime = 0;
+        _favActiveAudio = null;
+    }
+    if (_favActiveBtn) {
+        _favActiveBtn.classList.remove("playing");
+        _favActiveBtn.innerHTML = _favIconPlay;
+        _favActiveBtn = null;
+    }
+}
+
 function renderFavorites() {
     const section = document.getElementById("favoritesSection");
     const list = document.getElementById("favoritesList");
     if (!section || !list) return;
-    const favs = getFavorites();
-    if (favs.length === 0) {
+    const allFavs = getFavorites();
+    if (allFavs.length === 0) {
         section.style.display = "none";
+        _favStopCurrent();
         return;
     }
+    // 只显示最新 3 句
+    const favs = allFavs.slice(0, 3);
     section.style.display = "";
     list.innerHTML = "";
     favs.forEach(fav => {
@@ -2533,7 +2555,7 @@ function renderFavorites() {
         div.className = "favorite-item";
         div.innerHTML = `
             <button class="fav-play-btn" title="播放">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                ${_favIconPlay}
             </button>
             <div class="fav-text">
                 <div class="fav-original">${escapeHtml(fav.text)}</div>
@@ -2541,38 +2563,39 @@ function renderFavorites() {
             </div>
             <button class="fav-delete-btn" title="删除收藏">×</button>
         `;
-        let favAudio = null;
         const playBtn = div.querySelector(".fav-play-btn");
-        const iconPlay = `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>`;
-        const iconStop = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
-        function favSetPlaying(on) {
-            playBtn.classList.toggle("playing", on);
-            playBtn.innerHTML = on ? iconStop : iconPlay;
-        }
+
         playBtn.addEventListener("click", () => {
-            if (favAudio && !favAudio.paused) {
-                favAudio.pause();
-                favAudio.currentTime = 0;
-                favSetPlaying(false);
+            // 点的是当前正在播的 → 停止
+            if (_favActiveBtn === playBtn) {
+                _favStopCurrent();
                 return;
             }
+            // 停掉上一个（如有）
+            _favStopCurrent();
             if (!fav.audioUrl) {
                 alert("音频地址为空，请重新收藏该句子");
                 return;
             }
-            favAudio = new Audio(fav.audioUrl);
-            favAudio.loop = true;
-            favSetPlaying(true);
-            favAudio.addEventListener("error", () => {
-                favSetPlaying(false);
+            const audio = new Audio(fav.audioUrl);
+            audio.loop = true;
+            _favActiveAudio = audio;
+            _favActiveBtn   = playBtn;
+            playBtn.classList.add("playing");
+            playBtn.innerHTML = _favIconStop;
+            audio.addEventListener("error", () => {
+                if (_favActiveAudio === audio) _favStopCurrent();
                 alert("播放失败\nURL: " + fav.audioUrl);
             });
-            favAudio.play().catch(err => {
-                favSetPlaying(false);
-                alert("播放失败: " + err.message + "\nURL: " + fav.audioUrl);
+            audio.play().catch(err => {
+                if (_favActiveAudio === audio) _favStopCurrent();
+                alert("播放失败: " + err.message);
             });
         });
+
         div.querySelector(".fav-delete-btn").addEventListener("click", () => {
+            // 如果删的是当前在播的，先停
+            if (_favActiveBtn === playBtn) _favStopCurrent();
             const updated = getFavorites().filter(f => f.id !== fav.id);
             saveFavorites(updated);
             renderFavorites();
