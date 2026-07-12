@@ -8,6 +8,7 @@ TTS 课程生成服务层
 import base64
 import json
 import os
+import re
 import struct
 import subprocess
 import tempfile
