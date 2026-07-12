@@ -55,29 +55,31 @@ def translate_segments(segments, source_lang, target_lang, engine="auto"):
         target_lang: 目标语言名称（如 "中文"）
         engine: "auto" | "deepseek" | "gemini"
     Returns:
-        [{"index": int, "text": str, "translation": str}, ...]
+        (results, provider)
+        results: [{"index": int, "text": str, "translation": str}, ...]
+        provider: "deepseek" | "gemini"
     """
     if not segments:
-        return []
+        return [], "skipped"
 
     prompt = _build_prompt(segments, source_lang, target_lang)
 
-    # engine="auto" 和 engine="deepseek" 都走 DeepSeek 首选 → Gemini 降级
-    # engine="gemini" 明确指定时才直接走 Gemini（仅用于手动调试）
     if engine == "gemini":
         content = _call_gemini(prompt, source_lang, target_lang)
+        provider = "gemini"
     else:
-        # auto / deepseek：DeepSeek 首选，失败降级 Gemini
         try:
             content = deepseek_provider.chat(
                 prompt, temperature=0.3, timeout=settings.TIMEOUT_TRANSLATE
             )
             logger.info(f"[翻译] DeepSeek OK ({source_lang}→{target_lang})")
+            provider = "deepseek"
         except Exception as e:
             logger.warning(f"[翻译] DeepSeek 失败 ({e})，降级到 Gemini")
             content = _call_gemini(prompt, source_lang, target_lang)
+            provider = "gemini"
 
-    return _parse_translations(content, segments)
+    return _parse_translations(content, segments), provider
 
 
 def _call_gemini(prompt, source_lang, target_lang):

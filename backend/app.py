@@ -597,7 +597,7 @@ def api_retranscribe():
         translation = ""
         if do_translate and text:
             try:
-                translated = translate_segments([{"index": 0, "text": text}], source_lang, target_lang)
+                translated, _ = translate_segments([{"index": 0, "text": text}], source_lang, target_lang)
                 if translated:
                     translation = translated[0].get("translation", "")
             except Exception as te:
@@ -656,7 +656,7 @@ def api_retranscribe_audio():
         translation = ""
         if do_translate and text:
             try:
-                translated = translate_segments([{"index": 0, "text": text}], source_lang, target_lang)
+                translated, _ = translate_segments([{"index": 0, "text": text}], source_lang, target_lang)
                 if translated:
                     translation = translated[0].get("translation", "")
             except Exception as te:
@@ -720,7 +720,7 @@ def api_tts_generate():
             language = detected["language"]
 
         # ── 生成音频课程 ──────────────────────────────────────────
-        audio_name, segments, language = generate_audio_lesson(
+        audio_name, segments, language, tts_meta = generate_audio_lesson(
             text, language, engine, VIDEOS_DIR, pre_items=pre_items
         )
         source_lang_name = {"th": "泰语", "en": "英语", "zh": "中文",
@@ -736,21 +736,21 @@ def api_tts_generate():
                 s.text = sp
 
         # ── 翻译 ──────────────────────────────────────────────────
-        # 双语模式：用户已提供译文，直接填入，跳过 API
+        translate_provider = "skipped"
         if mode == "bilingual" and pre_items:
+            # 双语模式：用户已提供译文，直接填入，跳过 API
             for seg, item in zip(seg_objs, pre_items):
                 if item.get("translation"):
                     seg.translation = item["translation"]
-            logger.info(f"[TTS] 双语模式：跳过翻译，直接使用用户提供译文")
+            logger.info("[TTS] 双语模式：跳过翻译，直接使用用户提供译文")
         else:
-            # 其他模式：调用翻译（源语言与目标一致时跳过）
             same_lang = (language == "zh" and target_lang in ("中文", "繁體中文")) or \
                         (language == "ja" and target_lang == "日本語") or \
                         (language == "ko" and target_lang == "한국어") or \
                         (language == "en" and target_lang == "English")
             if not same_lang:
                 try:
-                    translated = translate_segments(
+                    translated, translate_provider = translate_segments(
                         [{"index": s.index, "text": s.text} for s in seg_objs],
                         source_lang_name, target_lang,
                     )
@@ -773,7 +773,10 @@ def api_tts_generate():
             json.dump(subtitle_file.to_json(), f, ensure_ascii=False, indent=2)
 
         log_event("tts_generate", engine=engine, language=language,
-                  chars=len(text), sentences=len(seg_objs))
+                  chars=len(text), sentences=len(seg_objs),
+                  input_mode=mode,
+                  split_provider=tts_meta.get("split_provider", "unknown"),
+                  translate_provider=translate_provider)
         response_data = subtitle_file.to_json()
         response_data["name"] = audio_name
         return jsonify(response_data)
@@ -828,7 +831,7 @@ def api_translate():
         return jsonify({"error": "缺少 segments 参数"}), 400
 
     try:
-        translations = translate_segments(segments, source_lang, target_lang, engine=engine)
+        translations, _ = translate_segments(segments, source_lang, target_lang, engine=engine)
         return jsonify({"translations": translations})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

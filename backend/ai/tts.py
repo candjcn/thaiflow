@@ -294,8 +294,10 @@ def prepare_script(text, language="th"):
 
     # ── DeepSeek（首选） ─────────────────────────────────────────────
     raw = None
+    split_provider = None
     try:
         raw = deepseek_provider.chat(prompt, temperature=0, timeout=60)
+        split_provider = "deepseek"
         logger.info("[TTS] 分句: DeepSeek OK")
     except Exception as e:
         logger.warning(f"[TTS] 分句 DeepSeek 失败 ({e})，降级到 Gemini")
@@ -309,6 +311,7 @@ def prepare_script(text, language="th"):
             timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="Gemini分句",
         )
         raw = result["candidates"][0]["content"]["parts"][0]["text"]
+        split_provider = "gemini"
         logger.info("[TTS] 分句: Gemini OK")
 
     parsed = _parse_script_json(raw)
@@ -354,7 +357,7 @@ def prepare_script(text, language="th"):
             if it["speaker"] == "A":
                 it["gender"] = ga
 
-    return script, detected
+    return script, detected, split_provider
 
 
 def _split_long_sentences(script, language):
@@ -560,7 +563,8 @@ GAP_SEC = 0.4  # 句间停顿
 
 def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_items=None):
     """完整流程：文本 → 音频文件 + segments。
-    返回 (audio_filename, segments, detected_language)
+    返回 (audio_filename, segments, detected_language, meta)
+    meta: {"split_provider": str}
 
     pre_items: [{"text": str, "translation": str}, ...] — 已解析好的条目，跳过 AI 分句
     """
@@ -571,7 +575,6 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
     if pre_items is not None:
         # 逐行/双语模式：直接构建 script，跳过 AI 分句
         report("正在准备文本...")
-        # 如果有角色标签，A/B 对话模式；否则全部用旁白 N
         has_dialogue = any(item.get("speaker") in ("A", "B") for item in pre_items)
         script = []
         for item in pre_items:
@@ -588,9 +591,11 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
         if not script:
             raise RuntimeError("文本内容为空")
         script = _split_long_sentences(script, language)
+        meta = {"split_provider": "skipped"}
     else:
         report("正在分析文本、分配角色...")
-        script, language = prepare_script(text, language)
+        script, language, split_provider = prepare_script(text, language)
+        meta = {"split_provider": split_provider or "unknown"}
 
     _FALLBACK = {
         "gemini": ["gemini", "azure"],
@@ -674,7 +679,7 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
         if r.returncode != 0:
             raise RuntimeError("音频拼接失败: " + r.stderr[-200:])
 
-        return audio_name, segments, language
+        return audio_name, segments, language, meta
     finally:
         import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)
