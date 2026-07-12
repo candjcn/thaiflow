@@ -1409,6 +1409,7 @@ video {
 .ctrl-group-left { flex: 1; }
 .ctrl-group-center { flex-shrink: 0; gap: 4px; }
 .ctrl-group-right { flex: 1; justify-content: flex-end; }
+.ctrl-group-right .ctrl-btn { color: rgba(255,255,255,0.78); }
 
 /* 键帽标注：物理键帽风格 */
 .controls kbd {
@@ -2580,9 +2581,9 @@ label {
     margin-left: auto;
     padding: 6px 14px;
     font-size: 19px;       /* 16px → 19px (+19%) */
-    background: rgba(233, 69, 96, 0.15);
-    border-color: rgba(233, 69, 96, 0.3);
-    color: #e94560;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.78);
 }
 
 .m-list-btn:active {
