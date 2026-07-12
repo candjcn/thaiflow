@@ -116,6 +116,7 @@ const I18N = {
             "mobile.mode.follow": "影子跟读",
             "mobile.swipe.hint": "← 上一句 | 下一句 →",
             "mobile.repeat.status": "第{current}/{total}遍",
+            "mobile.sentence.status": "{current}/{total} 句",
 
             // 句子列表
             "drawer.title": "句子列表",
@@ -247,6 +248,7 @@ const I18N = {
             "mode.original": "原文",
             "mode.translation": "译文",
             "mode.both": "双语",
+            "repeat.info": "第 {sent}/{total} 句 · 第 {rep}/{max} 遍 · {mode}",
             "hint.videoName": "视频名",
             "hint.srtFiles": "将导出：{prefix}_泰语.srt、{prefix}_中文.srt",
             "hint.allFiles": "将导出：{prefix}.mp4、{prefix}_泰语.srt、{prefix}_中文.srt",
@@ -362,6 +364,7 @@ const I18N = {
             "mobile.mode.follow": "影子跟讀",
             "mobile.swipe.hint": "← 上一句 | 下一句 →",
             "mobile.repeat.status": "第{current}/{total}遍",
+            "mobile.sentence.status": "{current}/{total} 句",
 
             "drawer.title": "句子列表",
             "drawer.save": "⬇ 儲存",
@@ -489,6 +492,7 @@ const I18N = {
             "mode.original": "原文",
             "mode.translation": "譯文",
             "mode.both": "雙語",
+            "repeat.info": "第 {sent}/{total} 句 · 第 {rep}/{max} 遍 · {mode}",
             "hint.videoName": "視頻名",
             "hint.srtFiles": "將導出：{prefix}_泰語.srt、{prefix}_中文.srt",
             "hint.allFiles": "將導出：{prefix}.mp4、{prefix}_泰語.srt、{prefix}_中文.srt",
@@ -604,6 +608,7 @@ const I18N = {
             "mobile.mode.follow": "Shadow Read",
             "mobile.swipe.hint": "← Prev | Next →",
             "mobile.repeat.status": "Rep {current}/{total}",
+            "mobile.sentence.status": "Sent {current}/{total}",
 
             "drawer.title": "Sentence List",
             "drawer.save": "⬇ Save",
@@ -731,6 +736,7 @@ const I18N = {
             "mode.original": "Original",
             "mode.translation": "Trans.",
             "mode.both": "Bilingual",
+            "repeat.info": "Sent {sent}/{total} · Rep {rep}/{max} · {mode}",
             "hint.videoName": "video name",
             "hint.srtFiles": "Will export: {prefix}_original.srt, {prefix}_chinese.srt",
             "hint.allFiles": "Will export: {prefix}.mp4, {prefix}_original.srt, {prefix}_chinese.srt",
@@ -846,6 +852,7 @@ const I18N = {
             "mobile.mode.follow": "シャドーイング",
             "mobile.swipe.hint": "← 前の文 | 次の文 →",
             "mobile.repeat.status": "{current}/{total}回目",
+            "mobile.sentence.status": "{current}/{total} 文",
 
             "drawer.title": "文リスト",
             "drawer.save": "⬇ 保存",
@@ -973,6 +980,7 @@ const I18N = {
             "mode.original": "原文",
             "mode.translation": "訳文",
             "mode.both": "対訳",
+            "repeat.info": "{sent}/{total} 文 · {rep}/{max} 回 · {mode}",
             "hint.videoName": "動画名",
             "hint.srtFiles": "書き出し：{prefix}_原文.srt、{prefix}_中文.srt",
             "hint.allFiles": "書き出し：{prefix}.mp4、{prefix}_原文.srt、{prefix}_中文.srt",
@@ -1088,6 +1096,7 @@ const I18N = {
             "mobile.mode.follow": "섀도잉",
             "mobile.swipe.hint": "← 이전 | 다음 →",
             "mobile.repeat.status": "{current}/{total}회차",
+            "mobile.sentence.status": "{current}/{total} 문",
 
             "drawer.title": "문장 목록",
             "drawer.save": "⬇ 저장",
@@ -1215,6 +1224,7 @@ const I18N = {
             "mode.original": "원문",
             "mode.translation": "번역",
             "mode.both": "대역",
+            "repeat.info": "{sent}/{total} 문 · {rep}/{max} 회 · {mode}",
             "hint.videoName": "영상 이름",
             "hint.srtFiles": "내보내기: {prefix}_원문.srt, {prefix}_중문.srt",
             "hint.allFiles": "내보내기: {prefix}.mp4, {prefix}_원문.srt, {prefix}_중문.srt",
@@ -1330,6 +1340,7 @@ const I18N = {
             "mobile.mode.follow": "เงาเสียง",
             "mobile.swipe.hint": "← ก่อน | ถัดไป →",
             "mobile.repeat.status": "รอบ {current}/{total}",
+            "mobile.sentence.status": "ประโยค {current}/{total}",
 
             "drawer.title": "รายการประโยค",
             "drawer.save": "⬇ บันทึก",
@@ -1456,6 +1467,7 @@ const I18N = {
             "mode.original": "ต้นฉบับ",
             "mode.translation": "คำแปล",
             "mode.both": "สองภาษา",
+            "repeat.info": "ประโยค {sent}/{total} · รอบ {rep}/{max} · {mode}",
             "hint.videoName": "ชื่อวิดีโอ",
             "hint.srtFiles": "จะส่งออก: {prefix}_original.srt, {prefix}_thai.srt",
             "hint.allFiles": "จะส่งออก: {prefix}.mp4, {prefix}_original.srt, {prefix}_thai.srt",

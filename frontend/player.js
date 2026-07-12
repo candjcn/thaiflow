@@ -3613,16 +3613,22 @@ function updateRepeatInfo(maxRepeat) {
     const modeLabels = { none: t("mode.none"), original: t("mode.original"), translation: t("mode.translation"), both: t("mode.both") };
     const mode = getSubtitleMode();
     const label = modeLabels[mode];
-    const info = `${currentIndex + 1}/${segments.length} | ${repeatCount + 1}/${maxRepeat} ${label}`;
+    const displayMax = maxRepeat >= 9999 ? "\u221E" : maxRepeat;
+    const info = t("repeat.info", {
+        sent: currentIndex + 1,
+        total: segments.length,
+        rep: repeatCount + 1,
+        max: displayMax,
+        mode: label,
+    });
     repeatInfo.textContent = info;
     // 同步移动端隐藏元素（JS仍需要）
     if (mRepeatInfo) mRepeatInfo.textContent = info;
     // 更新移动端顶部状态栏
     if (mTopStatusSentence) {
-        mTopStatusSentence.textContent = `${currentIndex + 1}/${segments.length}`;
+        mTopStatusSentence.textContent = t("mobile.sentence.status", { current: currentIndex + 1, total: segments.length });
     }
     if (mTopStatusRepeat) {
-        const displayMax = maxRepeat >= 9999 ? "\u221E" : maxRepeat;
         mTopStatusRepeat.textContent = t("mobile.repeat.status", { current: repeatCount + 1, total: displayMax });
     }
 }
