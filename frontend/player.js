@@ -1147,7 +1147,17 @@ function getActiveTtsText() {
 }
 
 document.getElementById("btnTtsToggle").addEventListener("click", () => {
-    ttsContent.style.display = ttsContent.style.display === "none" ? "flex" : "none";
+    const isOpen = ttsContent.style.display !== "none";
+    if (isOpen && btnTtsAiToggle.classList.contains("active")) {
+        // 面板开着但处于 AI 模式 → 退出 AI 模式，切回粘贴 placeholder，不收起
+        _ensurePlaceholders();
+        btnTtsAiToggle.classList.remove("active");
+        ttsTextEl.placeholder = _ttsPastePlaceholder;
+        ttsStatus.textContent = "";
+        return;
+    }
+    // 正常 toggle
+    ttsContent.style.display = isOpen ? "none" : "flex";
 });
 
 // ========== 粘贴按钮 ==========
