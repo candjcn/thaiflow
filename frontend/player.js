@@ -3873,13 +3873,15 @@ async function startRecording() {
             if (frStatusRow) frStatusRow.style.display = "none";
 
             if (frHasSpoken) {
-                // 有声音：保存录音，立即开放回放和评分
+                // 有声音：保存录音，立即开放回放和评分，自动回放
                 frRecordedBlob = new Blob(frRecordedChunks, { type: mimeType });
                 frRecordedExt = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
                 btnFrPlayback.disabled = false;
                 btnFrScore.disabled = false;
                 setFrBtnLabel(btnFrRecord, t("status.reRecord"));
-                frTimer.textContent = "";
+                frTimer.textContent = t("status.recordDone");
+                // blob 已就绪，此处触发自动回放（确保只触发一次）
+                playbackRecording();
             } else {
                 // 没检测到声音：不保存、不回放、不开放评分
                 frRecordedBlob = null;
@@ -4002,16 +4004,8 @@ function stopSilenceDetection() {
 function stopRecording() {
     if (frMediaRecorder && frMediaRecorder.state !== "inactive") {
         frMediaRecorder.stop();
+        // 自动回放由 onstop 在 blob 就绪后触发，此处不再调度定时器
     }
-    // 没检测到声音时不自动回放（onstop 里会显示提示）
-    if (!frHasSpoken) return;
-
-    frTimer.textContent = t("status.recordDone");
-
-    // 录音结束后自动回放（延迟等 blob 生成完）
-    setTimeout(() => {
-        if (frRecordedBlob) playbackRecording();
-    }, 300);
 }
 
 function stopPlayback() {
