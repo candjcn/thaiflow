@@ -319,10 +319,11 @@ def export_srt(subtitle_data, export_dir, base_name, language):
     """导出两个独立的 SRT 字幕文件，返回文件名列表"""
     lang_label = {
         "th": "泰语", "en": "英语", "ja": "日语", "ko": "韩语",
-        "fr": "法语", "de": "德语", "es": "西班牙语", "pt": "葡萄牙语",
-        "ru": "俄语", "it": "意大利语",
+        "zh": "中文", "fr": "法语", "de": "德语", "es": "西班牙语",
+        "pt": "葡萄牙语", "ru": "俄语", "it": "意大利语", "vi": "越南语",
+        "hi": "印地语", "ar": "阿拉伯语",
     }
-    orig_label = lang_label.get(language, "原文")
+    orig_label = lang_label.get((language or "")[:2], "原文")
 
     orig_name = f"{base_name}_{orig_label}.srt"
     zh_name = f"{base_name}_中文.srt"
