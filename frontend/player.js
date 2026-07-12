@@ -2974,10 +2974,11 @@ function renderKaraoke(seg) {
 
     if (!text) return;
 
-    // 分词：有空格按词分（英/泰-已分词等）；无空格按字符分（中/日等）
+    // 分词：有空格按词分；无空格时，泰文整体作一个 token，中/日等按字符分
+    const hasThai = /[\u0e00-\u0e7f]/.test(text);
     const tokens = text.includes(" ")
         ? text.split(/\s+/).filter(Boolean)
-        : Array.from(text);
+        : (hasThai ? [text] : Array.from(text));
     const spaced = text.includes(" ");
 
     // 精确词级时间戳（Groq word timestamps 对齐后）
