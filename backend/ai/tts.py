@@ -14,6 +14,7 @@ import tempfile
 
 from config import providers, settings, get_logger
 from ai.provider import gemini as gemini_provider
+from ai.provider import deepseek as deepseek_provider
 from ai.provider import azure as azure_provider
 from ai.provider.youdao import YoudaoTTS
 
@@ -48,8 +49,19 @@ AZURE_VOICES = {
 
 # ========== 第一步：分句 + 说话人/性别/情感标注 ==========
 
+def _parse_script_json(raw):
+    """从模型返回文本中提取并解析分句 JSON。"""
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.startswith("json"):
+            raw = raw[4:]
+    return json.loads(raw)
+
+
 def prepare_script(text, language="th"):
-    """用 Gemini 把整段文本拆成句子并标注说话人/性别/情感。
+    """把整段文本拆成句子并标注说话人/性别/情感。
+    优先用 Gemini，失败时自动降级到 DeepSeek。
     返回 (script, detected_language)
     script: [{text, speaker, gender, emotion}, ...]
     """
@@ -87,17 +99,27 @@ def prepare_script(text, language="th"):
         '{"language": "th", "sentences": [{"text": "...", "speaker": "A", "gender": "female", "emotion": "..."}]}\n\n'
         + text
     )
-    model  = providers.Gemini.TEXT_MODEL
-    result = gemini_provider.request(model, {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0},
-    }, timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="Gemini分句")
-    raw = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.startswith("json"):
-            raw = raw[4:]
-    parsed = json.loads(raw)
+
+    # ── Gemini（首选） ───────────────────────────────────────────────
+    raw = None
+    try:
+        result = gemini_provider.request(
+            providers.Gemini.TEXT_MODEL,
+            {"contents": [{"parts": [{"text": prompt}]}],
+             "generationConfig": {"temperature": 0}},
+            timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="Gemini分句",
+        )
+        raw = result["candidates"][0]["content"]["parts"][0]["text"]
+        logger.info("[TTS] 分句: Gemini OK")
+    except Exception as e:
+        logger.warning(f"[TTS] 分句 Gemini 失败 ({e})，降级到 DeepSeek")
+
+    # ── DeepSeek（降级） ─────────────────────────────────────────────
+    if raw is None:
+        raw = deepseek_provider.chat(prompt, temperature=0, timeout=60)
+        logger.info("[TTS] 分句: DeepSeek OK")
+
+    parsed = _parse_script_json(raw)
     if isinstance(parsed, dict):
         items    = parsed.get("sentences", [])
         detected = (parsed.get("language") or "")[:2].lower()
@@ -169,20 +191,32 @@ def _split_long_sentences(script, language):
         "Return ONLY a JSON array of arrays: element i is the ordered list of "
         "chunks for input line i.\n\n" + numbered
     )
-    model = providers.Gemini.TEXT_MODEL
+    raw = None
     try:
-        result = gemini_provider.request(model, {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0},
-        }, timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="长句拆分")
-        raw = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+        result = gemini_provider.request(
+            providers.Gemini.TEXT_MODEL,
+            {"contents": [{"parts": [{"text": prompt}]}],
+             "generationConfig": {"temperature": 0}},
+            timeout=settings.TIMEOUT_GEMINI_DEFAULT, tag="长句拆分",
+        )
+        raw = result["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        logger.warning(f"[SplitLong] Gemini 失败 ({e})，降级到 DeepSeek")
+    if raw is None:
+        try:
+            raw = deepseek_provider.chat(prompt, temperature=0, timeout=60)
+        except Exception as e:
+            logger.warning(f"[SplitLong] DeepSeek 也失败，保留原句: {e}")
+            return script
+    try:
+        raw = raw.strip()
         if raw.startswith("```"):
             raw = raw.strip("`")
             if raw.startswith("json"):
                 raw = raw[4:]
         chunk_lists = json.loads(raw)
     except Exception as e:
-        logger.warning(f"[SplitLong] 拆分失败，保留原句: {e}")
+        logger.warning(f"[SplitLong] 解析失败，保留原句: {e}")
         return script
 
     new_script = []
