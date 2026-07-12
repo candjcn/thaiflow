@@ -1087,7 +1087,7 @@ const ttsTabAi      = document.getElementById("ttsTabAi");
 const ttsTabPaste   = document.getElementById("ttsTabPaste");
 const ttsPanelAi    = document.getElementById("ttsPanelAi");
 const ttsPanelPaste = document.getElementById("ttsPanelPaste");
-let ttsActiveTab    = "ai"; // 默认 AI 生成 Tab
+let ttsActiveTab    = "paste"; // 默认粘贴文本 Tab（入口卡片即是"粘贴文本"）
 
 function switchTtsTab(tab) {
     ttsActiveTab = tab;

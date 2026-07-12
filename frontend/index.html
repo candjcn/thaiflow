@@ -100,12 +100,12 @@
                     <div class="tts-content" id="ttsContent" style="display:none;">
                         <!-- Tab 切换 -->
                         <div class="tts-tabs">
-                            <button class="tts-tab active" id="ttsTabAi" data-i18n="tts.tab.ai">✨ AI 生成</button>
-                            <button class="tts-tab" id="ttsTabPaste" data-i18n="tts.tab.paste">粘贴文本</button>
+                            <button class="tts-tab" id="ttsTabAi" data-i18n="tts.tab.ai">✨ AI 生成</button>
+                            <button class="tts-tab active" id="ttsTabPaste" data-i18n="tts.tab.paste">粘贴文本</button>
                         </div>
 
                         <!-- AI 生成 Tab -->
-                        <div class="tts-tab-panel" id="ttsPanelAi">
+                        <div class="tts-tab-panel" id="ttsPanelAi" style="display:none;">
                             <div class="tts-ai-prompt-wrap">
                                 <input type="text" id="ttsAiPrompt" maxlength="300"
                                     data-i18n-placeholder="tts.ai.placeholder"
@@ -119,7 +119,7 @@
                         </div>
 
                         <!-- 粘贴文本 Tab -->
-                        <div class="tts-tab-panel" id="ttsPanelPaste" style="display:none;">
+                        <div class="tts-tab-panel" id="ttsPanelPaste">
                             <!-- 图片粘贴预览（OCR 识别中） -->
                             <div class="tts-img-preview" id="ttsImgPreview" style="display:none;">
                                 <img id="ttsImgThumb" alt="">
