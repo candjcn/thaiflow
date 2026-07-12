@@ -279,31 +279,28 @@
                     </div>
                     <div class="ctrl-field">
                         <label data-i18n="ctrl.speed.label">速度</label>
-                        <select id="playbackRate">
+                        <select id="playbackRate" title="↑↓ 调节速度">
                             <option value="0.5">0.5x</option>
                             <option value="0.75">0.75x</option>
                             <option value="1" selected>1x</option>
                             <option value="1.25">1.25x</option>
                             <option value="1.5">1.5x</option>
                         </select>
-                        <kbd>↑↓</kbd>
                     </div>
                 </div>
 
                 <!-- 中组：字幕切换 + 影子跟读 -->
                 <div class="ctrl-group ctrl-group-center">
                     <button class="ctrl-btn d-submode-btn" id="dBtnSubMode">双语</button>
-                    <button class="ctrl-btn d-follow-btn" id="dModeFollow">
+                    <button class="ctrl-btn d-follow-btn" id="dModeFollow" title="S — 影子跟读">
                         <span data-i18n="mobile.mode.follow">影子跟读</span>
-                        <kbd>S</kbd>
                     </button>
                 </div>
 
                 <!-- 右组：句子列表 -->
                 <div class="ctrl-group ctrl-group-right">
-                    <button class="ctrl-btn" id="btnList" data-key="KeyL" data-i18n-title="ctrl.list" title="句子列表">
+                    <button class="ctrl-btn" id="btnList" data-key="KeyL" title="L — 句子列表">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="0.5"/><circle cx="4" cy="12" r="0.5"/><circle cx="4" cy="18" r="0.5"/></svg>
-                        <kbd>L</kbd>
                     </button>
                 </div>
             </div>
