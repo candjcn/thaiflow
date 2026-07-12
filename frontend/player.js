@@ -133,6 +133,7 @@ const btnDirCancel = document.getElementById("btnDirCancel");
 // ========== 收藏播放单例（必须在 renderFavorites 调用前初始化，避免 TDZ） ==========
 let _favActiveAudio = null;
 let _favActiveBtn   = null;
+let _favActiveId    = null;   // 用 fav.id 跟踪，renderFavorites 重建 DOM 后仍有效
 const _favIconPlay = `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>`;
 const _favIconStop = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
 
@@ -2540,6 +2541,7 @@ function _favStopCurrent() {
         _favActiveBtn.innerHTML = _favIconPlay;
         _favActiveBtn = null;
     }
+    _favActiveId = null;
 }
 
 function renderFavorites() {
@@ -2571,9 +2573,16 @@ function renderFavorites() {
         `;
         const playBtn = div.querySelector(".fav-play-btn");
 
+        // 重建 DOM 后恢复当前正在播放的按钮状态
+        if (_favActiveId === fav.id && _favActiveAudio) {
+            _favActiveBtn = playBtn;
+            playBtn.classList.add("playing");
+            playBtn.innerHTML = _favIconStop;
+        }
+
         playBtn.addEventListener("click", () => {
             // 点的是当前正在播的 → 停止
-            if (_favActiveBtn === playBtn) {
+            if (_favActiveId === fav.id && _favActiveAudio) {
                 _favStopCurrent();
                 return;
             }
@@ -2584,11 +2593,15 @@ function renderFavorites() {
                 return;
             }
             const audio = new Audio(fav.audioUrl);
-            audio.loop = true;
             _favActiveAudio = audio;
+            _favActiveId    = fav.id;
             _favActiveBtn   = playBtn;
             playBtn.classList.add("playing");
             playBtn.innerHTML = _favIconStop;
+            // 播完自动重置按钮（不循环）
+            audio.addEventListener("ended", () => {
+                if (_favActiveAudio === audio) _favStopCurrent();
+            });
             audio.addEventListener("error", () => {
                 if (_favActiveAudio === audio) _favStopCurrent();
                 alert("播放失败\nURL: " + fav.audioUrl);
