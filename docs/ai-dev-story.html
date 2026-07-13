@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>9天，用AI做了一个App — ReelSpeak 开发故事</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --red: #e94560;
+  --red-dim: rgba(233,69,96,0.15);
+  --red-glow: rgba(233,69,96,0.35);
+  --bg: #080c18;
+  --bg2: #0f1629;
+  --bg3: #1a2040;
+  --text: #eef0f8;
+  --text-dim: rgba(238,240,248,0.55);
+  --text-faint: rgba(238,240,248,0.25);
+  --border: rgba(255,255,255,0.08);
+  --gold: #f5c842;
+  --teal: #3ecfcf;
+  --purple: #9b71ea;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', system-ui, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ─── Layout ─── */
+.deck {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+@media (min-width: 769px) {
+  .deck {
+    max-width: calc(100vh * 16 / 9);
+    max-height: calc(100vw * 9 / 16);
+    margin: auto;
+    position: absolute;
+    inset: 0;
+  }
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 52px 64px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.45s ease;
+  background: var(--bg);
+  overflow: hidden;
+}
+.slide.active { opacity: 1; visibility: visible; }
+
+/* ─── Backgrounds ─── */
+.slide-bg-grid {
+  background-image:
+    linear-gradient(rgba(233,69,96,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(233,69,96,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+.slide-bg-dark { background: var(--bg2); }
+.slide-bg-gradient {
+  background: radial-gradient(ellipse at 20% 50%, rgba(233,69,96,0.12) 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 20%, rgba(62,207,207,0.08) 0%, transparent 50%),
+              var(--bg);
+}
+
+/* ─── Typography ─── */
+.eyebrow {
+  font-size: clamp(11px, 1.2vw, 14px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--red);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.slide-title {
+  font-size: clamp(36px, 6.5vw, 86px);
+  font-weight: 800;
+  line-height: 1.08;
+  background: linear-gradient(135deg, #fff 0%, #e94560 60%, #ff8e53 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+.slide-subtitle {
+  font-size: clamp(15px, 2vw, 26px);
+  color: var(--text-dim);
+  margin-top: 16px;
+  line-height: 1.5;
+  max-width: 72%;
+}
+h2.section-title {
+  font-size: clamp(22px, 3.5vw, 48px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.gradient-text {
+  background: linear-gradient(135deg, var(--red), #ff8e53);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.teal-text { color: var(--teal); }
+.gold-text { color: var(--gold); }
+
+/* ─── Metric Cards ─── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  width: 100%;
+  margin-top: 28px;
+}
+.metric-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px 16px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--red), #ff8e53);
+}
+.metric-card.teal::before { background: linear-gradient(90deg, var(--teal), #1a9b9b); }
+.metric-card.gold::before { background: linear-gradient(90deg, var(--gold), #e09b10); }
+.metric-card.purple::before { background: linear-gradient(90deg, var(--purple), #6842d0); }
+.metric-num {
+  font-size: clamp(28px, 3.5vw, 52px);
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff, var(--red));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+.metric-card.teal .metric-num { background: linear-gradient(135deg, #fff, var(--teal)); -webkit-background-clip: text; background-clip: text; }
+.metric-card.gold .metric-num { background: linear-gradient(135deg, #fff, var(--gold)); -webkit-background-clip: text; background-clip: text; }
+.metric-card.purple .metric-num { background: linear-gradient(135deg, #fff, var(--purple)); -webkit-background-clip: text; background-clip: text; }
+.metric-label {
+  font-size: clamp(11px, 1.2vw, 14px);
+  color: var(--text-dim);
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+/* ─── Feature Grid ─── */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  width: 100%;
+  margin-top: 24px;
+}
+.feature-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 16px;
+  text-align: left;
+}
+.feature-icon {
+  font-size: clamp(20px, 2.5vw, 32px);
+  margin-bottom: 10px;
+  display: block;
+}
+.feature-name {
+  font-size: clamp(12px, 1.3vw, 16px);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.feature-desc {
+  font-size: clamp(10px, 1vw, 13px);
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+/* ─── Timeline ─── */
+.timeline {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  width: 100%;
+  margin-top: 28px;
+  position: relative;
+}
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 36px;
+  left: 12.5%; right: 12.5%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--red), #ff8e53, var(--teal));
+}
+.timeline-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 12px;
+}
+.timeline-dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 12px var(--red-glow);
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+.timeline-item:nth-child(2) .timeline-dot { background: #ff8e53; box-shadow: 0 0 12px rgba(255,142,83,0.4); }
+.timeline-item:nth-child(3) .timeline-dot { background: var(--gold); box-shadow: 0 0 12px rgba(245,200,66,0.4); }
+.timeline-item:nth-child(4) .timeline-dot { background: var(--teal); box-shadow: 0 0 12px rgba(62,207,207,0.4); }
+.timeline-phase {
+  font-size: clamp(9px, 1vw, 12px);
+  color: var(--red);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.timeline-item:nth-child(2) .timeline-phase { color: #ff8e53; }
+.timeline-item:nth-child(3) .timeline-phase { color: var(--gold); }
+.timeline-item:nth-child(4) .timeline-phase { color: var(--teal); }
+.timeline-title {
+  font-size: clamp(12px, 1.4vw, 17px);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.timeline-body {
+  font-size: clamp(10px, 1vw, 13px);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ─── Pit Cards ─── */
+.pit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  margin-top: 24px;
+}
+.pit-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 24px;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+.pit-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: rgba(233,69,96,0.4);
+}
+.pit-tag {
+  display: inline-block;
+  background: var(--red-dim);
+  border: 1px solid var(--red-glow);
+  border-radius: 20px;
+  color: var(--red);
+  font-size: clamp(9px, 1vw, 12px);
+  font-weight: 700;
+  padding: 3px 10px;
+  margin-bottom: 10px;
+  letter-spacing: 0.05em;
+}
+.pit-title {
+  font-size: clamp(13px, 1.5vw, 18px);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.pit-body {
+  font-size: clamp(10px, 1.1vw, 14px);
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.pit-lesson {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: clamp(9px, 1vw, 12px);
+  color: var(--teal);
+  font-weight: 600;
+}
+
+/* ─── Comparison ─── */
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  width: 100%;
+  margin-top: 24px;
+}
+.compare-col {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: left;
+}
+.compare-header {
+  font-size: clamp(13px, 1.5vw, 18px);
+  font-weight: 700;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.compare-col.good .compare-header { color: var(--teal); border-color: rgba(62,207,207,0.2); }
+.compare-col.bad .compare-header { color: var(--red); border-color: var(--red-dim); }
+.compare-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: clamp(11px, 1.2vw, 15px);
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+.compare-item .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.good .dot { background: var(--teal); }
+.bad .dot { background: var(--red); }
+
+/* ─── Quote ─── */
+.quote-block {
+  max-width: 82%;
+  margin: 0 auto;
+}
+.quote-mark {
+  font-size: clamp(48px, 8vw, 120px);
+  color: var(--red-glow);
+  line-height: 0.5;
+  margin-bottom: 16px;
+  font-family: Georgia, serif;
+}
+.quote-text {
+  font-size: clamp(20px, 3vw, 40px);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.quote-author {
+  margin-top: 24px;
+  font-size: clamp(12px, 1.3vw, 16px);
+  color: var(--text-dim);
+}
+
+/* ─── Big Number ─── */
+.big-number {
+  font-size: clamp(80px, 15vw, 180px);
+  font-weight: 800;
+  line-height: 0.9;
+  background: linear-gradient(135deg, #fff 0%, var(--red) 70%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.04em;
+}
+.big-unit {
+  font-size: clamp(18px, 2.5vw, 36px);
+  color: var(--text-dim);
+  font-weight: 400;
+  margin-top: 8px;
+}
+
+/* ─── Advice Grid ─── */
+.advice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+  margin-top: 24px;
+}
+.advice-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 22px;
+  text-align: left;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.advice-num {
+  font-size: clamp(24px, 3vw, 40px);
+  font-weight: 800;
+  color: var(--red);
+  opacity: 0.4;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.advice-text {
+  font-size: clamp(12px, 1.3vw, 16px);
+  color: var(--text);
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+/* ─── Chart ─── */
+.chart-wrap {
+  width: min(90%, 680px);
+  height: clamp(180px, 35vh, 300px);
+  margin-top: 20px;
+}
+
+/* ─── Pill tag ─── */
+.pill {
+  display: inline-block;
+  background: var(--red-dim);
+  border: 1px solid var(--red-glow);
+  border-radius: 999px;
+  color: var(--red);
+  font-size: clamp(11px, 1.1vw, 14px);
+  font-weight: 700;
+  padding: 5px 16px;
+  letter-spacing: 0.08em;
+}
+
+/* ─── CTA button ─── */
+.cta-btn {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--red), #ff6b35);
+  border-radius: 999px;
+  color: #fff;
+  font-size: clamp(14px, 1.6vw, 20px);
+  font-weight: 700;
+  padding: 14px 40px;
+  margin-top: 28px;
+  letter-spacing: 0.04em;
+  box-shadow: 0 8px 32px rgba(233,69,96,0.35);
+}
+
+/* ─── Glow decorations ─── */
+.glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+.glow-red { background: rgba(233,69,96,0.2); }
+.glow-teal { background: rgba(62,207,207,0.12); }
+
+/* ─── Animations ─── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(233,69,96,0.4); }
+  50%      { box-shadow: 0 0 0 16px rgba(233,69,96,0); }
+}
+
+.slide.active .anim-1 { animation: fadeUp 0.55s ease-out 0.05s both; }
+.slide.active .anim-2 { animation: fadeUp 0.55s ease-out 0.18s both; }
+.slide.active .anim-3 { animation: fadeUp 0.55s ease-out 0.31s both; }
+.slide.active .anim-4 { animation: fadeUp 0.55s ease-out 0.44s both; }
+.slide.active .anim-5 { animation: fadeUp 0.55s ease-out 0.57s both; }
+
+/* ─── Nav ─── */
+.progress-bar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--red), #ff8e53);
+  transition: width 0.35s ease;
+  z-index: 100;
+  box-shadow: 0 0 8px rgba(233,69,96,0.6);
+}
+.nav {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 100;
+  background: rgba(8,12,24,0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 20px;
+}
+.nav-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+.nav-btn:hover { color: #fff; }
+.nav-counter {
+  font-size: 13px;
+  color: var(--text-dim);
+  min-width: 48px;
+  text-align: center;
+}
+.slide-num {
+  position: fixed;
+  top: 20px; right: 24px;
+  font-size: 12px;
+  color: var(--text-faint);
+  z-index: 100;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .slide { padding: 32px 28px; }
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .timeline { grid-template-columns: repeat(2, 1fr); }
+  .timeline::before { display: none; }
+  .pit-grid { grid-template-columns: 1fr; }
+  .compare-grid { grid-template-columns: 1fr; }
+  .advice-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+<div class="slide-num" id="slideNum">1 / 12</div>
+
+<div class="deck">
+
+<!-- ═══ SLIDE 1: Title ═══ -->
+<div class="slide slide-bg-gradient active">
+  <div class="glow-orb glow-red" style="width:500px;height:500px;top:-100px;left:-100px;"></div>
+  <div class="glow-orb glow-teal" style="width:400px;height:400px;bottom:-50px;right:-80px;"></div>
+
+  <p class="eyebrow anim-1">一个真实的 AI 开发故事</p>
+  <h1 class="slide-title anim-2" style="font-size: clamp(48px, 9vw, 110px);">9天，用AI<br>做了一个App</h1>
+  <p class="slide-subtitle anim-3">从零行代码到 16,200 行 · 亲历踩坑 · 给 AI 初学者的真实分享</p>
+  <div class="anim-4" style="margin-top:32px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;">
+    <span class="pill">ReelSpeak · 用短视频学外语</span>
+  </div>
+</div>
+
+<!-- ═══ SLIDE 2: Big Number ═══ -->
+<div class="slide slide-bg-grid">
+  <div class="glow-orb glow-red" style="width:600px;height:600px;top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+  <p class="eyebrow anim-1">先感受一下规模</p>
+  <div class="big-number anim-2">16,200</div>
+  <div class="big-unit anim-3">行代码</div>
+  <p class="anim-4" style="margin-top:24px;font-size:clamp(14px,1.8vw,22px);color:var(--text-dim);">
+    9 天完成 · 一个人 · 零基础 Web 编程经验
+  </p>
+  <p class="anim-5" style="margin-top:14px;font-size:clamp(11px,1.3vw,16px);color:var(--text-faint);">
+    如果纯手写：按每天 200 行估算 → 需要约 <span style="color:var(--red);font-weight:700;">80 个工作日（4 个月）</span>
+  </p>
+</div>
+
+<!-- ═══ SLIDE 3: Metrics ═══ -->
+<div class="slide slide-bg-dark">
+  <p class="eyebrow anim-1">项目数据一览</p>
+  <h2 class="section-title anim-2">用数字说话</h2>
+
+  <div class="metrics-grid anim-3">
+    <div class="metric-card">
+      <div class="metric-num">248</div>
+      <div class="metric-label">Git 提交次数<br><span style="color:var(--text-faint);font-size:11px;">平均每天 27 次</span></div>
+    </div>
+    <div class="metric-card teal">
+      <div class="metric-num">28</div>
+      <div class="metric-label">后端 API 接口<br><span style="color:var(--text-faint);font-size:11px;">覆盖所有核心功能</span></div>
+    </div>
+    <div class="metric-card gold">
+      <div class="metric-num">8</div>
+      <div class="metric-label">AI 服务接入数<br><span style="color:var(--text-faint);font-size:11px;">Groq · Azure · Gemini · DeepSeek…</span></div>
+    </div>
+    <div class="metric-card purple">
+      <div class="metric-num">87</div>
+      <div class="metric-label">Bug 修复提交<br><span style="color:var(--text-faint);font-size:11px;">占总提交 35%，很正常</span></div>
+    </div>
+  </div>
+
+  <p class="anim-4" style="margin-top:22px;font-size:clamp(11px,1.2vw,15px);color:var(--text-faint);">
+    每天提交次数：11 → 34 → 16 → 24 → 37 → 31 → 41 → 16 → 38
+  </p>
+</div>
+
+<!-- ═══ SLIDE 4: Daily Commits Chart ═══ -->
+<div class="slide slide-bg-dark">
+  <p class="eyebrow anim-1">开发节奏可视化</p>
+  <h2 class="section-title anim-2">每天的 <span class="gradient-text">提交次数</span></h2>
+  <div class="chart-wrap anim-3">
+    <canvas id="commitsChart"></canvas>
+  </div>
+  <p class="anim-4" style="margin-top:16px;font-size:clamp(11px,1.2vw,14px);color:var(--text-dim);">
+    第7天（7月10日）峰值 <strong style="color:var(--red)">41次</strong>，是重构 + 多功能并行推进的高峰日
+  </p>
+</div>
+
+<!-- ═══ SLIDE 5: What is ReelSpeak ═══ -->
+<div class="slide slide-bg-gradient">
+  <div class="glow-orb glow-red" style="width:350px;height:350px;top:-60px;right:-60px;"></div>
+  <p class="eyebrow anim-1">这个 App 是什么</p>
+  <h2 class="section-title anim-2">用短视频学外语的工具<br><span class="gradient-text">每一句都能反复练</span></h2>
+  <div class="feature-grid anim-3">
+    <div class="feature-card">
+      <span class="feature-icon">📥</span>
+      <div class="feature-name">视频下载</div>
+      <div class="feature-desc">TikTok / YouTube 链接一键导入</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🎙️</span>
+      <div class="feature-name">语音识别断句</div>
+      <div class="feature-desc">Groq / Azure / OpenAI 多引擎</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🌏</span>
+      <div class="feature-name">双语字幕翻译</div>
+      <div class="feature-desc">DeepSeek / Gemini 自动翻译</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🎤</span>
+      <div class="feature-name">影子跟读评分</div>
+      <div class="feature-desc">Azure AI 发音评分，即时反馈</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🔤</span>
+      <div class="feature-name">拼音 / 罗马音</div>
+      <div class="feature-desc">中文拼音 · 泰语 RTGS 标注</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">✨</span>
+      <div class="feature-name">卡拉OK高亮</div>
+      <div class="feature-desc">逐字同步跟读提示</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🎧</span>
+      <div class="feature-name">TTS 朗读课程</div>
+      <div class="feature-desc">把文章转成 AI 朗读音频课</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🌐</span>
+      <div class="feature-name">6 种界面语言</div>
+      <div class="feature-desc">中 / 繁 / 英 / 日 / 韩 / 泰</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SLIDE 6: Timeline ═══ -->
+<div class="slide slide-bg-dark">
+  <p class="eyebrow anim-1">开发历程</p>
+  <h2 class="section-title anim-2">从"能跑就行"到<span class="gradient-text">真实产品</span></h2>
+  <div class="timeline anim-3">
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-phase">第1-2天</div>
+      <div class="timeline-title">能跑就行</div>
+      <div class="timeline-body">泰语播放器原型，单文件，功能简陋。<br><br>感受：AI 让你 1 小时内出原型</div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-phase">第3-5天</div>
+      <div class="timeline-title">功能爆炸期</div>
+      <div class="timeline-body">多语言、移动端、跟读、翻译……每天加3-5个功能</div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-phase">第6-7天</div>
+      <div class="timeline-title">架构重构</div>
+      <div class="timeline-body">代码结构混乱，统一配置层，抽象模块边界</div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-phase">第8-9天</div>
+      <div class="timeline-title">打磨体验</div>
+      <div class="timeline-body">真实用户测试，暴露真实问题，细节迭代</div>
+    </div>
+  </div>
+  <p class="anim-4" style="margin-top:28px;font-size:clamp(11px,1.2vw,15px);color:var(--text-faint);max-width:80%;">
+    💡 规律：第2阶段让你感受到AI的"超能力"，第3阶段让你感受到自己判断力的价值
+  </p>
+</div>
+
+<!-- ═══ SLIDE 7: Pits 1+2 ═══ -->
+<div class="slide slide-bg-dark">
+  <p class="eyebrow anim-1">踩过的坑</p>
+  <h2 class="section-title anim-2">坑 <span class="gradient-text">#1 — #2</span></h2>
+  <div class="pit-grid anim-3">
+    <div class="pit-card">
+      <div class="pit-tag">坑 #1</div>
+      <div class="pit-title">AI 会"记忆混乱"</div>
+      <div class="pit-body">
+        跨越多次对话后，AI 引用了一个早已被删除的函数 <code style="background:var(--bg3);padding:1px 5px;border-radius:4px;font-size:0.9em;color:var(--red)">_gemini_request</code>，导致线上直接报错崩溃。
+      </div>
+      <div class="pit-lesson">✓ 解法：用 CLAUDE.md 给 AI 一份"持久记忆"，每次对话开头它都会读</div>
+    </div>
+    <div class="pit-card">
+      <div class="pit-tag">坑 #2</div>
+      <div class="pit-title">功能越加越脆</div>
+      <div class="pit-body">
+        加了一个新按钮，发现旧的播放逻辑莫名其妙坏了。AI 改了它不应该改的地方，而且不主动告诉你。
+      </div>
+      <div class="pit-lesson">✓ 解法：让 AI 先读懂现有代码再动手，明确要求"保持向后兼容"</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SLIDE 8: Pits 3+4 ═══ -->
+<div class="slide slide-bg-dark">
+  <p class="eyebrow anim-1">踩过的坑</p>
+  <h2 class="section-title anim-2">坑 <span class="gradient-text">#3 — #4</span></h2>
+  <div class="pit-grid anim-3">
+    <div class="pit-card">
+      <div class="pit-tag">坑 #3</div>
+      <div class="pit-title">AI 爱"过度设计"</div>
+      <div class="pit-body">
+        让 AI 加一个简单按钮，它给你加了 3 层抽象、工厂模式、配置项……代码量翻 5 倍，反而更难维护。
+      </div>
+      <div class="pit-lesson">✓ 解法：在文档里明确写："三行重复代码优于一个不必要的抽象"</div>
+    </div>
+    <div class="pit-card">
+      <div class="pit-tag">坑 #4</div>
+      <div class="pit-title">UI 越改越乱</div>
+      <div class="pit-body">
+        AI 改了一个按钮位置，把另一个功能的交互逻辑也默默改了。文字说"完成了"，但手机上根本不对。
+      </div>
+      <div class="pit-lesson">✓ 解法：每次 UI 变更后必须在真实设备上测，不能只听 AI 汇报</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SLIDE 9: Pit 5 ═══ -->
+<div class="slide slide-bg-gradient">
+  <div class="glow-orb glow-red" style="width:500px;height:500px;top:50%;left:50%;transform:translate(-50%,-55%);"></div>
+  <p class="eyebrow anim-1">踩过的坑 · 最隐蔽的一个</p>
+  <h2 class="section-title anim-2">坑 #5：<span class="gradient-text">第三方 API 版本陷阱</span></h2>
+  <div class="anim-3" style="max-width:75%;margin-top:24px;">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px 32px;text-align:left;position:relative;">
+      <div style="font-size:clamp(12px,1.4vw,17px);color:var(--text-dim);line-height:1.7;">
+        <p><strong style="color:var(--text)">现象：</strong>yt-dlp 版本太旧，YouTube 悄悄升级了反爬机制，下载功能整体失效，用户收到一堆英文报错。</p>
+        <br>
+        <p><strong style="color:var(--text)">更糟的是：</strong>AI 写的代码能跑，但它不会主动追踪外部依赖的版本变化。第三方坏了，你要自己发现。</p>
+        <br>
+        <p><strong style="color:var(--teal)">✓ 解法：</strong>把版本固定依赖改为"每次部署拉最新版"；同时把英文报错翻译成用户能看懂的中文提示。</p>
+      </div>
+    </div>
+  </div>
+  <p class="anim-4" style="margin-top:20px;font-size:clamp(11px,1.2vw,14px);color:var(--text-faint);">
+    AI 写的代码不会自我维护 — 这是你作为"产品负责人"要承担的责任
+  </p>
+</div>
+
+<!-- ═══ SLIDE 10: AI Can / Can't ═══ -->
+<div class="slide slide-bg-dark">
+  <p class="eyebrow anim-1">客观评价 AI 协作</p>
+  <h2 class="section-title anim-2">AI 的能力<span class="gradient-text">边界</span>在哪里？</h2>
+  <div class="compare-grid anim-3">
+    <div class="compare-col good">
+      <div class="compare-header">✦ AI 擅长的</div>
+      <div class="compare-item"><span class="dot"></span><span>快速出原型 — 1 小时内从 0 到可用</span></div>
+      <div class="compare-item"><span class="dot"></span><span>重复性工作 — 6 种语言翻译、CSS 细节</span></div>
+      <div class="compare-item"><span class="dot"></span><span>解释报错 — 往往比 Google 快 10 倍</span></div>
+      <div class="compare-item"><span class="dot"></span><span>跨技术栈 — 前端/后端/运维全包</span></div>
+      <div class="compare-item"><span class="dot"></span><span>调用 API — 8 个 AI 服务，一一接入</span></div>
+    </div>
+    <div class="compare-col bad">
+      <div class="compare-header">✦ AI 做不好的</div>
+      <div class="compare-item"><span class="dot"></span><span>理解"用户感受" — 这个功能值不值得做</span></div>
+      <div class="compare-item"><span class="dot"></span><span>长期记忆 — 多次对话后会"忘事"</span></div>
+      <div class="compare-item"><span class="dot"></span><span>主动发现风险 — 它只做你让它做的</span></div>
+      <div class="compare-item"><span class="dot"></span><span>视觉审美判断 — "感觉对不对"只有人知道</span></div>
+      <div class="compare-item"><span class="dot"></span><span>追踪外部依赖 — 第三方更新它不知道</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SLIDE 11: Quote ═══ -->
+<div class="slide slide-bg-gradient">
+  <div class="glow-orb glow-red" style="width:600px;height:600px;top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+  <div class="quote-block anim-2">
+    <div class="quote-mark">"</div>
+    <p class="quote-text">
+      AI 把一个人变成了一支 <span class="gradient-text">5 人团队</span>，<br>
+      但你仍然是那个决定做什么、<br>判断对不对的 <span style="color:var(--teal)">产品经理</span>。
+    </p>
+    <p class="quote-author anim-3" style="margin-top:28px;">
+      — 9 天 · 248 次提交 · 87 次 Bug 修复后的真实体会
+    </p>
+  </div>
+</div>
+
+<!-- ═══ SLIDE 12: Advice + CTA ═══ -->
+<div class="slide slide-bg-dark">
+  <div class="glow-orb glow-teal" style="width:400px;height:400px;bottom:-100px;right:-80px;"></div>
+  <p class="eyebrow anim-1">送给 AI 初学者</p>
+  <h2 class="section-title anim-2">4 条<span class="gradient-text">真实建议</span></h2>
+  <div class="advice-grid anim-3">
+    <div class="advice-card">
+      <div class="advice-num">01</div>
+      <div class="advice-text">先做一个<strong>自己真正想用</strong>的工具，不要做 Demo。真实需求才能驱动真实迭代。</div>
+    </div>
+    <div class="advice-card">
+      <div class="advice-num">02</div>
+      <div class="advice-text">写清楚你的<strong>项目说明文档（CLAUDE.md）</strong>。AI 的"长期记忆"靠的是它，而不是你的期待。</div>
+    </div>
+    <div class="advice-card">
+      <div class="advice-num">03</div>
+      <div class="advice-text">每次 UI 变更后，<strong>在真实设备上验证</strong>。AI 说"完成了"不等于用户体验没有倒退。</div>
+    </div>
+    <div class="advice-card">
+      <div class="advice-num">04</div>
+      <div class="advice-text"><strong>不要害怕出错</strong>。248 次提交里有 87 次在修 Bug — 出错是进步的证据，不是失败的信号。</div>
+    </div>
+  </div>
+  <div class="anim-4" style="margin-top:20px;font-size:clamp(12px,1.4vw,17px);color:var(--text-dim);">
+    欢迎体验 → <span style="color:var(--red);font-weight:600;">reelspeak.517lang.com</span>
+  </div>
+</div>
+
+</div><!-- /.deck -->
+
+<!-- Navigation -->
+<div class="nav">
+  <button class="nav-btn" onclick="prevSlide()">←</button>
+  <span class="nav-counter"><span id="currentNum">1</span> / <span id="totalNum">12</span></span>
+  <button class="nav-btn" onclick="nextSlide()">→</button>
+</div>
+
+<script>
+let cur = 1;
+const slides = document.querySelectorAll('.slide');
+const total  = slides.length;
+document.getElementById('totalNum').textContent = total;
+
+function showSlide(n) {
+  if (n < 1) n = 1;
+  if (n > total) n = total;
+  cur = n;
+  slides.forEach((s, i) => s.classList.toggle('active', i === n - 1));
+  document.getElementById('currentNum').textContent = n;
+  document.getElementById('slideNum').textContent = n + ' / ' + total;
+  document.getElementById('progressBar').style.width = (n / total * 100) + '%';
+  if (n === 4) initChart();
+}
+function nextSlide() { showSlide(cur + 1); }
+function prevSlide() { showSlide(cur - 1); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); prevSlide(); }
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.nav')) nextSlide();
+});
+
+// Touch swipe
+let tx = 0;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+document.addEventListener('touchend',   e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  if (Math.abs(dx) > 40) dx < 0 ? nextSlide() : prevSlide();
+});
+
+// Chart (lazy-init on slide 4)
+let chartDone = false;
+function initChart() {
+  if (chartDone) return;
+  chartDone = true;
+  const ctx = document.getElementById('commitsChart');
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['7/4\n第1天', '7/5\n第2天', '7/6\n第3天', '7/7\n第4天', '7/8\n第5天', '7/9\n第6天', '7/10\n第7天', '7/11\n第8天', '7/12\n第9天'],
+      datasets: [{
+        label: '提交次数',
+        data: [11, 34, 16, 24, 37, 31, 41, 16, 38],
+        backgroundColor: [
+          'rgba(233,69,96,0.5)','rgba(233,69,96,0.7)','rgba(233,69,96,0.5)',
+          'rgba(233,69,96,0.6)','rgba(233,69,96,0.8)','rgba(233,69,96,0.7)',
+          'rgba(233,69,96,1.0)','rgba(233,69,96,0.5)','rgba(233,69,96,0.9)',
+        ],
+        borderColor: 'rgba(233,69,96,1)',
+        borderWidth: 0,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y} 次提交`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: 'rgba(238,240,248,0.5)', font: { size: 11 } }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: 'rgba(238,240,248,0.5)', stepSize: 10 },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+showSlide(1);
+</script>
+</body>
+</html>
