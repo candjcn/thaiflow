@@ -959,8 +959,18 @@ def api_tts_generate():
                 mode = detected["mode"]
                 pre_items = detected["items"] if mode in ("bilingual", "per_line") else None
                 lang = language
-                if lang == "auto" and mode != "paragraph":
-                    lang = detected["language"]
+                if lang == "auto":
+                    if mode != "paragraph":
+                        # 双语/逐行模式：detect_input_mode 已检测原文语言
+                        lang = detected["language"]
+                    else:
+                        # 段落模式：先字符集猜测，拉丁语系再调 Gemini 确认
+                        from ai.tts import _guess_language, detect_language_api
+                        lang = _guess_language(text)
+                        if lang == "en":
+                            # "en" 只是字符集兜底，可能是西/法/德等，用 Gemini 确认
+                            lang = detect_language_api(text)
+                            logger.info(f"[TTS] 段落 auto 检测语言: {lang!r}")
 
                 audio_name, segments, lang, tts_meta = generate_audio_lesson(
                     text, lang, engine, VIDEOS_DIR,

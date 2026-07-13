@@ -134,12 +134,40 @@ def _has_script(text, script):
 
 
 def _guess_language(text):
-    """从字符集简单猜测语言"""
-    if re.search(r"[\u0e00-\u0e7f]", text): return "th"
-    if re.search(r"[\u3040-\u30ff]",  text): return "ja"
-    if re.search(r"[\uac00-\ud7af]",  text): return "ko"
-    if re.search(r"[\u4e00-\u9fff]",  text): return "zh"
-    return "en"
+    """从字符集猜测语言。双语文本先剥去括号内的译文，避免被译文字符误导。"""
+    # 去掉括号内容（圆括号/方括号/中文括号，通常是译文）
+    clean = re.sub(
+        r'[\u0028\uff08\u3010\u005b][^\u0029\uff09\u3011\u005d]{1,100}[\u0029\uff09\u3011\u005d]',
+        '', text
+    ).strip() or text
+    if re.search(r"[\u0e00-\u0e7f]", clean): return "th"
+    if re.search(r"[\u3040-\u30ff]",  clean): return "ja"
+    if re.search(r"[\uac00-\ud7af]",  clean): return "ko"
+    if re.search(r"[\u4e00-\u9fff]",  clean): return "zh"
+    return "en"  # 拉丁字母（英/西/法/德…），字符集无法区分
+
+
+def detect_language_api(text):
+    """对字符集无法区分的拉丁语系文本，用 Gemini 检测实际语言，返回 ISO 639-1 码。
+    失败时返回 'en' 作为兜底。
+    """
+    snippet = text[:200].strip()
+    try:
+        result = gemini_provider.request(
+            providers.Gemini.TEXT_MODEL,
+            {"contents": [{"parts": [{"text": (
+                "What language is the following text written in? "
+                "Reply with ONLY the ISO 639-1 two-letter code (e.g. en, es, fr, de, th, zh, ja, ko). "
+                "No explanation.\n\n" + snippet
+            )}]}],
+             "generationConfig": {"temperature": 0, "maxOutputTokens": 5}},
+            timeout=8, tag="LangDetect",
+        )
+        code = result["candidates"][0]["content"]["parts"][0]["text"].strip().lower()[:2]
+        return code if re.match(r'^[a-z]{2}$', code) else "en"
+    except Exception as e:
+        logger.warning(f"[LangDetect] Gemini 检测失败: {e}")
+        return "en"
 
 
 def _split_bilingual_line(line, src_script, tgt_script):

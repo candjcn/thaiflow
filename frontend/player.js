@@ -1050,6 +1050,25 @@ videoUrlInput.addEventListener("input", () => {
     if (videoUrlInput.value.trim()) btnPasteUrl.style.display = "none";
 });
 
+// 从文本字符集猜测语言，返回 ttsLang select 的 value
+// 双语文本先去掉括号内译文，避免被译文字符误导
+function detectLangFromText(text) {
+    const clean = text.replace(/[（(【\[][^）)】\]]{1,100}[）)】\]]/g, "").trim();
+    const s = (clean || text).slice(0, 300);
+    if (/[\u0e00-\u0e7f]/.test(s)) return "th";
+    if (/[\u3040-\u30ff]/.test(s))  return "ja";
+    if (/[\uac00-\ud7af]/.test(s))  return "ko";
+    if (/[\u4e00-\u9fff]/.test(s))  return "zh";
+    return "auto"; // 拉丁字母等：字符集无法区分，交给后端 Gemini 确认
+}
+
+// 根据文本更新 ttsLang 选择框（仅在有把握时更新，避免打扰用户主动选择）
+function autoSetTtsLang(text) {
+    const lang = detectLangFromText(text);
+    const sel = document.getElementById("ttsLang");
+    if (sel && lang !== sel.value) sel.value = lang;
+}
+
 // 从分享文本中提取第一个 HTTP URL（兼容抖音/微信分享格式）
 function extractUrlFromText(text) {
     const m = text.match(/https?:\/\/[^\s，。！？、""'']+/);
@@ -1123,6 +1142,7 @@ btnTtsAiToggle.addEventListener("click", async () => {
         ttsTextEl.value = data.text || "";
         ttsTextEl.style.height = "auto";
         ttsTextEl.style.height = Math.min(ttsTextEl.scrollHeight, 400) + "px";
+        autoSetTtsLang(ttsTextEl.value);
         ttsStatus.textContent = t("tts.ai.done");
         ttsStatus.className = "url-status";
     } catch (e) {
@@ -1163,11 +1183,17 @@ btnPasteTts.addEventListener("click", async () => {
             ttsTextEl.value = text.trim();
             btnPasteTts.style.display = "none";
             ttsTextEl.focus();
+            autoSetTtsLang(ttsTextEl.value);
         }
     } catch (e) {
         ttsTextEl.focus();
         document.execCommand("paste");
     }
+});
+
+// 用户手动粘贴（Ctrl+V / 长按粘贴）后也自动检测
+ttsTextEl.addEventListener("input", () => {
+    if (ttsTextEl.value.trim()) autoSetTtsLang(ttsTextEl.value);
 });
 
 // ========== 图片粘贴 → OCR ==========
