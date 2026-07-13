@@ -267,13 +267,79 @@ def api_upload_video():
     })
 
 
+def _extract_url_from_text(text):
+    """从分享文本中提取第一个 HTTP URL（兼容抖音/微信分享格式）"""
+    m = re.search(r'https?://[^\s，。！？、""'']+', text)
+    if m:
+        return m.group(0).rstrip('.,，。！？、')
+    return text.strip()
+
+
+def _is_douyin_url(url):
+    return any(d in url for d in ('v.douyin.com', 'www.douyin.com', 'm.douyin.com', 'iesdouyin.com'))
+
+
+def _download_douyin(url, output_path, progress_callback=None):
+    """自定义抖音下载：短链解析 → 分享页提取视频 URI → CDN 下载"""
+    import ssl
+    import urllib.request as urlreq
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    headers = {
+        'User-Agent': ('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) '
+                       'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'),
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Referer': 'https://www.douyin.com/',
+    }
+
+    if progress_callback:
+        progress_callback("[1/4] 正在解析抖音链接...")
+
+    req = urlreq.Request(url, headers=headers)
+    resp = urlreq.urlopen(req, context=ctx, timeout=15)
+    html = resp.read().decode('utf-8', errors='ignore')
+
+    uri_m = re.search(r'play_addr[^}]{0,300}?uri["\s]*:["\s]*([a-zA-Z0-9_]+)', html, re.DOTALL)
+    if not uri_m:
+        raise RuntimeError("🔇 无法从抖音页面提取视频信息，请稍后重试或直接下载视频后上传。")
+    video_uri = uri_m.group(1)
+
+    title_m = re.search(r'<title[^>]*>([^<]+)</title>', html)
+    raw_title = title_m.group(1).strip() if title_m else "抖音视频"
+    raw_title = re.sub(r'\s*[-_|·]\s*抖音.*$', '', raw_title).strip() or "抖音视频"
+
+    cdn_url = f'https://aweme.snssdk.com/aweme/v1/play/?video_id={video_uri}&ratio=720p&line=0'
+    logger.info(f"[Douyin] URI={video_uri} title={raw_title!r}")
+
+    if progress_callback:
+        progress_callback(f"[2/4] 正在下载：{raw_title}")
+
+    req = urlreq.Request(cdn_url, headers=headers)
+    resp = urlreq.urlopen(req, context=ctx, timeout=60)
+    content_type = resp.headers.get('Content-Type', '')
+    if 'video' not in content_type and 'octet-stream' not in content_type:
+        raise RuntimeError(f"🔇 抖音返回了非视频内容（{content_type}），请稍后重试。")
+
+    with open(output_path, 'wb') as f:
+        while True:
+            chunk = resp.read(65536)
+            if not chunk:
+                break
+            f.write(chunk)
+
+    return raw_title
+
+
 @app.route("/api/download-video", methods=["POST"])
 def api_download_video():
     """从 URL 下载视频到 videos 目录，通过 SSE 推送进度"""
     data = request.get_json()
-    url = data.get("url", "").strip()
-    if not url:
+    raw_input = data.get("url", "").strip()
+    if not raw_input:
         return jsonify({"error": "缺少视频链接"}), 400
+    url = _extract_url_from_text(raw_input)
 
     log_event("download", url=url)
 
@@ -321,6 +387,40 @@ def api_download_video():
 
     def do_download():
         try:
+            # ── 抖音专用下载通道 ─────────────────────────────────────
+            if _is_douyin_url(url):
+                import tempfile, shutil
+                tmp_path = os.path.join(tempfile.gettempdir(), "douyin_tmp.mp4")
+                try:
+                    title = _download_douyin(url, tmp_path,
+                                             progress_callback=lambda m: progress_queue.put(("progress", m)))
+                except Exception as e:
+                    progress_queue.put(("error", str(e)))
+                    return
+
+                # ── [3/4] 验证音频轨道 ───────────────────────────────
+                progress_queue.put(("progress", "[3/4] 正在验证音频轨道..."))
+                probe = subprocess.run(
+                    ["ffprobe", "-v", "quiet", "-select_streams", "a",
+                     "-show_entries", "stream=index", "-of", "csv=p=0", tmp_path],
+                    capture_output=True, text=True,
+                )
+                if not probe.stdout.strip():
+                    os.remove(tmp_path)
+                    progress_queue.put(("error", "🔇 下载的视频不含音频轨道，无法进行语音识别。"))
+                    return
+
+                safe_title = clean_video_title(title)
+                output_path = os.path.join(VIDEOS_DIR, safe_title + ".mp4")
+                os.makedirs(VIDEOS_DIR, exist_ok=True)
+                shutil.move(tmp_path, output_path)
+
+                # ── [4/4] 处理音频 ───────────────────────────────────
+                progress_queue.put(("progress", "[4/4] 正在处理音频..."))
+                normalize_audio(output_path)
+                progress_queue.put(("done", {"name": safe_title + ".mp4"}))
+                return
+
             cookie_args = ytdlp_cookie_args()
             extra_args = list(cookie_args)
 

@@ -963,7 +963,7 @@ async function loadVideoList() {
 
 // ========== 从 URL 下载视频 ==========
 async function downloadFromUrl() {
-    const url = videoUrlInput.value.trim();
+    const url = extractUrlFromText(videoUrlInput.value);
     if (!url) {
         urlStatus.textContent = t("status.enterUrl");
         urlStatus.className = "url-status error";
@@ -1050,12 +1050,19 @@ videoUrlInput.addEventListener("input", () => {
     if (videoUrlInput.value.trim()) btnPasteUrl.style.display = "none";
 });
 
-// 粘贴按钮：读剪贴板并填入输入框
+// 从分享文本中提取第一个 HTTP URL（兼容抖音/微信分享格式）
+function extractUrlFromText(text) {
+    const m = text.match(/https?:\/\/[^\s，。！？、""'']+/);
+    if (m) return m[0].replace(/[.,，。！？、]+$/, "");
+    return text.trim();
+}
+
+// 粘贴按钮：读剪贴板并填入输入框，自动提取分享文本中的 URL
 btnPasteUrl.addEventListener("click", async () => {
     try {
         const text = await navigator.clipboard.readText();
         if (text) {
-            videoUrlInput.value = text.trim();
+            videoUrlInput.value = extractUrlFromText(text);
             btnPasteUrl.style.display = "none";
             videoUrlInput.focus();
         }
