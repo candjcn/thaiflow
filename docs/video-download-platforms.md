@@ -32,12 +32,7 @@ _is_douyin_url() ?
 | TikTok | `vm.tiktok.com/xxx`、`www.tiktok.com/...` | yt-dlp | 2026-07 | 曾遇无音频问题，已加 ffprobe 验证 |
 | YouTube | `youtu.be/xxx`、`youtube.com/watch` | yt-dlp + YouTube cookie 兜底 | 2026-07 | 机器人检测时自动切 TV 客户端 |
 | Facebook | `facebook.com/share/v/xxx`、`facebook.com/watch/` | yt-dlp | 2026-07-13 | 3/3 成功，约 9s，无需登录；公开视频直接可下 |
-
-### 🔐 条件可用（需本地运行 + 浏览器已登录）
-
-| 平台 | 链接格式 | 下载方法 | 测试时间 | 备注 |
-|------|---------|---------|---------|------|
-| Instagram | `instagram.com/reel/xxx` | yt-dlp + 本地浏览器 cookies 自动重试 | 2026-07-13 | 本地运行且浏览器已登录 Instagram 时可用；Railway 服务器端不可用 |
+| Instagram | `instagram.com/reel/xxx` | yt-dlp（+ 本地浏览器 cookies 自动兜底） | 2026-07-13 | 大部分公开 Reel 直接可下；少数视频返回 empty media response，自动用本地浏览器 cookies 重试 |
 
 ### ⚠️ 已知问题 / 未完整测试
 
@@ -105,7 +100,7 @@ _is_douyin_url() ?
 - [ ] 小红书：`xhslink.com/xxx` 或 `xiaohongshu.com/explore/xxx`
 - [ ] B站：`bilibili.com/video/BVxxx` 或 `b23.tv/xxx`
 - [x] Facebook：`facebook.com/watch/` 或 `fb.watch/xxx` ✅ 2026-07-13
-- [x] Instagram：`instagram.com/reel/xxx` 🔐 2026-07-13（本地运行可用，服务器端不可用）
+- [x] Instagram：`instagram.com/reel/xxx` ✅ 2026-07-13（大部分可用；少数视频需登录，自动本地浏览器兜底）
 - [ ] Twitter/X：`x.com/xxx/status/xxx`
 - [ ] 微信视频号：分享链接格式待确认
 - [ ] LINE VOOM：格式待确认
@@ -119,7 +114,7 @@ _is_douyin_url() ?
 |------|------|
 | 2026-07-13 | 新增抖音自定义下载；前后端均加分享文本 URL 提取 |
 | 2026-07-13 | 测试 Facebook：yt-dlp 直接可用，3/3 成功，约 9s |
-| 2026-07-13 | 测试 Instagram：服务器端所有方式失败；本地运行时自动用浏览器 cookies 重试，验证可用 |
+| 2026-07-13 | 测试 Instagram：大部分公开 Reel 直接可下；少数视频（账号限制？）返回 empty media，自动浏览器 cookies 兜底 |
 | 2026-07 | TikTok 无音频修复（ffprobe 验证 + 格式链扩展） |
 | 2026-07 | 下载错误分类（5 类友好提示）+ 阶段进度条 |
 | 2026-07 | YouTube 机器人检测自动切 TV 客户端 |
