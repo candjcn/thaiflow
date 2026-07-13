@@ -146,7 +146,7 @@ def _split_bilingual_line(line, src_script, tgt_script):
     """
     尝试把"原文 译文"同行拆成 (original, translation)。
     失败返回 None。
-    优先级：字符集边界 > 多空格/Tab > 分隔符 > 单空格（仅短词）
+    优先级：括号包裹译文 > 字符集边界 > 多空格/Tab > 分隔符 > 单空格（仅短词）
     """
     _script_pat = {
         "th": r"[\u0e00-\u0e7f]",
@@ -156,7 +156,16 @@ def _split_bilingual_line(line, src_script, tgt_script):
         "en": r"[a-zA-Z]",
     }
 
-    # ── 最可靠：按字符集边界切分 ──────────────────────────────
+    # ── 最高优先级：行尾各种括号包裹的译文 ──────────────────────
+    # 支持：圆括号 ()（）、方括号 []【】
+    m = re.search(r'[\u0028\uff08\u3010\u005b]([^\u0029\uff09\u3011\u005d]+)[\u0029\uff09\u3011\u005d]\s*$', line)
+    if m:
+        translation = m.group(1).strip()
+        original = line[:m.start()].strip()
+        if original and translation:
+            return (original, translation)
+
+    # ── 按字符集边界切分 ─────────────────────────────────────
     # 找第一个目标脚本字符位置，前段为源语言，后段为目标语言
     tgt_pat = _script_pat.get(tgt_script)
     if tgt_pat:
