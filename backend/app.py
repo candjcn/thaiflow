@@ -288,12 +288,38 @@ def api_download_video():
         except Exception:
             return []
 
+    def _classify_error(stderr):
+        """把 yt-dlp/ffmpeg stderr 归入 5 大错误类，返回用户友好提示。"""
+        e = stderr
+        # 🔒 版权保护
+        if "DRM" in e or "drm" in e:
+            return "🔒 该视频受版权保护（DRM），无法下载。请换一个视频试试。"
+        # 🗑️ 视频不存在/已删除/私密
+        if any(k in e for k in ("404", "not found", "unavailable", "This video is private",
+                                 "has been removed", "no longer available", "deleted")):
+            return "🗑️ 视频不存在、已被删除或设为私密，请确认链接是否有效。"
+        # 🚫 需要登录/会员/防盗链
+        if any(k in e for k in ("Sign in", "log in", "login", "member", "403", "Forbidden",
+                                  "cookies", "Premium", "age-restricted", "age restricted")):
+            return "🚫 该视频需要登录或仅限会员观看，暂时无法在服务器端下载。请换一个公开视频。"
+        # ⏱️ 平台反爬/限速
+        if any(k in e for k in ("429", "rate limit", "Too Many Requests", "bot", "challenge",
+                                  "JavaScript", "rmats", "player_client")):
+            return "⏱️ 平台暂时限制了服务器访问。请等待 1–2 分钟后重试，或改用其他平台的链接。"
+        # 🔇 无音频（此处兜底，通常已在下载后 ffprobe 拦截）
+        if any(k in e for k in ("matches no streams", "no audio", "Invalid argument")):
+            return "🔇 视频没有音频轨道，无法进行语音识别。请将视频本地下载后直接上传。"
+        # ❓ 未知错误：截取最后 120 字符，去掉路径和 ANSI 码
+        snippet = re.sub(r'\x1b\[[0-9;]*m', '', e).strip()[-120:]
+        return f"❓ 下载失败：{snippet}"
+
     def do_download():
         try:
             cookie_args = ytdlp_cookie_args()
             extra_args = list(cookie_args)
 
-            # 先获取视频标题和时长
+            # ── [1/4] 获取视频信息 ───────────────────────────────────
+            progress_queue.put(("progress", "[1/4] 正在获取视频信息..."))
             info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
             info_result = subprocess.run(
                 info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
@@ -302,21 +328,14 @@ def api_download_video():
                 "Sign in" in info_result.stderr or "cookies" in info_result.stderr
             ):
                 # YouTube 机器人检测：改用 TV 客户端伪装重试
-                progress_queue.put(("progress", "YouTube 验证拦截，尝试备用通道..."))
+                progress_queue.put(("progress", "[1/4] YouTube 验证拦截，尝试备用通道..."))
                 extra_args = cookie_args + ["--extractor-args", "youtube:player_client=tv,web_embedded"]
                 info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
                 info_result = subprocess.run(
                     info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
                 )
             if info_result.returncode != 0:
-                err = info_result.stderr[-600:]
-                if "DRM protected" in err:
-                    err = "该视频受 DRM 版权保护，无法下载。请尝试其他视频。"
-                elif "Sign in" in err or "cookies" in err:
-                    err = "YouTube 阻止了服务器访问（反爬验证）。请改用 TikTok 链接，或联系开发者配置 YouTube cookies。"
-                elif "JavaScript runtime" in err or "challenge solver" in err or "rmats" in err:
-                    err = "YouTube 验证升级，服务器正在更新中。请稍后重试，或改用 TikTok / 抖音链接。"
-                progress_queue.put(("error", f"无法获取视频信息: {err}"))
+                progress_queue.put(("error", _classify_error(info_result.stderr)))
                 return
 
             lines = info_result.stdout.strip().splitlines()
@@ -328,17 +347,15 @@ def api_download_video():
                     mins = int(duration_sec // 60)
                     secs = int(duration_sec % 60)
                     progress_queue.put(("error",
-                        f"视频时长 {mins}:{secs:02d}，超过 10 分钟限制。"
+                        f"⏰ 视频时长 {mins}:{secs:02d}，超过 10 分钟限制。"
                         f"ReelSpeak 专为短视频设计，建议截取片段后再上传。"))
                     return
             except (ValueError, IndexError):
-                pass  # 获取不到时长时继续下载
-            # 清理文件名（去 # 标签、限 40 字）
-            safe_title = clean_video_title(title)
+                pass
 
+            safe_title = clean_video_title(title)
             output_path = os.path.join(VIDEOS_DIR, safe_title + ".mp4")
 
-            # 如果已存在，直接返回
             if os.path.exists(output_path):
                 progress_queue.put(("done", {
                     "name": safe_title + ".mp4",
@@ -346,10 +363,9 @@ def api_download_video():
                 }))
                 return
 
-            progress_queue.put(("progress", f"正在下载: {title}"))
-
-            # 下载视频（沿用信息获取阶段成功的通道参数）
-            # 格式优先级：mp4视频+m4a音频 → mp4视频+任意音频 → 任意视频+任意音频（不限 ext，确保有声） → best
+            # ── [2/4] 下载视频 ───────────────────────────────────────
+            progress_queue.put(("progress", f"[2/4] 正在下载：{title}"))
+            # 格式优先级：mp4视频+m4a音频 → mp4视频+任意音频 → 任意视频+任意音频 → best
             dl_cmd = [
                 "yt-dlp",
                 "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/bestvideo+bestaudio/best",
@@ -360,26 +376,26 @@ def api_download_video():
                 "--newline",
             ] + extra_args + [url]
             process = subprocess.Popen(
-                dl_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                dl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, bufsize=1,
             )
 
             pct_re = re.compile(r"(\d+\.?\d*)%")
             for line in process.stdout:
                 line = line.strip()
-                match = pct_re.search(line)
-                if match:
-                    pct = float(match.group(1))
-                    progress_queue.put(("progress", f"下载中... {pct:.0f}%"))
+                m = pct_re.search(line)
+                if m:
+                    pct = float(m.group(1))
+                    progress_queue.put(("progress", f"[2/4] 下载中 {pct:.0f}%：{title}"))
 
+            dl_stderr = process.stderr.read()
             process.wait()
             if process.returncode != 0:
-                progress_queue.put(("error", "下载失败，请检查链接是否正确"))
+                progress_queue.put(("error", _classify_error(dl_stderr)))
                 return
 
-            # 检查文件是否存在（yt-dlp 可能改了文件名）
+            # 文件名兜底（yt-dlp 偶尔自行修改文件名）
             if not os.path.exists(output_path):
-                # 尝试查找 yt-dlp 实际生成的文件
                 for f in os.listdir(VIDEOS_DIR):
                     if f.startswith(safe_title) and f.endswith(".mp4"):
                         output_path = os.path.join(VIDEOS_DIR, f)
@@ -387,7 +403,8 @@ def api_download_video():
                         break
 
             if os.path.exists(output_path):
-                # 验证是否有音频轨道（部分平台视频流无音频会导致识别失败）
+                # ── [3/4] 验证音频轨道 ───────────────────────────────
+                progress_queue.put(("progress", "[3/4] 正在验证音频轨道..."))
                 probe = subprocess.run(
                     ["ffprobe", "-v", "quiet", "-select_streams", "a",
                      "-show_entries", "stream=index", "-of", "csv=p=0", output_path],
@@ -396,12 +413,12 @@ def api_download_video():
                 if not probe.stdout.strip():
                     os.remove(output_path)
                     progress_queue.put(("error",
-                        "下载的视频文件不含音频轨道，无法进行语音识别。"
-                        "该视频可能使用了平台特殊编码，请尝试其他视频，或将视频本地下载后上传。"))
+                        "🔇 下载的视频不含音频轨道，无法进行语音识别。"
+                        "该视频可能使用了平台特殊编码，请将视频本地下载后直接上传。"))
                     return
 
-                # 响度归一化 + 降噪（源片音量低时对齐 TikTok 播放响度）
-                progress_queue.put(("progress", "正在处理音频..."))
+                # ── [4/4] 处理音频 ───────────────────────────────────
+                progress_queue.put(("progress", "[4/4] 正在处理音频..."))
                 normalize_audio(output_path)
 
                 progress_queue.put(("done", {
