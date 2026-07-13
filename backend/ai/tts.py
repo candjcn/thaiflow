@@ -581,21 +581,52 @@ def _save_cover_image(img_bytes, out_path):
             f.write(img_bytes)
 
 
+def _cover_image_prompt(text, language):
+    """把任意语言文本转为 flux-1-schnell 可理解的英文 image prompt。
+    英文直接构建；其他语言先用 Gemini Flash 生成英文场景描述。
+    """
+    text_snippet = text[:300].strip()
+
+    if language == "en":
+        # 英文直接用，无需额外 API 调用
+        scene = text_snippet
+    else:
+        # 非英文：用 Gemini Flash 把主题翻译成一句英文场景描述
+        lang_name = {"th": "Thai", "zh": "Chinese", "ja": "Japanese",
+                     "ko": "Korean", "fr": "French", "de": "German",
+                     "es": "Spanish"}.get(language, "")
+        hint = f"The following text is in {lang_name}. " if lang_name else ""
+        try:
+            result = gemini_provider.request(
+                providers.Gemini.TEXT_MODEL,
+                {"contents": [{"parts": [{"text": (
+                    f"{hint}Read this text and write ONE short English sentence (10–20 words) "
+                    "describing the main scene or topic as a visual image description. "
+                    "Output ONLY the English sentence, nothing else.\n\n"
+                    f"{text_snippet}"
+                )}]}],
+                 "generationConfig": {"temperature": 0.3, "maxOutputTokens": 60}},
+                timeout=10, tag="CoverPrompt",
+            )
+            scene = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+            logger.info(f"[Cover] Gemini 生成场景描述: {scene!r}")
+        except Exception as e:
+            logger.warning(f"[Cover] Gemini 场景描述失败 ({e})，回退到原始文本")
+            scene = text_snippet
+
+    return (
+        f"Simple warm flat-design cartoon illustration: {scene}. "
+        "Style: minimalist flat cartoon, soft pastel colors, cozy friendly mood. "
+        "No words, no letters, no text in the image."
+    )
+
+
 def generate_cover_image(text, language, out_path):
     """根据文本内容生成卡通风格封面插画。
     优先用 Cloudflare Workers AI（免费），失败降级到 Gemini。
     失败时返回 False，不影响主流程。
     """
-    lang_name = {"th": "Thai", "en": "English", "zh": "Chinese",
-                 "ja": "Japanese", "ko": "Korean"}.get(language, "")
-    # 把文本内容摘要传给模型，否则生成图片和主题毫无关联
-    text_snippet = text[:300].strip()
-    prompt = (
-        "Simple warm flat-design cartoon illustration capturing the scene or "
-        f"theme of the following {lang_name} text:\n\n{text_snippet}\n\n"
-        "Style: minimalist flat cartoon, soft pastel colors, cozy friendly mood. "
-        "No words, no letters, no text in the image."
-    )
+    prompt = _cover_image_prompt(text, language)
 
     # ── Cloudflare Workers AI（首选，免费） ──────────────────────
     try:
@@ -610,7 +641,7 @@ def generate_cover_image(text, language, out_path):
     # ── Gemini（降级） ───────────────────────────────────────────
     try:
         result = gemini_provider.request(providers.Gemini.IMAGE_MODEL, {
-            "contents": [{"parts": [{"text": prompt + "\n\n" + text[:400]}]}],
+            "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
         }, timeout=settings.TIMEOUT_GEMINI_COVER, max_retries=2,
             tag="Cover", url_tpl=GEMINI_URL_BETA)
