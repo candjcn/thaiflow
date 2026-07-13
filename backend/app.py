@@ -372,7 +372,10 @@ def api_download_video():
             return "🗑️ 视频不存在、已被删除或设为私密，请确认链接是否有效。"
         # 🚫 Instagram 强制登录（即使是公开内容）
         if "instagram" in e.lower() and ("empty media response" in e or "cookies" in e):
-            return "🚫 Instagram 要求登录才能下载视频（即使是公开内容）。请在手机上下载后直接上传，或换用其他平台的链接。"
+            return ("🚫 Instagram 需要登录才能下载。\n"
+                    "• 电脑端：请确保在浏览器（Chrome/Firefox）中已登录 Instagram，"
+                    "并使用本地版 ReelSpeak（非 reelspeak.517lang.com）下载。\n"
+                    "• 手机端：请在手机上保存视频后直接上传。")
         # 🚫 需要登录/会员/防盗链
         if any(k in e for k in ("Sign in", "log in", "login", "member", "403", "Forbidden",
                                   "cookies", "Premium", "age-restricted", "age restricted")):
@@ -436,13 +439,37 @@ def api_download_video():
             if info_result.returncode != 0 and (
                 "Sign in" in info_result.stderr or "cookies" in info_result.stderr
             ):
-                # YouTube 机器人检测：改用 TV 客户端伪装重试
-                progress_queue.put(("progress", "[1/4] YouTube 验证拦截，尝试备用通道..."))
-                extra_args = cookie_args + ["--extractor-args", "youtube:player_client=tv,web_embedded"]
-                info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
-                info_result = subprocess.run(
-                    info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
-                )
+                if "instagram" in info_result.stderr.lower() or "instagram" in url.lower():
+                    # Instagram 需要登录：自动尝试本地浏览器 cookies（本地运行时有效）
+                    progress_queue.put(("progress", "[1/4] Instagram 需要登录，尝试读取本地浏览器..."))
+                    _browser_args = None
+                    for browser in ("chrome", "firefox", "edge", "chromium"):
+                        test_args = cookie_args + ["--cookies-from-browser", browser]
+                        test_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + test_args + [url]
+                        test_result = subprocess.run(
+                            test_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
+                        )
+                        if test_result.returncode == 0:
+                            extra_args = test_args
+                            info_result = test_result
+                            _browser_args = browser
+                            logger.info(f"[Instagram] 使用 {browser} cookies 成功")
+                            break
+                    if _browser_args is None:
+                        progress_queue.put(("error",
+                            "🚫 Instagram 需要登录才能下载。\n"
+                            "• 电脑端：请确保在浏览器（Chrome/Firefox）中已登录 Instagram，"
+                            "并使用本地版 ReelSpeak（非 reelspeak.517lang.com）下载。\n"
+                            "• 手机端：请在手机上保存视频后直接上传。"))
+                        return
+                else:
+                    # YouTube 机器人检测：改用 TV 客户端伪装重试
+                    progress_queue.put(("progress", "[1/4] YouTube 验证拦截，尝试备用通道..."))
+                    extra_args = cookie_args + ["--extractor-args", "youtube:player_client=tv,web_embedded"]
+                    info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
+                    info_result = subprocess.run(
+                        info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
+                    )
             if info_result.returncode != 0:
                 progress_queue.put(("error", _classify_error(info_result.stderr)))
                 return
