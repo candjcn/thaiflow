@@ -370,6 +370,9 @@ def api_download_video():
         if any(k in e for k in ("404", "not found", "unavailable", "This video is private",
                                  "has been removed", "no longer available", "deleted")):
             return "🗑️ 视频不存在、已被删除或设为私密，请确认链接是否有效。"
+        # 🚫 Instagram 强制登录（即使是公开内容）
+        if "instagram" in e.lower() and ("empty media response" in e or "cookies" in e):
+            return "🚫 Instagram 要求登录才能下载视频（即使是公开内容）。请在手机上下载后直接上传，或换用其他平台的链接。"
         # 🚫 需要登录/会员/防盗链
         if any(k in e for k in ("Sign in", "log in", "login", "member", "403", "Forbidden",
                                   "cookies", "Premium", "age-restricted", "age restricted")):

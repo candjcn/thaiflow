@@ -48,12 +48,13 @@ _is_douyin_url() ?
 
 ### ❌ 已确认无法下载
 
-| 平台 | 原因 | 错误类型 |
-|------|------|---------|
-| 抖音（yt-dlp） | 需要带签名 cookies，服务器无法生成 | `Fresh cookies needed` |
-| 受 DRM 保护的视频 | 内容加密 | `DRM` |
-| 私密 / 已删除视频 | 内容不可访问 | `404 / unavailable` |
-| 会员专属视频 | 需登录验证 | `403 / Premium` |
+| 平台 | 原因 | 错误信息 | 测试时间 |
+|------|------|---------|---------|
+| Instagram Reel/Post | 强制登录（即使公开内容）；yt-dlp/instaloader/GraphQL/oEmbed 全部失败 | `empty media response` | 2026-07-13 |
+| 抖音（yt-dlp） | 需要带签名 cookies，服务器无法生成 | `Fresh cookies needed` | 2026-07-13 |
+| 受 DRM 保护的视频 | 内容加密 | `DRM` | — |
+| 私密 / 已删除视频 | 内容不可访问 | `404 / unavailable` | — |
+| 会员专属视频 | 需登录验证 | `403 / Premium` | — |
 
 ---
 
@@ -101,7 +102,7 @@ _is_douyin_url() ?
 - [ ] 小红书：`xhslink.com/xxx` 或 `xiaohongshu.com/explore/xxx`
 - [ ] B站：`bilibili.com/video/BVxxx` 或 `b23.tv/xxx`
 - [x] Facebook：`facebook.com/watch/` 或 `fb.watch/xxx` ✅ 2026-07-13
-- [ ] Instagram：`instagram.com/reel/xxx`
+- [x] Instagram：`instagram.com/reel/xxx` ❌ 2026-07-13（强制登录，无法服务器端下载）
 - [ ] Twitter/X：`x.com/xxx/status/xxx`
 - [ ] 微信视频号：分享链接格式待确认
 - [ ] LINE VOOM：格式待确认
@@ -115,6 +116,7 @@ _is_douyin_url() ?
 |------|------|
 | 2026-07-13 | 新增抖音自定义下载；前后端均加分享文本 URL 提取 |
 | 2026-07-13 | 测试 Facebook：yt-dlp 直接可用，3/3 成功，约 9s |
+| 2026-07-13 | 测试 Instagram：所有方式均失败（yt-dlp/instaloader/GraphQL/oEmbed），强制登录；加专属错误提示 |
 | 2026-07 | TikTok 无音频修复（ffprobe 验证 + 格式链扩展） |
 | 2026-07 | 下载错误分类（5 类友好提示）+ 阶段进度条 |
 | 2026-07 | YouTube 机器人检测自动切 TV 客户端 |
