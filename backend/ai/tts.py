@@ -581,43 +581,64 @@ def _save_cover_image(img_bytes, out_path):
             f.write(img_bytes)
 
 
+_LANG_META = {
+    "th": ("Thai",    "Thailand",  "Thai street food stall, golden temple, tuk-tuk"),
+    "zh": ("Chinese", "China",     "Chinese tea house, lanterns, traditional courtyard"),
+    "ja": ("Japanese","Japan",     "Japanese izakaya, cherry blossoms, tatami room"),
+    "ko": ("Korean",  "Korea",     "Korean cafe, hanbok, night market street"),
+    "fr": ("French",  "France",    "Parisian café, Eiffel Tower, French bakery"),
+    "de": ("German",  "Germany",   "German market, cozy pub, autumn forest"),
+    "es": ("Spanish", "Spain",     "Spanish plaza, flamenco, tapas bar"),
+}
+
+
 def _cover_image_prompt(text, language):
     """把任意语言文本转为 flux-1-schnell 可理解的英文 image prompt。
-    英文直接构建；其他语言先用 Gemini Flash 生成英文场景描述。
+    英文直接构建；其他语言先用 Gemini Flash 生成带文化背景的英文场景描述。
     """
     text_snippet = text[:300].strip()
 
     if language == "en":
-        # 英文直接用，无需额外 API 调用
-        scene = text_snippet
+        scene = (
+            f"A language learner studying English: {text_snippet[:120]}. "
+            "Cozy study setting with books and warm lighting."
+        )
     else:
-        # 非英文：用 Gemini Flash 把主题翻译成一句英文场景描述
-        lang_name = {"th": "Thai", "zh": "Chinese", "ja": "Japanese",
-                     "ko": "Korean", "fr": "French", "de": "German",
-                     "es": "Spanish"}.get(language, "")
-        hint = f"The following text is in {lang_name}. " if lang_name else ""
+        meta = _LANG_META.get(language)
+        lang_name    = meta[0] if meta else language.upper()
+        country_name = meta[1] if meta else ""
+        culture_hint = meta[2] if meta else ""
+
+        gemini_prompt = (
+            f"You are creating a cover image for a {lang_name} language lesson in a learning app.\n"
+            f"The lesson content (in {lang_name}) is:\n\n{text_snippet}\n\n"
+            f"Write ONE vivid English scene description (15–25 words) for an illustration that:\n"
+            f"- Captures the topic or mood of this lesson\n"
+            f"- Includes a recognizable {country_name} cultural visual element "
+            f"(e.g. {culture_hint})\n"
+            f"- Feels warm, inviting, and suitable for a language learner\n"
+            f"Output ONLY the scene description, no explanation."
+        )
         try:
             result = gemini_provider.request(
                 providers.Gemini.TEXT_MODEL,
-                {"contents": [{"parts": [{"text": (
-                    f"{hint}Read this text and write ONE short English sentence (10–20 words) "
-                    "describing the main scene or topic as a visual image description. "
-                    "Output ONLY the English sentence, nothing else.\n\n"
-                    f"{text_snippet}"
-                )}]}],
-                 "generationConfig": {"temperature": 0.3, "maxOutputTokens": 60}},
+                {"contents": [{"parts": [{"text": gemini_prompt}]}],
+                 "generationConfig": {"temperature": 0.7, "maxOutputTokens": 80}},
                 timeout=10, tag="CoverPrompt",
             )
             scene = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-            logger.info(f"[Cover] Gemini 生成场景描述: {scene!r}")
+            logger.info(f"[Cover] 场景描述: {scene!r}")
         except Exception as e:
-            logger.warning(f"[Cover] Gemini 场景描述失败 ({e})，回退到原始文本")
-            scene = text_snippet
+            logger.warning(f"[Cover] Gemini 场景描述失败 ({e})，使用默认场景")
+            scene = (
+                f"A student learning {lang_name} in a cozy {country_name} café, "
+                f"textbook open, warm afternoon light."
+            )
 
     return (
-        f"Simple warm flat-design cartoon illustration: {scene}. "
-        "Style: minimalist flat cartoon, soft pastel colors, cozy friendly mood. "
-        "No words, no letters, no text in the image."
+        f"Flat-design cartoon illustration: {scene} "
+        "Soft pastel colors, clean lines, warm cozy atmosphere. "
+        "No text, no letters, no words anywhere in the image."
     )
 
 
