@@ -31,6 +31,7 @@ _is_douyin_url() ?
 | 抖音 | `v.douyin.com/xxx` | 自定义（解析分享页 → CDN） | 2026-07-13 | 3/3 成功，约 2s；微信分享文本自动提取 URL |
 | TikTok | `vm.tiktok.com/xxx`、`www.tiktok.com/...` | yt-dlp | 2026-07 | 曾遇无音频问题，已加 ffprobe 验证 |
 | YouTube | `youtu.be/xxx`、`youtube.com/watch` | yt-dlp + YouTube cookie 兜底 | 2026-07 | 机器人检测时自动切 TV 客户端 |
+| Facebook | `facebook.com/share/v/xxx`、`facebook.com/watch/` | yt-dlp | 2026-07-13 | 3/3 成功，约 9s，无需登录；公开视频直接可下 |
 
 ### ⚠️ 已知问题 / 未完整测试
 
@@ -99,7 +100,7 @@ _is_douyin_url() ?
 - [ ] 微博：`weibo.com/tv/show/xxx`
 - [ ] 小红书：`xhslink.com/xxx` 或 `xiaohongshu.com/explore/xxx`
 - [ ] B站：`bilibili.com/video/BVxxx` 或 `b23.tv/xxx`
-- [ ] Facebook：`facebook.com/watch/` 或 `fb.watch/xxx`
+- [x] Facebook：`facebook.com/watch/` 或 `fb.watch/xxx` ✅ 2026-07-13
 - [ ] Instagram：`instagram.com/reel/xxx`
 - [ ] Twitter/X：`x.com/xxx/status/xxx`
 - [ ] 微信视频号：分享链接格式待确认
@@ -113,6 +114,7 @@ _is_douyin_url() ?
 | 日期 | 改动 |
 |------|------|
 | 2026-07-13 | 新增抖音自定义下载；前后端均加分享文本 URL 提取 |
+| 2026-07-13 | 测试 Facebook：yt-dlp 直接可用，3/3 成功，约 9s |
 | 2026-07 | TikTok 无音频修复（ffprobe 验证 + 格式链扩展） |
 | 2026-07 | 下载错误分类（5 类友好提示）+ 阶段进度条 |
 | 2026-07 | YouTube 机器人检测自动切 TV 客户端 |
