@@ -34,6 +34,7 @@ _is_douyin_url() ?
 | Facebook | `facebook.com/share/v/xxx`、`facebook.com/watch/` | yt-dlp | 2026-07-13 | 3/3 成功，约 9s，无需登录；公开视频直接可下 |
 | Instagram | `instagram.com/reel/xxx` | yt-dlp（+ 本地浏览器 cookies 自动兜底） | 2026-07-13 | 大部分公开 Reel 直接可下；少数视频返回 empty media response，自动用本地浏览器 cookies 重试 |
 | B站 | `b23.tv/xxx`、`bilibili.com/video/BVxxx` | yt-dlp | 2026-07-13 | 3/3 成功，约 4s；短链和分享文本均可；普通画质无需登录 |
+| 小红书 | `xhslink.com/xxx`、`xiaohongshu.com/explore/xxx` | yt-dlp | 2026-07-13 | 3/3 成功，无需登录；分享文本自动提取 URL；注意大视频下载较慢（135MB/48s） |
 
 ### ⚠️ 已知问题 / 未完整测试
 
@@ -98,7 +99,7 @@ _is_douyin_url() ?
 ## 待测试清单
 
 - [ ] 微博：`weibo.com/tv/show/xxx`
-- [ ] 小红书：`xhslink.com/xxx` 或 `xiaohongshu.com/explore/xxx`
+- [x] 小红书：`xhslink.com/xxx` 或 `xiaohongshu.com/explore/xxx` ✅ 2026-07-13
 - [x] B站：`bilibili.com/video/BVxxx` 或 `b23.tv/xxx` ✅ 2026-07-13
 - [x] Facebook：`facebook.com/watch/` 或 `fb.watch/xxx` ✅ 2026-07-13
 - [x] Instagram：`instagram.com/reel/xxx` ✅ 2026-07-13（大部分可用；少数视频需登录，自动本地浏览器兜底）
@@ -116,6 +117,7 @@ _is_douyin_url() ?
 | 2026-07-13 | 新增抖音自定义下载；前后端均加分享文本 URL 提取 |
 | 2026-07-13 | 测试 Facebook：yt-dlp 直接可用，3/3 成功，约 9s |
 | 2026-07-13 | 测试 B站：yt-dlp 直接可用，3/3 成功，约 4s，b23.tv 短链和分享文本均支持 |
+| 2026-07-13 | 测试 小红书：yt-dlp 直接可用，3/3 成功，无需登录，xhslink.com 短链支持 |
 | 2026-07-13 | 测试 Instagram：大部分公开 Reel 直接可下；少数视频（账号限制？）返回 empty media，自动浏览器 cookies 兜底 |
 | 2026-07 | TikTok 无音频修复（ffprobe 验证 + 格式链扩展） |
 | 2026-07 | 下载错误分类（5 类友好提示）+ 阶段进度条 |
