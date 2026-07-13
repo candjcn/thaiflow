@@ -33,6 +33,12 @@ _is_douyin_url() ?
 | YouTube | `youtu.be/xxx`、`youtube.com/watch` | yt-dlp + YouTube cookie 兜底 | 2026-07 | 机器人检测时自动切 TV 客户端 |
 | Facebook | `facebook.com/share/v/xxx`、`facebook.com/watch/` | yt-dlp | 2026-07-13 | 3/3 成功，约 9s，无需登录；公开视频直接可下 |
 
+### 🔐 条件可用（需本地运行 + 浏览器已登录）
+
+| 平台 | 链接格式 | 下载方法 | 测试时间 | 备注 |
+|------|---------|---------|---------|------|
+| Instagram | `instagram.com/reel/xxx` | yt-dlp + 本地浏览器 cookies 自动重试 | 2026-07-13 | 本地运行且浏览器已登录 Instagram 时可用；Railway 服务器端不可用 |
+
 ### ⚠️ 已知问题 / 未完整测试
 
 | 平台 | 状态 | 问题描述 | 待办 |
@@ -41,16 +47,13 @@ _is_douyin_url() ?
 | 小红书 | 未测试 | — | 测试 yt-dlp 支持情况 |
 | 微信视频号 | 未测试 | 需登录，可能无法服务器端下载 | 调研 |
 | B站 | 未测试 | — | 测试 yt-dlp；注意大会员视频 |
-| Facebook | 未测试 | — | 测试 yt-dlp |
-| Instagram | 未测试 | 登录墙问题 | 调研 |
 | Twitter/X | 未测试 | — | 测试 yt-dlp |
 | LINE VOOM | 未测试 | — | 调研 |
 
-### ❌ 已确认无法下载
+### ❌ 已确认无法下载（服务器端）
 
 | 平台 | 原因 | 错误信息 | 测试时间 |
 |------|------|---------|---------|
-| Instagram Reel/Post | 强制登录（即使公开内容）；yt-dlp/instaloader/GraphQL/oEmbed 全部失败 | `empty media response` | 2026-07-13 |
 | 抖音（yt-dlp） | 需要带签名 cookies，服务器无法生成 | `Fresh cookies needed` | 2026-07-13 |
 | 受 DRM 保护的视频 | 内容加密 | `DRM` | — |
 | 私密 / 已删除视频 | 内容不可访问 | `404 / unavailable` | — |
@@ -102,7 +105,7 @@ _is_douyin_url() ?
 - [ ] 小红书：`xhslink.com/xxx` 或 `xiaohongshu.com/explore/xxx`
 - [ ] B站：`bilibili.com/video/BVxxx` 或 `b23.tv/xxx`
 - [x] Facebook：`facebook.com/watch/` 或 `fb.watch/xxx` ✅ 2026-07-13
-- [x] Instagram：`instagram.com/reel/xxx` ❌ 2026-07-13（强制登录，无法服务器端下载）
+- [x] Instagram：`instagram.com/reel/xxx` 🔐 2026-07-13（本地运行可用，服务器端不可用）
 - [ ] Twitter/X：`x.com/xxx/status/xxx`
 - [ ] 微信视频号：分享链接格式待确认
 - [ ] LINE VOOM：格式待确认
@@ -116,7 +119,7 @@ _is_douyin_url() ?
 |------|------|
 | 2026-07-13 | 新增抖音自定义下载；前后端均加分享文本 URL 提取 |
 | 2026-07-13 | 测试 Facebook：yt-dlp 直接可用，3/3 成功，约 9s |
-| 2026-07-13 | 测试 Instagram：所有方式均失败（yt-dlp/instaloader/GraphQL/oEmbed），强制登录；加专属错误提示 |
+| 2026-07-13 | 测试 Instagram：服务器端所有方式失败；本地运行时自动用浏览器 cookies 重试，验证可用 |
 | 2026-07 | TikTok 无音频修复（ffprobe 验证 + 格式链扩展） |
 | 2026-07 | 下载错误分类（5 类友好提示）+ 阶段进度条 |
 | 2026-07 | YouTube 机器人检测自动切 TV 客户端 |
