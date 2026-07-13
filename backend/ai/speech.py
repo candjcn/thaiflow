@@ -70,7 +70,10 @@ def _extract_chunk_wav(video_path, start, duration):
     ]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
-        raise RuntimeError(f"分段提取失败: {r.stderr[-300:]}")
+        err = r.stderr
+        if "matches no streams" in err or "does not contain any stream" in err or "Invalid argument" in err:
+            raise RuntimeError("视频没有音频轨道，无法识别。请检查下载的视频文件是否包含音频。")
+        raise RuntimeError(f"分段提取失败: {err[-300:]}")
     return wav_path
 
 
