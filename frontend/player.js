@@ -1148,19 +1148,7 @@ document.getElementById("btnTtsToggle").addEventListener("click", () => {
 });
 
 // ========== 粘贴按钮 ==========
-ttsTextEl.addEventListener("focus", async () => {
-    if (ttsTextEl.value.trim()) return;
-    try {
-        const text = await navigator.clipboard.readText();
-        if (text) btnPasteTts.style.display = "block";
-    } catch (e) { /* 权限被拒时不显示 */ }
-});
-ttsTextEl.addEventListener("blur", () => {
-    setTimeout(() => { btnPasteTts.style.display = "none"; }, 200);
-});
-ttsTextEl.addEventListener("input", () => {
-    if (ttsTextEl.value.trim()) btnPasteTts.style.display = "none";
-});
+// 文本框不自动弹出粘贴按钮（频繁点击会打扰用户编辑），仅保留点击按钮本身的逻辑
 btnPasteTts.addEventListener("click", async () => {
     try {
         const text = await navigator.clipboard.readText();
