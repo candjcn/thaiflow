@@ -182,6 +182,12 @@ def index():
     return send_from_directory(FRONTEND_DIR, "index.html")
 
 
+@app.route("/story")
+def ai_story():
+    docs_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
+    return send_from_directory(docs_dir, "ai-dev-story.html")
+
+
 @app.route("/<path:filename>")
 def static_files(filename):
     return send_from_directory(FRONTEND_DIR, filename)
