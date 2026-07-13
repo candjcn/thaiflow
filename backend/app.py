@@ -349,9 +349,10 @@ def api_download_video():
             progress_queue.put(("progress", f"正在下载: {title}"))
 
             # 下载视频（沿用信息获取阶段成功的通道参数）
+            # 格式优先级：mp4视频+m4a音频 → mp4视频+任意音频 → 任意视频+任意音频（不限 ext，确保有声） → best
             dl_cmd = [
                 "yt-dlp",
-                "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best",
+                "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/bestvideo+bestaudio/best",
                 "--merge-output-format", "mp4",
                 "--no-playlist",
                 "-o", output_path,
@@ -386,6 +387,19 @@ def api_download_video():
                         break
 
             if os.path.exists(output_path):
+                # 验证是否有音频轨道（部分平台视频流无音频会导致识别失败）
+                probe = subprocess.run(
+                    ["ffprobe", "-v", "quiet", "-select_streams", "a",
+                     "-show_entries", "stream=index", "-of", "csv=p=0", output_path],
+                    capture_output=True, text=True,
+                )
+                if not probe.stdout.strip():
+                    os.remove(output_path)
+                    progress_queue.put(("error",
+                        "下载的视频文件不含音频轨道，无法进行语音识别。"
+                        "该视频可能使用了平台特殊编码，请尝试其他视频，或将视频本地下载后上传。"))
+                    return
+
                 # 响度归一化 + 降噪（源片音量低时对齐 TikTok 播放响度）
                 progress_queue.put(("progress", "正在处理音频..."))
                 normalize_audio(output_path)
