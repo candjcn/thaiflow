@@ -4976,10 +4976,14 @@ renderFavorites();
 loadLocalVideoList();
 initAuth();
 
-// bfcache 修复：从 Back-Forward Cache 恢复时重新检查登录状态
-// 场景：OAuth 登录后，浏览器 bfcache 了登录前的旧页面，返回键会显示旧的未登录 UI
+// bfcache 修复：从 Back-Forward Cache 恢复时重新同步登录状态和界面语言
+// 场景1：OAuth 登录后返回键恢复旧页面 → UI 显示未登录
+// 场景2：profile 页改了语言后返回键恢复旧页面 → UI 仍是旧语言
 window.addEventListener("pageshow", (e) => {
-    if (e.persisted) initAuth();
+    if (e.persisted) {
+        initAuth();
+        I18N.init();
+    }
 });
 // 页面版本标识（排查缓存用）
 (() => {
