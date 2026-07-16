@@ -1950,7 +1950,7 @@ def auth_google_login():
     resp.headers["Location"] = url
     resp.set_cookie(
         "oauth_state", state,
-        httponly=True, samesite="Lax", secure=request.is_secure,
+        httponly=True, samesite="Lax", secure=False,
         max_age=600,   # 10 分钟有效
     )
     return resp
@@ -1976,19 +1976,23 @@ def auth_google_callback():
         logger.warning(f"[auth] Google exchange error: {e}")
         return redirect("/?auth_error=exchange_failed")
 
-    db      = get_db()
-    user_id = _auth.upsert_user(
-        db, "google",
-        user_info["sub"], user_info["email"],
-        user_info["name"], user_info["picture"],
-    )
-    token = _auth.create_session(db, user_id, request.headers.get("User-Agent"))
+    try:
+        db      = get_db()
+        user_id = _auth.upsert_user(
+            db, "google",
+            user_info["sub"], user_info["email"],
+            user_info["name"], user_info["picture"],
+        )
+        token = _auth.create_session(db, user_id, request.headers.get("User-Agent"))
+    except Exception as e:
+        logger.error(f"[auth] upsert/session error: {e}", exc_info=True)
+        return redirect("/?auth_error=db_error")
 
     resp = make_response("", 302)
     resp.headers["Location"] = "/app"
     resp.set_cookie(
         _auth.COOKIE_NAME, token,
-        httponly=True, samesite="Lax", secure=request.is_secure,
+        httponly=True, samesite="Lax", secure=False,
         max_age=_auth.SESSION_DAYS * 86400,
     )
     resp.delete_cookie("oauth_state")
