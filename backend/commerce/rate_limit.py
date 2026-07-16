@@ -42,6 +42,7 @@ _ANON_TOTAL_LIMITS: dict[str, int] = {
     "transcription": 5,
     "tts_synthesis": 5,
     "pronunciation": 10,
+    "content_gen":   20,
 }
 
 # ── 内存计数器 ────────────────────────────────────────────────────────────────

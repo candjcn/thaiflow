@@ -1019,29 +1019,45 @@ def api_tts_content():
         return jsonify({"error": "prompt is required"}), 400
 
     db = get_db()
-    _uid = _get_user_id(db)
+    _uid    = _get_user_id(db)
+    _rl_key = _get_rl_key(_uid)
+    is_anon = (_uid == ANONYMOUS_USER_ID)
+
     ctx = CommerceContext(
         db, _uid, "content_gen", "standard", "free",
         extra={"prompt_len": len(prompt), "language": language},
     )
-    if not ctx.check_permission("CanTTSContent"):
+    if not is_anon and not ctx.check_permission("CanTTSContent"):
         return jsonify({"error": "权限不足，请升级套餐"}), 403
-    try:
-        ctx.reserve({"char_count": len(prompt)})
-    except InsufficientFundsError:
-        return jsonify({"error": "Credits 不足，请充值后重试"}), 402
 
+    # 匿名设备限流（不走 credits）
+    plan = "device" if is_anon else ctx.plan_id
+    if not _check_rate_limit(_rl_key, "content_gen", plan):
+        used = _rl_get_usage(_rl_key, "content_gen")
+        if is_anon:
+            return jsonify({"error": f"今日 AI 生成已达上限（{used} 次），登录后可获得更多次数"}), 429
+        return jsonify({"error": f"今日 AI 生成已达上限（{used} 次）"}), 429
+
+    if not is_anon:
+        try:
+            ctx.reserve({"char_count": len(prompt)})
+        except InsufficientFundsError:
+            return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+
+    _rl_increment(_rl_key, "content_gen")
     t0 = _time.time()
     try:
         text = generate_tts_content(prompt, language)
         latency_ms = int((_time.time() - t0) * 1000)
-        provider_used = "deepseek" if language == "zh" else "gemini"
-        handle = ctx.get_handle(preferred_provider=provider_used)
-        ctx.settle({"char_count": len(prompt)}, handle.provider_id, handle.model_id, latency_ms)
+        if not is_anon:
+            provider_used = "deepseek" if language == "zh" else "gemini"
+            handle = ctx.get_handle(preferred_provider=provider_used)
+            ctx.settle({"char_count": len(prompt)}, handle.provider_id, handle.model_id, latency_ms)
         log_event("tts_content_gen", language=language, prompt_len=len(prompt))
         return jsonify({"text": text})
     except Exception as e:
-        ctx.release_on_error(e)
+        if not is_anon:
+            ctx.release_on_error(e)
         logger.warning(f"[TTS content] 生成失败: {e}")
         return jsonify({"error": str(e)}), 502
 
