@@ -123,8 +123,35 @@ CREATE TABLE IF NOT EXISTS permission_grants (
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── OAuth 身份（支持多 provider） ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_identities (
+    identity_id  TEXT PRIMARY KEY,
+    user_id      TEXT NOT NULL,
+    provider     TEXT NOT NULL,          -- 'google'
+    provider_uid TEXT NOT NULL,          -- provider 侧的用户唯一 ID（Google sub）
+    email        TEXT,
+    name         TEXT,
+    picture_url  TEXT,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(provider, provider_uid),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- ── 登录会话 ───────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_sessions (
+    token        TEXT PRIMARY KEY,       -- secrets.token_urlsafe(32)
+    user_id      TEXT NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at   TEXT NOT NULL,
+    last_used_at TEXT,
+    user_agent   TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
 -- ── 索引 ──────────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user     ON usage_logs (user_id, requested_at);
 CREATE INDEX IF NOT EXISTS idx_wallet_tx_wallet    ON wallet_transactions (wallet_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_permission_user     ON permission_grants (user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user  ON user_subscriptions (user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user       ON user_sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_identities_user     ON user_identities (user_id);

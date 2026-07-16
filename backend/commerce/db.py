@@ -45,14 +45,29 @@ def init_db(path: str = ":memory:") -> sqlite3.Connection:
     schema_sql = _SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema_sql)
 
-    # ── 迁移：为旧版 DB 添加新列（CREATE TABLE IF NOT EXISTS 不会自动加列）
+    # ── 迁移：为旧版 DB 补充新列/表（schema.sql 用 IF NOT EXISTS，列需手动迁移）
     for _migration in [
         "ALTER TABLE wallets ADD COLUMN gift_expires_at TEXT",
+        # Auth 表（schema.sql 已含 CREATE IF NOT EXISTS，此处确保旧 DB 兼容）
+        """CREATE TABLE IF NOT EXISTS user_identities (
+            identity_id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+            provider TEXT NOT NULL, provider_uid TEXT NOT NULL,
+            email TEXT, name TEXT, picture_url TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(provider, provider_uid),
+            FOREIGN KEY (user_id) REFERENCES users(user_id))""",
+        """CREATE TABLE IF NOT EXISTS user_sessions (
+            token TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL, last_used_at TEXT, user_agent TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(user_id))""",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_user   ON user_sessions (user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_identities_user ON user_identities (user_id)",
     ]:
         try:
             conn.execute(_migration)
         except Exception:
-            pass   # 列已存在，跳过
+            pass   # 已存在，跳过
 
     conn.commit()
 
