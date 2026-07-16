@@ -221,6 +221,51 @@ async function loadProfile() {
     renderHistory(usage.history || []);
 }
 
+// ── 偏好设置 ────────────────────────────────────────────────────
+function initSettings() {
+    const uiLangSel      = document.getElementById("settingUiLang");
+    const translateSel   = document.getElementById("settingTranslateLang");
+    const exportDirInput = document.getElementById("settingExportDir");
+    const exportSaved    = document.getElementById("exportDirSaved");
+
+    // 读取已保存的值
+    uiLangSel.value    = localStorage.getItem("ui-lang")          || "zh-CN";
+    translateSel.value = localStorage.getItem("translate-lang")   || "";
+    exportDirInput.value = localStorage.getItem("default-export-dir") || "";
+
+    // 界面语言：切换后立即生效（当前页面 + 写入 localStorage）
+    uiLangSel.addEventListener("change", () => {
+        const lang = uiLangSel.value;
+        localStorage.setItem("ui-lang", lang);
+        I18N.setLang(lang);
+    });
+
+    // 翻译语言：即存即生效
+    translateSel.addEventListener("change", () => {
+        const val = translateSel.value;
+        if (val) {
+            localStorage.setItem("translate-lang", val);
+        } else {
+            localStorage.removeItem("translate-lang");
+        }
+    });
+
+    // 默认保存路径：失去焦点时保存，显示「已保存」提示
+    exportDirInput.addEventListener("blur", () => {
+        const val = exportDirInput.value.trim();
+        if (val) {
+            localStorage.setItem("default-export-dir", val);
+        } else {
+            localStorage.removeItem("default-export-dir");
+        }
+        exportSaved.classList.add("show");
+        setTimeout(() => exportSaved.classList.remove("show"), 1500);
+    });
+    exportDirInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") exportDirInput.blur();
+    });
+}
+
 // ── 登出 ────────────────────────────────────────────────────────
 document.getElementById("logoutBtn").addEventListener("click", async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -229,6 +274,7 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
 
 // ── Init ─────────────────────────────────────────────────────────
 I18N.init();
+initSettings();
 loadProfile().catch(err => {
     console.error("profile load error:", err);
 });

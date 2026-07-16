@@ -2,7 +2,11 @@ const APP_REV = "20260708i"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 获取用户翻译目标语言 ==========
 function getTargetLang() {
-    // 跟随界面语言（右上角下拉切换），不再依赖浏览器上报语言
+    // 优先读用户在设置页手动选择的翻译语言
+    const saved = localStorage.getItem("translate-lang");
+    if (saved) return saved;
+
+    // 回退：跟随界面语言
     const uiLang = I18N.currentLang || "zh-CN";
     if (uiLang === "zh-CN") return "中文";
     if (uiLang === "zh-TW") return "繁體中文";
@@ -3594,7 +3598,7 @@ function showExportModal() {
     const base = currentVideoName.replace(/\.[^.]+$/, "");
     exportPrefixInput.value = base;
     if (!exportDirInput.value) {
-        exportDirInput.value = "/Users/apple/Desktop";
+        exportDirInput.value = localStorage.getItem("default-export-dir") || "/Users/apple/Desktop";
     }
     dirBrowser.style.display = "none";
     updateExportHint();
@@ -4954,9 +4958,6 @@ async function initAuth() {
 
 // ========== 启动初始化（必须在文件末尾，所有 let/const 声明之后执行）==========
 I18N.init();
-document.querySelectorAll(".lang-switcher-select").forEach(sel => {
-    sel.addEventListener("change", () => I18N.setLang(sel.value));
-});
 loadVideoList();
 renderFavorites();
 loadLocalVideoList();
