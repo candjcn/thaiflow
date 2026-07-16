@@ -1993,8 +1993,7 @@ def auth_google_callback():
         token = _auth.create_session(db, user_id, request.headers.get("User-Agent"))
     except Exception as e:
         logger.error(f"[auth] upsert/session error: {e}", exc_info=True)
-        import urllib.parse as _up
-        return redirect("/app?auth_error=db_error&detail=" + _up.quote(str(e)[:200]))
+        return redirect("/app?auth_error=db_error")
 
     resp = make_response("", 302)
     resp.headers["Location"] = "/app"

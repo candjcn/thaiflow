@@ -4961,8 +4961,7 @@ async function initAuth() {
             db_error:       "服务器内部错误，请稍后重试",
             access_denied:  "登录已拒绝，请重试",
         };
-        const detail = params.get("detail") ? "\n\n" + params.get("detail") : "";
-        const msg = (msgs[authErr] || `登录失败(${authErr})，请重试`) + detail;
+        const msg = msgs[authErr] || `登录失败(${authErr})，请重试`;
         setTimeout(() => alert(msg), 300);
         history.replaceState({}, "", location.pathname);
     }
