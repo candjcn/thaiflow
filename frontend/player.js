@@ -1147,7 +1147,7 @@ btnTtsAiToggle.addEventListener("click", async () => {
         const res = await fetch("/api/tts-content", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt, language: document.getElementById("ttsLang").value }),
+            body: JSON.stringify({ prompt, language: document.getElementById("ttsLang").value, target_lang: getTargetLang() }),
         });
         const data = await res.json();
         if (data.error) {

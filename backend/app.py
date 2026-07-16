@@ -1013,8 +1013,9 @@ def api_tts_content():
     """AI 生成双语学习内容（对话 / 词汇列表）"""
     import time as _time
     data = request.get_json()
-    prompt   = (data.get("prompt") or "").strip()[:300]
-    language = (data.get("language") or "th").lower()[:2]
+    prompt      = (data.get("prompt") or "").strip()[:300]
+    language    = (data.get("language") or "th").lower()[:2]
+    target_lang = (data.get("target_lang") or "中文").strip()
     if not prompt:
         return jsonify({"error": "prompt is required"}), 400
 
@@ -1047,7 +1048,7 @@ def api_tts_content():
     _rl_increment(_rl_key, "content_gen")
     t0 = _time.time()
     try:
-        text = generate_tts_content(prompt, language)
+        text = generate_tts_content(prompt, language, target_lang)
         latency_ms = int((_time.time() - t0) * 1000)
         if not is_anon:
             provider_used = "deepseek" if language == "zh" else "gemini"

@@ -847,12 +847,13 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def generate_tts_content(prompt: str, language: str) -> str:
+def generate_tts_content(prompt: str, language: str, target_lang: str = "中文") -> str:
     """AI 生成双语学习内容（对话 / 词汇列表）。
 
     Args:
-        prompt:   用户要求（调用方已截断至合理长度）
-        language: 目标语言代码（如 "th" / "zh" / "en"）
+        prompt:      用户要求（调用方已截断至合理长度）
+        language:    目标语言代码（如 "th" / "zh" / "en"）
+        target_lang: 用户母语/翻译目标语言（如 "中文" / "English" / "日本語"）
 
     Returns:
         格式化的双语内容文本，每行一句或一词。
@@ -863,14 +864,14 @@ def generate_tts_content(prompt: str, language: str) -> str:
     system = (
         "你是语言学习内容生成专家。根据用户要求生成双语学习材料。\n"
         "输出格式规则（必须严格遵守）：\n"
-        "- 对话：每行格式为「A: 外语原文（中文翻译）」或「B: 外语原文（中文翻译）」\n"
-        "- 词汇：每行格式为「外语词汇/短语（中文翻译）」\n"
+        f"- 对话：每行格式为「A: 外语原文（{target_lang}翻译）」或「B: 外语原文（{target_lang}翻译）」\n"
+        f"- 词汇：每行格式为「外语词汇/短语（{target_lang}翻译）」\n"
         "- 原文不加任何括号，译文用（）紧接在原文后括起来\n"
         "- 每行一句或一词，不加编号\n"
         "- 严禁输出任何标题、分组标签、分隔线（如「词汇：」「对话：」「---」「##」）\n"
         "- 直接输出内容行，不要有任何前言、后记或说明文字"
     )
-    user_msg = f"目标语言：{language}\n用户要求：{prompt}"
+    user_msg = f"外语（待学习的语言）：{language}\n翻译目标语言：{target_lang}\n用户要求：{prompt}"
     full_prompt = system + "\n\n" + user_msg
 
     if language == "zh":
