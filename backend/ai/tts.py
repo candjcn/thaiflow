@@ -309,6 +309,10 @@ def detect_input_mode(text, source_lang, target_lang):
                 split = _split_bilingual_line(p["text"], src_script, tgt_script)
                 if split:
                     tts_text, translation = split[0], split[1]
+            # 没有外语内容的行（如仅含母语的标题行）直接舍弃
+            if not _has_script(tts_text, src_script):
+                logger.debug(f"[InputMode] 过滤无外语内容行: {p['text']!r}")
+                continue
             item = {"text": tts_text, "translation": translation}
             if p["speaker"]:
                 item["speaker"] = p["speaker"]
@@ -843,41 +847,6 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-_HEADER_RE = re.compile(
-    r'^(?:'
-    r'#{1,6}\s+'                        # ## Markdown 标题
-    r'|\*{1,3}[^*\n]{1,30}\*{1,3}$'    # **粗体标题**
-    r'|[-=*_]{3,}$'                     # --- / === 分隔线
-    r'|[\d]+[.)。、]\s*$'               # "1." / "2)" 只有序号无内容
-    r')',
-    re.UNICODE,
-)
-
-
-def _strip_tts_headers(lines: list[str]) -> list[str]:
-    """过滤 AI 生成内容中混入的分节标题/分隔线，防止 TTS 崩溃。
-
-    移除规则（任一命中即删除）：
-    - Markdown 标题：## 词汇、### 对话
-    - 粗体单独行：**词汇**
-    - 分隔线：--- / === / ***
-    - 纯序号行：1. / 2)
-    - 标签行：末尾为冒号（：/:）且行内无翻译括号（无"（"/"("）
-      → 词汇：/ 对话：/ Vocabulary: / Grammar: 等
-    """
-    result = []
-    for line in lines:
-        if _HEADER_RE.match(line):
-            logger.debug(f"[TTS] 自动过滤标题行: {line!r}")
-            continue
-        # 末尾为冒号且无翻译括号 → 纯标签行（词汇：/ Vocabulary:）
-        if re.search(r'[：:]\s*$', line) and '（' not in line and '(' not in line:
-            logger.debug(f"[TTS] 自动过滤标签行: {line!r}")
-            continue
-        result.append(line)
-    return result
-
-
 def generate_tts_content(prompt: str, language: str) -> str:
     """AI 生成双语学习内容（对话 / 词汇列表）。
 
@@ -923,4 +892,6 @@ def generate_tts_content(prompt: str, language: str) -> str:
         text = result["candidates"][0]["content"]["parts"][0]["text"]
 
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return "\n".join(_strip_tts_headers(lines))
+    # AI 内容必须含括号（外语＋翻译格式），无括号的行是标题/标签，直接舍弃
+    lines = [l for l in lines if '（' in l or '(' in l]
+    return "\n".join(lines)
