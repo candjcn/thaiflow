@@ -16,10 +16,26 @@ from export import export_video_with_subtitles, export_srt
 from r2 import upload_audio
 from domain import Segment, SubtitleFile
 
+from commerce.db import init_db, get_db
+from commerce.seed import run_seed
+from commerce.identity import get_or_create_anonymous, ANONYMOUS_USER_ID
+from commerce.middleware import CommerceContext
+from commerce.wallet import InsufficientFundsError
+
 logger = get_logger(__name__)
 
 app = Flask(__name__)
 CORS(app)
+
+# ── Commerce 初始化（应用启动时执行一次） ──────────────────────────────────────
+def _init_commerce():
+    db = init_db(settings.COMMERCE_DB_PATH)
+    run_seed(db)
+    get_or_create_anonymous(db)
+    db.close()
+    logger.info("[commerce] DB ready")
+
+_init_commerce()
 
 
 @app.after_request
@@ -640,6 +656,7 @@ def api_transcribe():
     progress_queue = queue.Queue()
 
     def do_transcribe():
+        import time as _time
         # 检查视频时长，超过 10 分钟拒绝识别
         duration = get_video_duration(video_path)
         if duration > 600:
@@ -647,6 +664,22 @@ def api_transcribe():
             progress_queue.put(("error", f"视频时长 {mins} 分钟，超过 10 分钟限制。ReelSpeak 专为短视频设计，建议截取片段后再上传。"))
             return
 
+        db = get_db()
+        ctx = CommerceContext(
+            db, ANONYMOUS_USER_ID, "transcription", "standard", "free",
+            extra={"video": video_name, "provider": provider},
+        )
+        if not ctx.check_permission("CanTranscribe"):
+            progress_queue.put(("error", "权限不足，请升级套餐"))
+            return
+
+        try:
+            ctx.reserve({"duration_seconds": duration})
+        except InsufficientFundsError:
+            progress_queue.put(("error", "Credits 不足，请充值后重试"))
+            return
+
+        t0 = _time.time()
         try:
             # 超过 5 分钟时 transcribe_video 内部自动分段，progress_callback 推送各段进度
             if duration > 300 and provider in ("openai", "groq"):
@@ -688,11 +721,17 @@ def api_transcribe():
             result["segments"] = [s.to_json() for s in segments]
             result.pop("words", None)
 
+            latency_ms = int((_time.time() - t0) * 1000)
+            ctx.settle(
+                {"duration_seconds": duration}, provider,
+                ctx.get_handle(preferred_provider=provider).model_id,
+                latency_ms,
+            )
             log_event("transcribe", video=video_name, provider=provider,
-                      language=language_code,
-                      segments=len(segments))
+                      language=language_code, segments=len(segments))
             progress_queue.put(("done", result))
         except Exception as e:
+            ctx.release_on_error(e)
             log_event("transcribe_fail", video=video_name, provider=provider, error=str(e)[:200])
             progress_queue.put(("error", str(e)))
 
@@ -758,27 +797,47 @@ def api_retranscribe():
         if r.returncode != 0:
             return jsonify({"error": "音频切片失败: " + r.stderr[-200:]}), 500
 
-        result = transcribe_slice(wav_path, provider, language=language)
-        text = result["text"]
+        import time as _time
+        duration_sec = end - start
+        db = get_db()
+        ctx = CommerceContext(
+            db, ANONYMOUS_USER_ID, "transcription", "standard", "free",
+            extra={"video": video_name, "provider": provider, "mode": "retranscribe"},
+        )
+        if not ctx.check_permission("CanTranscribe"):
+            return jsonify({"error": "权限不足，请升级套餐"}), 403
+        try:
+            ctx.reserve({"duration_seconds": duration_sec})
+        except InsufficientFundsError:
+            return jsonify({"error": "Credits 不足，请充值后重试"}), 402
 
-        # 泰语：按词加空格
-        if (language or "")[:2].lower() == "th" and text:
-            text = add_word_spacing([text], "th")[0]
+        t0 = _time.time()
+        try:
+            result = transcribe_slice(wav_path, provider, language=language)
+            text = result["text"]
 
-        translation = ""
-        if do_translate and text:
-            try:
-                translated, _ = translate_segments([{"index": 0, "text": text}], source_lang, target_lang)
-                if translated:
-                    translation = translated[0].get("translation", "")
-            except Exception as te:
-                logger.warning(f"[Retranscribe] 翻译失败: {te}")
+            # 泰语：按词加空格
+            if (language or "")[:2].lower() == "th" and text:
+                text = add_word_spacing([text], "th")[0]
 
-        log_event("retranscribe", video=video_name, provider=provider,
-                  range=f"{start:.1f}-{end:.1f}", language=language)
-        return jsonify({"text": text, "translation": translation})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+            translation = ""
+            if do_translate and text:
+                try:
+                    translated, _ = translate_segments([{"index": 0, "text": text}], source_lang, target_lang)
+                    if translated:
+                        translation = translated[0].get("translation", "")
+                except Exception as te:
+                    logger.warning(f"[Retranscribe] 翻译失败: {te}")
+
+            latency_ms = int((_time.time() - t0) * 1000)
+            handle = ctx.get_handle(preferred_provider=provider)
+            ctx.settle({"duration_seconds": duration_sec}, handle.provider_id, handle.model_id, latency_ms)
+            log_event("retranscribe", video=video_name, provider=provider,
+                      range=f"{start:.1f}-{end:.1f}", language=language)
+            return jsonify({"text": text, "translation": translation})
+        except Exception as e:
+            ctx.release_on_error(e)
+            return jsonify({"error": str(e)}), 502
     finally:
         if os.path.exists(wav_path):
             os.remove(wav_path)
@@ -846,6 +905,7 @@ def api_retranscribe_audio():
 @app.route("/api/ocr", methods=["POST"])
 def api_ocr():
     """图片文字识别（隐藏测试功能：粘贴文本框直接贴图）"""
+    import time as _time
     if "image" not in request.files:
         return jsonify({"error": "缺少图片"}), 400
     img = request.files["image"]
@@ -854,27 +914,64 @@ def api_ocr():
         return jsonify({"error": "图片过大（最多 10MB）"}), 400
     mime = img.mimetype or "image/png"
     language = request.form.get("language", "")
+
+    db = get_db()
+    ctx = CommerceContext(
+        db, ANONYMOUS_USER_ID, "ocr", "standard", "free",
+        extra={"language": language},
+    )
+    if not ctx.check_permission("CanOCR"):
+        return jsonify({"error": "权限不足，请升级套餐"}), 403
+    try:
+        ctx.reserve({})
+    except InsufficientFundsError:
+        return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+
+    t0 = _time.time()
     try:
         text = ocr_image(data, mime, language)
+        latency_ms = int((_time.time() - t0) * 1000)
+        ctx.settle({"image_count": 1}, "gemini", "gemini-3.1-flash-lite", latency_ms)
         log_event("ocr", language=language, chars=len(text))
         return jsonify({"text": text})
     except Exception as e:
+        ctx.release_on_error(e)
         return jsonify({"error": str(e)}), 502
 
 
 @app.route("/api/tts-content", methods=["POST"])
 def api_tts_content():
     """AI 生成双语学习内容（对话 / 词汇列表）"""
+    import time as _time
     data = request.get_json()
     prompt   = (data.get("prompt") or "").strip()[:300]
     language = (data.get("language") or "th").lower()[:2]
     if not prompt:
         return jsonify({"error": "prompt is required"}), 400
+
+    db = get_db()
+    ctx = CommerceContext(
+        db, ANONYMOUS_USER_ID, "content_gen", "standard", "free",
+        extra={"prompt_len": len(prompt), "language": language},
+    )
+    if not ctx.check_permission("CanTTSContent"):
+        return jsonify({"error": "权限不足，请升级套餐"}), 403
+    try:
+        ctx.reserve({"char_count": len(prompt)})
+    except InsufficientFundsError:
+        return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+
+    t0 = _time.time()
     try:
         text = generate_tts_content(prompt, language)
+        latency_ms = int((_time.time() - t0) * 1000)
+        provider_used = "deepseek" if language == "zh" else "gemini"
+        handle = ctx.get_handle(preferred_provider=provider_used)
+        ctx.settle({"char_count": len(prompt)}, handle.provider_id, handle.model_id, latency_ms)
         log_event("tts_content_gen", language=language, prompt_len=len(prompt))
         return jsonify({"text": text})
     except Exception as e:
+        ctx.release_on_error(e)
         logger.warning(f"[TTS content] 生成失败: {e}")
         return jsonify({"error": str(e)}), 502
 
@@ -914,6 +1011,22 @@ def api_tts_generate():
             q.put(("progress", msg))
 
         def worker():
+            import time as _time
+            db = get_db()
+            char_count = len(text)
+            ctx = CommerceContext(
+                db, ANONYMOUS_USER_ID, "tts_synthesis", "standard", "free",
+                extra={"char_count": char_count, "engine": engine},
+            )
+            if not ctx.check_permission("CanTTS"):
+                q.put(("error", "权限不足，请升级套餐"))
+                return
+            try:
+                ctx.reserve({"char_count": char_count})
+            except InsufficientFundsError:
+                q.put(("error", "Credits 不足，请充值后重试"))
+                return
+            t0 = _time.time()
             try:
                 # 检测输入格式
                 detected = detect_input_mode(text, language, target_lang)
@@ -980,6 +1093,12 @@ def api_tts_generate():
                 with open(subtitle_path(audio_name), "w", encoding="utf-8") as f:
                     json.dump(subtitle_file.to_json(), f, ensure_ascii=False, indent=2)
 
+                latency_ms = int((_time.time() - t0) * 1000)
+                ctx.settle(
+                    {"char_count": char_count}, engine,
+                    ctx.get_handle(preferred_provider=engine).model_id,
+                    latency_ms,
+                )
                 log_event("tts_generate", engine=engine, language=lang,
                           chars=len(text), sentences=len(seg_objs),
                           input_mode=mode,
@@ -990,6 +1109,7 @@ def api_tts_generate():
                 result["name"] = audio_name
                 q.put(("done", result))
             except Exception as e:
+                ctx.release_on_error(e)
                 log_event("tts_generate_fail", engine=engine, error=str(e)[:200])
                 q.put(("error", str(e)))
 
@@ -1018,39 +1138,84 @@ def api_tts_generate():
 @app.route("/api/romanize", methods=["POST"])
 def api_romanize():
     """为单句文本生成拼音/罗马拼音（编辑句子后同步更新用）"""
+    import time as _time
     data = request.get_json()
     text = (data.get("text") or "").strip()
     language = (data.get("language") or "").lower()[:2]
     if not text:
         return jsonify({"romanization": ""})
+
+    db = get_db()
+    ctx = CommerceContext(
+        db, ANONYMOUS_USER_ID, "romanize", "standard", "free",
+        extra={"language": language},
+    )
+    if not ctx.check_permission("CanRomanize"):
+        return jsonify({"error": "权限不足，请升级套餐"}), 403
+    # zh 本地免费，reserve 0 credits；th 走 API，reserve 估算
+    usage = {} if language == "zh" else {"char_count": len(text)}
+    try:
+        ctx.reserve(usage)
+    except InsufficientFundsError:
+        return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+
+    t0 = _time.time()
     try:
         segs = [Segment(index=0, text=text, start=0, end=0)]
         generate_romanization(segs, language)
+        latency_ms = int((_time.time() - t0) * 1000)
+        provider_used = "local" if language == "zh" else "gemini"
+        handle = ctx.get_handle(preferred_provider=provider_used)
+        ctx.settle(usage, handle.provider_id, handle.model_id, latency_ms)
         return jsonify({"romanization": segs[0].romanization})
     except Exception as e:
+        ctx.release_on_error(e)
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/romanize-batch", methods=["POST"])
 def api_romanize_batch():
     """批量为多个句子生成拼音/罗马拼音（懒加载：首次开启拼音开关时调用）"""
+    import time as _time
     data = request.get_json()
     segs = data.get("segments", [])   # [{"text": "..."}]
     language = (data.get("language") or "").lower()[:2]
     if not segs:
         return jsonify({"segments": []})
+
+    total_chars = sum(len(s.get("text", "")) for s in segs)
+    db = get_db()
+    ctx = CommerceContext(
+        db, ANONYMOUS_USER_ID, "romanize", "standard", "free",
+        extra={"language": language, "segment_count": len(segs)},
+    )
+    if not ctx.check_permission("CanRomanize"):
+        return jsonify({"error": "权限不足，请升级套餐"}), 403
+    usage = {} if language == "zh" else {"char_count": total_chars}
+    try:
+        ctx.reserve(usage)
+    except InsufficientFundsError:
+        return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+
+    t0 = _time.time()
     try:
         work = [Segment(index=i, text=(s.get("text") or "").strip(), start=0, end=0)
                 for i, s in enumerate(segs)]
         generate_romanization(work, language)
+        latency_ms = int((_time.time() - t0) * 1000)
+        provider_used = "local" if language == "zh" else "gemini"
+        handle = ctx.get_handle(preferred_provider=provider_used)
+        ctx.settle(usage, handle.provider_id, handle.model_id, latency_ms)
         return jsonify({"segments": [{"text": w.text, "romanization": w.romanization} for w in work]})
     except Exception as e:
+        ctx.release_on_error(e)
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/translate", methods=["POST"])
 def api_translate():
     """翻译句子"""
+    import time as _time
     data = request.get_json()
     segments = data.get("segments", [])
     source_lang = data.get("source_lang", "泰语")
@@ -1060,16 +1225,35 @@ def api_translate():
     if not segments:
         return jsonify({"error": "缺少 segments 参数"}), 400
 
+    char_count = sum(len(s.get("text", "")) for s in segments)
+    db = get_db()
+    ctx = CommerceContext(
+        db, ANONYMOUS_USER_ID, "translation", "standard", "free",
+        extra={"char_count": char_count},
+    )
+    if not ctx.check_permission("CanTranslate"):
+        return jsonify({"error": "权限不足，请升级套餐"}), 403
     try:
-        translations, _ = translate_segments(segments, source_lang, target_lang, engine=engine)
+        ctx.reserve({"char_count": char_count})
+    except InsufficientFundsError:
+        return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+
+    t0 = _time.time()
+    try:
+        translations, provider_used = translate_segments(segments, source_lang, target_lang, engine=engine)
+        latency_ms = int((_time.time() - t0) * 1000)
+        handle = ctx.get_handle(preferred_provider=provider_used if provider_used != "auto" else None)
+        ctx.settle({"char_count": char_count}, handle.provider_id, handle.model_id, latency_ms)
         return jsonify({"translations": translations})
     except Exception as e:
+        ctx.release_on_error(e)
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/word-define", methods=["POST"])
 def api_word_define():
     """查询单词释义（DeepSeek）"""
+    import time as _time
     data = request.get_json()
     word = (data.get("word") or "").strip()
     source_lang = data.get("source_lang", "泰语")
@@ -1079,10 +1263,26 @@ def api_word_define():
     if not word:
         return jsonify({"error": "缺少 word 参数"}), 400
 
+    db = get_db()
+    ctx = CommerceContext(
+        db, ANONYMOUS_USER_ID, "word_definition", "standard", "free",
+        extra={"word": word[:50]},
+    )
+    if not ctx.check_permission("CanWordDefine"):
+        return jsonify({"error": "权限不足，请升级套餐"}), 403
+    try:
+        ctx.reserve({})
+    except InsufficientFundsError:
+        return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+
+    t0 = _time.time()
     try:
         result = _word_define(word, source_lang, target_lang, context)
+        latency_ms = int((_time.time() - t0) * 1000)
+        ctx.settle({}, "deepseek", "deepseek-chat", latency_ms)
         return jsonify(result)
     except Exception as e:
+        ctx.release_on_error(e)
         logger.error(f"[WordDefine] 失败: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -1112,8 +1312,17 @@ def api_export_srt():
     os.makedirs(target_dir, exist_ok=True)
 
     base = file_prefix if file_prefix else os.path.splitext(video_name)[0]
-    srt_names = export_srt(subtitle_file, target_dir, base)
 
+    db = get_db()
+    ctx = CommerceContext(db, ANONYMOUS_USER_ID, "export", "standard", "free")
+    if not ctx.check_permission("CanExport"):
+        return jsonify({"error": "权限不足，请升级套餐"}), 403
+    ctx.reserve({})   # export 免费，reserve 0 credits
+
+    import time as _time
+    t0 = _time.time()
+    srt_names = export_srt(subtitle_file, target_dir, base)
+    ctx.settle({}, "local", "ffmpeg", int((_time.time() - t0) * 1000))
     return jsonify({"dir": target_dir, "files": srt_names})
 
 
@@ -1153,17 +1362,27 @@ def api_export():
     # 用 SSE 流式推送进度
     progress_queue = queue.Queue()
 
+    db = get_db()
+    ctx_export = CommerceContext(db, ANONYMOUS_USER_ID, "export", "standard", "free")
+    if not ctx_export.check_permission("CanExport"):
+        return jsonify({"error": "权限不足，请升级套餐"}), 403
+    ctx_export.reserve({})
+
     def do_export():
+        import time as _time
+        t0 = _time.time()
         try:
             export_video_with_subtitles(
                 video_path, subtitle_file, output_path,
                 progress_callback=lambda pct: progress_queue.put(("progress", pct)),
             )
+            ctx_export.settle({}, "local", "ffmpeg", int((_time.time() - t0) * 1000))
             progress_queue.put(("done", {
                 "dir": target_dir,
                 "files": [output_name] + srt_names,
             }))
         except Exception as e:
+            ctx_export.release_on_error(e)
             progress_queue.put(("error", str(e)))
 
     threading.Thread(target=do_export, daemon=True).start()
@@ -1201,16 +1420,38 @@ def api_pronounce():
     os.makedirs(UPLOAD_TMP, exist_ok=True)
 
     # 保存上传的音频（保留原始扩展名）
+    import time as _time
     audio_file = request.files["audio"]
     original_name = audio_file.filename or "recording.webm"
     ext = os.path.splitext(original_name)[1] or ".webm"
     audio_path = os.path.join(UPLOAD_TMP, "recording" + ext)
     audio_file.save(audio_path)
 
+    # 估算时长：用字数粗估（pronunciation 通常 < 30 秒）
+    duration_estimate = max(2.0, len(reference_text) * 0.3)
+
+    db = get_db()
+    ctx = CommerceContext(
+        db, ANONYMOUS_USER_ID, "pronunciation", "standard", "free",
+        extra={"lang": lang, "text_len": len(reference_text)},
+    )
+    if not ctx.check_permission("CanPronunciationAssess"):
+        os.remove(audio_path) if os.path.exists(audio_path) else None
+        return jsonify({"error": "权限不足，请升级套餐"}), 403
+    try:
+        ctx.reserve({"duration_seconds": duration_estimate})
+    except InsufficientFundsError:
+        os.remove(audio_path) if os.path.exists(audio_path) else None
+        return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+
+    t0 = _time.time()
     try:
         result = assess_pronunciation(audio_path, reference_text, lang)
+        latency_ms = int((_time.time() - t0) * 1000)
+        ctx.settle({"duration_seconds": duration_estimate}, "azure", "azure-speech", latency_ms)
         return jsonify(result)
     except Exception as e:
+        ctx.release_on_error(e)
         return jsonify({"error": str(e)}), 500
     finally:
         if os.path.exists(audio_path):

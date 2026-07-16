@@ -59,6 +59,9 @@ GEMINI_TEXT_MODEL  = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 GEMINI_TTS_MODEL   = os.getenv("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview")
 GEMINI_IMAGE_MODEL = os.getenv("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-lite-image")
 
+# ── Commerce ──────────────────────────────────────────────────────────────────
+COMMERCE_DB_PATH = str(BACKEND_DIR / "commerce.db")
+
 # ── 日志控制 ──────────────────────────────────────────────────────────────────
 DEBUG    = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 LOG_FILE = os.getenv("LOG_FILE", "")   # 空 = 不写文件
