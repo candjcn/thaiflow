@@ -348,6 +348,21 @@ function initSettings() {
     });
 }
 
+// ── 返回按钮：用 history.back() 触发 bfcache 还原，避免重新加载时出现登录按钮闪烁 ──
+const _backBtn = document.querySelector(".back-btn");
+if (_backBtn) {
+    _backBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        // 有前驱历史记录则回退（player 页面从 bfcache 还原，保持登录态）
+        // 否则直接跳 /app（防止直接访问 /profile 时回退到不相关页面）
+        if (history.length > 1 && document.referrer.includes(location.host)) {
+            history.back();
+        } else {
+            location.href = "/app";
+        }
+    });
+}
+
 // ── 登出 ────────────────────────────────────────────────────────
 document.getElementById("logoutBtn").addEventListener("click", async () => {
     await fetch("/api/auth/logout", { method: "POST" });

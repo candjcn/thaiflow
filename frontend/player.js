@@ -4989,16 +4989,14 @@ I18N.init();
 loadVideoList();
 renderFavorites();
 loadLocalVideoList();
-initAuth();
 
-// bfcache 修复：从 Back-Forward Cache 恢复时重新同步登录状态和界面语言
-// 场景1：OAuth 登录后返回键恢复旧页面 → UI 显示未登录
-// 场景2：profile 页改了语言后返回键恢复旧页面 → UI 仍是旧语言
-window.addEventListener("pageshow", (e) => {
-    if (e.persisted) {
-        initAuth();
-        I18N.init();
-    }
+// pageshow 兜底：无论是 bfcache 还原还是普通前进/后退，都重新同步登录状态和界面语言
+// e.persisted=true  → bfcache 还原（OAuth 回调 / profile 返回等场景）
+// e.persisted=false → 普通加载（history.back 到非 bfcache 页面）
+// 两种情况都调用，避免因 bfcache 时序问题漏掉同步
+window.addEventListener("pageshow", () => {
+    initAuth();
+    I18N.init();
 });
 // 页面版本标识（排查缓存用）
 (() => {
