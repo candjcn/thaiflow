@@ -18,9 +18,17 @@ from domain import Segment, SubtitleFile
 
 from commerce.db import init_db, get_db
 from commerce.seed import run_seed
-from commerce.identity import get_or_create_anonymous, ANONYMOUS_USER_ID
+from commerce.identity import get_or_create_anonymous, get_user_plan, ANONYMOUS_USER_ID
 from commerce.middleware import CommerceContext
-from commerce.wallet import InsufficientFundsError
+from commerce.wallet import (
+    add_credits as _wallet_add, refund as _wallet_refund,
+    get_balance as _wallet_balance, get_history as _wallet_history,
+    InsufficientFundsError,
+)
+from commerce.usage_log import (
+    get_log as _log_get, get_user_history as _log_user_history,
+    get_summary as _log_summary,
+)
 
 logger = get_logger(__name__)
 
@@ -1536,6 +1544,300 @@ def api_bookmark_audio():
         for p in (tmp_in, tmp_mp3):
             if os.path.exists(p):
                 os.remove(p)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 4 — Admin API + 用户余额 API
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _admin_key_check():
+    """检查 ADMIN_KEY，通过返回 None，失败返回 (response, 403)。"""
+    key = request.args.get("key") or request.headers.get("X-Admin-Key", "")
+    if not settings.ADMIN_KEY or key != settings.ADMIN_KEY:
+        return jsonify({"error": "unauthorized"}), 403
+    return None
+
+
+# ── Task 4.1：Admin API ───────────────────────────────────────────────────────
+
+@app.route("/api/admin/commerce/users")
+def admin_commerce_users():
+    """用户列表 + 余额概览"""
+    err = _admin_key_check()
+    if err:
+        return err
+
+    db = get_db()
+    rows = db.execute(
+        """
+        SELECT u.user_id, u.email, u.status, u.created_at,
+               w.subscription_credits, w.gift_credits, w.paid_credits,
+               w.subscription_expires_at
+        FROM users u
+        LEFT JOIN wallets w ON w.user_id = u.user_id
+        ORDER BY u.created_at DESC
+        LIMIT 200
+        """
+    ).fetchall()
+
+    users = []
+    for r in rows:
+        sub  = r["subscription_credits"] or 0
+        gift = r["gift_credits"] or 0
+        paid = r["paid_credits"] or 0
+        plan = get_user_plan(db, r["user_id"])
+        users.append({
+            "user_id":    r["user_id"],
+            "email":      r["email"],
+            "status":     r["status"],
+            "created_at": r["created_at"],
+            "plan":       plan,
+            "balance": {
+                "subscription": sub,
+                "gift":         gift,
+                "paid":         paid,
+                "total":        sub + gift + paid,
+            },
+            "subscription_expires_at": r["subscription_expires_at"],
+        })
+    return jsonify({"users": users, "count": len(users)})
+
+
+@app.route("/api/admin/commerce/usage")
+def admin_commerce_usage():
+    """用量报表（全用户，按 capability / provider 汇总）"""
+    err = _admin_key_check()
+    if err:
+        return err
+
+    days = int(request.args.get("days", 7))
+    db   = get_db()
+
+    rows = db.execute(
+        """
+        SELECT capability, provider_id,
+               COUNT(*)                    AS calls,
+               SUM(credits_charged)        AS total_credits,
+               SUM(provider_cost_usd)      AS total_cost_usd,
+               AVG(latency_ms)             AS avg_latency_ms,
+               SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS failed_count
+        FROM usage_logs
+        WHERE requested_at >= datetime('now', ?)
+        GROUP BY capability, provider_id
+        ORDER BY total_credits DESC
+        """,
+        (f"-{days} days",),
+    ).fetchall()
+
+    by_cap: dict  = {}
+    by_prov: dict = {}
+    total_credits = 0
+    total_cost    = 0.0
+
+    for r in rows:
+        cap  = r["capability"]
+        prov = r["provider_id"] or "unknown"
+        cred = r["total_credits"] or 0
+        cost = r["total_cost_usd"] or 0.0
+
+        total_credits += cred
+        total_cost    += cost
+
+        if cap not in by_cap:
+            by_cap[cap] = {"credits": 0, "cost_usd": 0.0, "calls": 0, "failed": 0}
+        by_cap[cap]["credits"]  += cred
+        by_cap[cap]["cost_usd"] += cost
+        by_cap[cap]["calls"]    += r["calls"]
+        by_cap[cap]["failed"]   += r["failed_count"] or 0
+
+        if prov not in by_prov:
+            by_prov[prov] = {"credits": 0, "cost_usd": 0.0, "calls": 0}
+        by_prov[prov]["credits"]  += cred
+        by_prov[prov]["cost_usd"] += cost
+        by_prov[prov]["calls"]    += r["calls"]
+
+    return jsonify({
+        "days":           days,
+        "total_credits":  total_credits,
+        "total_cost_usd": round(total_cost, 6),
+        "by_capability":  by_cap,
+        "by_provider":    by_prov,
+    })
+
+
+@app.route("/api/admin/commerce/costs")
+def admin_commerce_costs():
+    """成本报表（按 provider 汇总 cost_usd，对账用）"""
+    err = _admin_key_check()
+    if err:
+        return err
+
+    days = int(request.args.get("days", 7))
+    db   = get_db()
+
+    rows = db.execute(
+        """
+        SELECT provider_id, model_id, capability,
+               COUNT(*)                AS calls,
+               SUM(provider_cost_usd) AS cost_usd,
+               SUM(credits_charged)   AS credits_charged
+        FROM usage_logs
+        WHERE requested_at >= datetime('now', ?)
+          AND status = 'success'
+        GROUP BY provider_id, model_id, capability
+        ORDER BY cost_usd DESC
+        """,
+        (f"-{days} days",),
+    ).fetchall()
+
+    entries = [dict(r) for r in rows]
+    total_cost    = sum(e["cost_usd"] or 0 for e in entries)
+    total_credits = sum(e["credits_charged"] or 0 for e in entries)
+
+    return jsonify({
+        "days":             days,
+        "total_cost_usd":   round(total_cost, 6),
+        "total_credits":    total_credits,
+        "entries":          entries,
+    })
+
+
+@app.route("/api/admin/commerce/credits/grant", methods=["POST"])
+def admin_commerce_grant():
+    """赠送 Credits 给指定用户"""
+    err = _admin_key_check()
+    if err:
+        return err
+
+    data        = request.get_json()
+    user_id     = (data.get("user_id") or "").strip()
+    amount      = int(data.get("amount", 0))
+    credit_type = data.get("type", "gift")           # subscription / gift / paid
+    expires_days= int(data.get("expires_days", 30))
+    reason      = (data.get("reason") or "admin grant").strip()
+
+    if not user_id or amount <= 0:
+        return jsonify({"error": "user_id 和 amount 必填且 amount > 0"}), 400
+    if credit_type not in ("subscription", "gift", "paid"):
+        return jsonify({"error": "type 必须为 subscription / gift / paid"}), 400
+
+    db = get_db()
+    import datetime as _dt
+    expires_at = None
+    if credit_type == "gift":
+        expires_at = (
+            _dt.datetime.utcnow() + _dt.timedelta(days=expires_days)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+
+    try:
+        _wallet_add(db, user_id, amount, credit_type, reason, expires_at=expires_at)
+        balance = _wallet_balance(db, user_id)
+        return jsonify({
+            "ok":      True,
+            "user_id": user_id,
+            "granted": amount,
+            "type":    credit_type,
+            "balance": balance,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/admin/commerce/credits/refund", methods=["POST"])
+def admin_commerce_refund():
+    """手动退款到 gift_credits（30 天有效）"""
+    err = _admin_key_check()
+    if err:
+        return err
+
+    data        = request.get_json()
+    log_id      = (data.get("usage_log_id") or "").strip()
+    amount      = int(data.get("amount", 0))
+    reason      = (data.get("reason") or "admin refund").strip()
+
+    if not log_id or amount <= 0:
+        return jsonify({"error": "usage_log_id 和 amount 必填且 amount > 0"}), 400
+
+    db = get_db()
+    try:
+        _wallet_refund(db, log_id, amount, reason)
+        log = _log_get(db, log_id)
+        return jsonify({
+            "ok":           True,
+            "usage_log_id": log_id,
+            "refunded":     amount,
+            "log_status":   log["status"] if log else None,
+        })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/admin/commerce/log/<log_id>")
+def admin_commerce_log(log_id):
+    """单条 usage_log 详情"""
+    err = _admin_key_check()
+    if err:
+        return err
+
+    db  = get_db()
+    log = _log_get(db, log_id)
+    if not log:
+        return jsonify({"error": "log not found"}), 404
+    return jsonify(log)
+
+
+# ── Task 4.2：用户余额 API ────────────────────────────────────────────────────
+
+@app.route("/api/user/wallet")
+def user_wallet():
+    """当前用户余额 + 套餐信息（过渡期固定返回 anonymous 用户数据）"""
+    db      = get_db()
+    user_id = ANONYMOUS_USER_ID
+
+    try:
+        balance = _wallet_balance(db, user_id)
+    except Exception:
+        balance = {"subscription": 0, "gift": 0, "paid": 0, "total": 0}
+
+    plan = get_user_plan(db, user_id)
+
+    sub_row = db.execute(
+        """
+        SELECT expires_at, credits_quota
+        FROM user_subscriptions
+        WHERE user_id = ? AND status = 'active'
+          AND (expires_at IS NULL OR expires_at > datetime('now'))
+        ORDER BY started_at DESC LIMIT 1
+        """,
+        (user_id,),
+    ).fetchone()
+
+    return jsonify({
+        "user_id": user_id,
+        "plan":    plan,
+        "balance": balance,
+        "subscription_expires_at": sub_row["expires_at"] if sub_row else None,
+        "monthly_quota":           sub_row["credits_quota"] if sub_row else 0,
+    })
+
+
+@app.route("/api/user/usage")
+def user_usage():
+    """当前用户最近用量记录"""
+    db    = get_db()
+    limit = min(int(request.args.get("limit", 20)), 100)
+    days  = int(request.args.get("days", 30))
+
+    history = _log_user_history(db, ANONYMOUS_USER_ID, limit=limit)
+    summary = _log_summary(db, ANONYMOUS_USER_ID, since_days=days)
+
+    return jsonify({
+        "user_id": ANONYMOUS_USER_ID,
+        "summary": summary,
+        "history": history,
+    })
 
 
 if __name__ == "__main__":
