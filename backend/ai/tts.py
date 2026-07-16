@@ -186,7 +186,7 @@ def _split_bilingual_line(line, src_script, tgt_script):
 
     # ── 最高优先级：行尾各种括号包裹的译文 ──────────────────────
     # 支持：圆括号 ()（）、方括号 []【】
-    m = re.search(r'[\u0028\uff08\u3010\u005b]([^\u0029\uff09\u3011\u005d]+)[\u0029\uff09\u3011\u005d]\s*$', line)
+    m = re.search(r'[\u0028\uff08\u3010\u005b]([^\u0029\uff09\u3011\u005d]+)[\u0029\uff09\u3011\u005d][\s\u3002\uff01\uff1f\u002e\u0021\u003f]*$', line)
     if m:
         translation = m.group(1).strip()
         original = line[:m.start()].strip()
