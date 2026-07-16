@@ -4949,12 +4949,20 @@ async function initAuth() {
 
     // 处理 OAuth 回调错误参数
     const params = new URLSearchParams(location.search);
-    if (params.get("auth_error")) {
+    const authErr = params.get("auth_error");
+    if (authErr) {
         const loginBtn = document.getElementById("authLoginBtn");
         if (loginBtn) {
             loginBtn.style.outline = "2px solid #f44";
-            loginBtn.title = "登录失败，请重试";
         }
+        const msgs = {
+            no_code:        "登录取消或未获取到授权码，请重试",
+            exchange_failed: "Google 授权失败，请重试",
+            db_error:       "服务器内部错误，请稍后重试",
+            access_denied:  "登录已拒绝，请重试",
+        };
+        const msg = msgs[authErr] || `登录失败(${authErr})，请重试`;
+        setTimeout(() => alert(msg), 300);
         history.replaceState({}, "", location.pathname);
     }
 }

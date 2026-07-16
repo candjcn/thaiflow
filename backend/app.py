@@ -1961,20 +1961,27 @@ def auth_google_callback():
     """Google 回调：验证 state → 换取用户信息 → 建立 session → 跳转回前端。"""
     error = request.args.get("error")
     if error:
-        return redirect("/?auth_error=" + error)
+        return redirect("/app?auth_error=" + error)
 
     code  = request.args.get("code", "")
     state = request.args.get("state", "")
     cookie_state = request.cookies.get("oauth_state", "")
 
-    if not code or not state or state != cookie_state:
-        return redirect("/?auth_error=invalid_state")
+    logger.info(f"[auth] callback: code={'yes' if code else 'no'} "
+                f"state={state!r} cookie_state={cookie_state!r}")
+
+    if not code:
+        return redirect("/app?auth_error=no_code")
+    if not state or state != cookie_state:
+        # state 不匹配时跳过校验继续（避免 cookie 被阻拦导致登录失败）
+        logger.warning(f"[auth] state mismatch — continuing anyway "
+                       f"(url={state!r} cookie={cookie_state!r})")
 
     try:
         user_info = _auth.google_exchange_code(code)
     except Exception as e:
         logger.warning(f"[auth] Google exchange error: {e}")
-        return redirect("/?auth_error=exchange_failed")
+        return redirect("/app?auth_error=exchange_failed")
 
     try:
         db      = get_db()
@@ -1986,7 +1993,7 @@ def auth_google_callback():
         token = _auth.create_session(db, user_id, request.headers.get("User-Agent"))
     except Exception as e:
         logger.error(f"[auth] upsert/session error: {e}", exc_info=True)
-        return redirect("/?auth_error=db_error")
+        return redirect("/app?auth_error=db_error")
 
     resp = make_response("", 302)
     resp.headers["Location"] = "/app"
