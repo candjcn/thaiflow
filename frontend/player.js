@@ -631,8 +631,6 @@ videoContainer.addEventListener("touchend", (e) => {
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
         if (dx > 0) prevSentence();
         else nextSentence();
-        // Show overlay briefly after swipe
-        showMobileOverlays();
     }
 });
 
