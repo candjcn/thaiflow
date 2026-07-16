@@ -43,6 +43,7 @@ def google_login_url(state: str) -> str:
         "scope":         "openid email profile",
         "state":         state,
         "access_type":   "online",
+        "prompt":        "select_account",
     }
     return _GOOGLE_AUTH_URL + "?" + urllib.parse.urlencode(params)
 
