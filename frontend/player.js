@@ -1,5 +1,17 @@
 const APP_REV = "20260708i"; // 与 index.html 的 ?v= 同步更新
 
+// ========== 设备 UUID（匿名用户限流指纹） ==========
+function getDeviceId() {
+    let id = localStorage.getItem("device-id");
+    if (!id) {
+        id = (typeof crypto !== "undefined" && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem("device-id", id);
+    }
+    return id;
+}
+
 // ========== 获取用户翻译目标语言 ==========
 function getTargetLang() {
     // 优先读用户在设置页手动选择的翻译语言
@@ -1269,7 +1281,7 @@ btnTtsGenerate.addEventListener("click", async () => {
     try {
         const res = await fetch("/api/tts-generate", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "X-Device-ID": getDeviceId() },
             body: JSON.stringify({
                 text,
                 language: document.getElementById("ttsLang").value,
@@ -2197,7 +2209,7 @@ async function startLoading(videoName, subtitleOnly) {
         const segTarget = segmentTarget.value || null;
         const res = await fetch("/api/transcribe", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "X-Device-ID": getDeviceId() },
             body: JSON.stringify({ video: videoName, provider, segment_target: segTarget }),
         });
         const reader = res.body.getReader();
@@ -4280,6 +4292,7 @@ async function submitForScoring() {
     try {
         const res = await fetch("/api/pronounce", {
             method: "POST",
+            headers: { "X-Device-ID": getDeviceId() },
             body: formData,
         });
         const data = await res.json();

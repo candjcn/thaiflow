@@ -43,6 +43,19 @@ def _get_user_id(db) -> str:
     user = _auth.get_current_user(db, request)
     return user["user_id"] if user else ANONYMOUS_USER_ID
 
+
+def _get_device_id() -> str | None:
+    """从请求 Header 读取前端设备 UUID（匿名用户指纹）。"""
+    return request.headers.get("X-Device-ID") or None
+
+
+def _get_rl_key(uid: str) -> str:
+    """返回限流 key：已登录用户用 user_id，匿名用户用 device:UUID。"""
+    if uid != ANONYMOUS_USER_ID:
+        return uid
+    device_id = _get_device_id()
+    return f"device:{device_id}" if device_id else ANONYMOUS_USER_ID
+
 logger = get_logger(__name__)
 
 app = Flask(__name__)
@@ -682,7 +695,8 @@ def api_transcribe():
         segment_target = int(segment_target)
 
     progress_queue = queue.Queue()
-    _uid = _get_user_id(get_db())   # 在请求上下文中获取，闭包内只使用字符串
+    _uid     = _get_user_id(get_db())   # 在请求上下文中获取，闭包内只使用字符串
+    _rl_key  = _get_rl_key(_uid)        # 限流 key（匿名设备用 device:UUID）
 
     def do_transcribe():
         import time as _time
@@ -694,28 +708,38 @@ def api_transcribe():
             return
 
         db = get_db()
-        ctx = CommerceContext(
-            db, _uid, "transcription", "standard", "free",
-            extra={"video": video_name, "provider": provider},
-        )
-        if not ctx.check_permission("CanTranscribe"):
-            progress_queue.put(("error", "权限不足，请升级套餐"))
-            return
+        is_anon = (_uid == ANONYMOUS_USER_ID)
 
-        plan = get_user_plan(db, _uid)
-        if not _check_rate_limit(_uid, "transcription", plan):
-            used  = _rl_get_usage(_uid, "transcription")
+        if not is_anon:
+            ctx = CommerceContext(
+                db, _uid, "transcription", "standard", "free",
+                extra={"video": video_name, "provider": provider},
+            )
+            if not ctx.check_permission("CanTranscribe"):
+                progress_queue.put(("error", "权限不足，请升级套餐"))
+                return
+            plan = get_user_plan(db, _uid)
+        else:
+            ctx  = None
+            plan = "device"
+
+        if not _check_rate_limit(_rl_key, "transcription", plan):
+            used  = _rl_get_usage(_rl_key, "transcription")
             limit = _rl_get_limit("transcription", plan)
-            progress_queue.put(("rate_limit", f"今日转录次数已达上限（{used}/{limit} 次），明日重置"))
+            if is_anon:
+                progress_queue.put(("rate_limit", f"免费体验次数已用完（{used}/{limit} 次），登录后可无限使用"))
+            else:
+                progress_queue.put(("rate_limit", f"今日转录次数已达上限（{used}/{limit} 次），明日重置"))
             return
 
-        try:
-            ctx.reserve({"duration_seconds": duration})
-        except InsufficientFundsError:
-            progress_queue.put(("error", "Credits 不足，请充值后重试"))
-            return
+        if not is_anon:
+            try:
+                ctx.reserve({"duration_seconds": duration})
+            except InsufficientFundsError:
+                progress_queue.put(("error", "Credits 不足，请充值后重试"))
+                return
 
-        _rl_increment(_uid, "transcription")
+        _rl_increment(_rl_key, "transcription")
 
         t0 = _time.time()
         try:
@@ -760,16 +784,18 @@ def api_transcribe():
             result.pop("words", None)
 
             latency_ms = int((_time.time() - t0) * 1000)
-            ctx.settle(
-                {"duration_seconds": duration}, provider,
-                ctx.get_handle(preferred_provider=provider).model_id,
-                latency_ms,
-            )
+            if not is_anon:
+                ctx.settle(
+                    {"duration_seconds": duration}, provider,
+                    ctx.get_handle(preferred_provider=provider).model_id,
+                    latency_ms,
+                )
             log_event("transcribe", video=video_name, provider=provider,
                       language=language_code, segments=len(segments))
             progress_queue.put(("done", result))
         except Exception as e:
-            ctx.release_on_error(e)
+            if not is_anon:
+                ctx.release_on_error(e)
             log_event("transcribe_fail", video=video_name, provider=provider, error=str(e)[:200])
             progress_queue.put(("error", str(e)))
 
@@ -1046,7 +1072,8 @@ def api_tts_generate():
 
     os.makedirs(VIDEOS_DIR, exist_ok=True)
     target_lang = data.get("target_lang", "中文")
-    _uid = _get_user_id(get_db())   # 在请求上下文中获取，闭包内只使用字符串
+    _uid    = _get_user_id(get_db())   # 在请求上下文中获取，闭包内只使用字符串
+    _rl_key = _get_rl_key(_uid)
 
     # ── SSE 生成器 ────────────────────────────────────────────────
     def generate():
@@ -1059,25 +1086,37 @@ def api_tts_generate():
             import time as _time
             db = get_db()
             char_count = len(text)
-            ctx = CommerceContext(
-                db, _uid, "tts_synthesis", "standard", "free",
-                extra={"char_count": char_count, "engine": engine},
-            )
-            if not ctx.check_permission("CanTTS"):
-                q.put(("error", "权限不足，请升级套餐"))
-                return
-            plan = get_user_plan(db, _uid)
-            if not _check_rate_limit(_uid, "tts_synthesis", plan):
-                used  = _rl_get_usage(_uid, "tts_synthesis")
+            is_anon = (_uid == ANONYMOUS_USER_ID)
+
+            if not is_anon:
+                ctx = CommerceContext(
+                    db, _uid, "tts_synthesis", "standard", "free",
+                    extra={"char_count": char_count, "engine": engine},
+                )
+                if not ctx.check_permission("CanTTS"):
+                    q.put(("error", "权限不足，请升级套餐"))
+                    return
+                plan = get_user_plan(db, _uid)
+            else:
+                ctx  = None
+                plan = "device"
+
+            if not _check_rate_limit(_rl_key, "tts_synthesis", plan):
+                used  = _rl_get_usage(_rl_key, "tts_synthesis")
                 limit = _rl_get_limit("tts_synthesis", plan)
-                q.put(("rate_limit", f"今日 TTS 次数已达上限（{used}/{limit} 次），明日重置"))
+                if is_anon:
+                    q.put(("rate_limit", f"免费体验次数已用完（{used}/{limit} 次），登录后可无限使用"))
+                else:
+                    q.put(("rate_limit", f"今日 TTS 次数已达上限（{used}/{limit} 次），明日重置"))
                 return
-            try:
-                ctx.reserve({"char_count": char_count})
-            except InsufficientFundsError:
-                q.put(("error", "Credits 不足，请充值后重试"))
-                return
-            _rl_increment(_uid, "tts_synthesis")
+
+            if not is_anon:
+                try:
+                    ctx.reserve({"char_count": char_count})
+                except InsufficientFundsError:
+                    q.put(("error", "Credits 不足，请充值后重试"))
+                    return
+            _rl_increment(_rl_key, "tts_synthesis")
             t0 = _time.time()
             try:
                 # 检测输入格式
@@ -1146,11 +1185,12 @@ def api_tts_generate():
                     json.dump(subtitle_file.to_json(), f, ensure_ascii=False, indent=2)
 
                 latency_ms = int((_time.time() - t0) * 1000)
-                ctx.settle(
-                    {"char_count": char_count}, engine,
-                    ctx.get_handle(preferred_provider=engine).model_id,
-                    latency_ms,
-                )
+                if not is_anon:
+                    ctx.settle(
+                        {"char_count": char_count}, engine,
+                        ctx.get_handle(preferred_provider=engine).model_id,
+                        latency_ms,
+                    )
                 log_event("tts_generate", engine=engine, language=lang,
                           chars=len(text), sentences=len(seg_objs),
                           input_mode=mode,
@@ -1161,7 +1201,8 @@ def api_tts_generate():
                 result["name"] = audio_name
                 q.put(("done", result))
             except Exception as e:
-                ctx.release_on_error(e)
+                if not is_anon:
+                    ctx.release_on_error(e)
                 log_event("tts_generate_fail", engine=engine, error=str(e)[:200])
                 q.put(("error", str(e)))
 
@@ -1492,35 +1533,49 @@ def api_pronounce():
     duration_estimate = max(2.0, len(reference_text) * 0.3)
 
     db = get_db()
-    _uid = _get_user_id(db)
-    ctx = CommerceContext(
-        db, _uid, "pronunciation", "standard", "free",
-        extra={"lang": lang, "text_len": len(reference_text)},
-    )
-    if not ctx.check_permission("CanPronunciationAssess"):
+    _uid    = _get_user_id(db)
+    _rl_key = _get_rl_key(_uid)
+    is_anon = (_uid == ANONYMOUS_USER_ID)
+
+    if not is_anon:
+        ctx = CommerceContext(
+            db, _uid, "pronunciation", "standard", "free",
+            extra={"lang": lang, "text_len": len(reference_text)},
+        )
+        if not ctx.check_permission("CanPronunciationAssess"):
+            os.remove(audio_path) if os.path.exists(audio_path) else None
+            return jsonify({"error": "权限不足，请升级套餐"}), 403
+        plan = get_user_plan(db, _uid)
+    else:
+        ctx  = None
+        plan = "device"
+
+    if not _check_rate_limit(_rl_key, "pronunciation", plan):
         os.remove(audio_path) if os.path.exists(audio_path) else None
-        return jsonify({"error": "权限不足，请升级套餐"}), 403
-    plan = get_user_plan(db, _uid)
-    if not _check_rate_limit(_uid, "pronunciation", plan):
-        os.remove(audio_path) if os.path.exists(audio_path) else None
-        used  = _rl_get_usage(_uid, "pronunciation")
+        used  = _rl_get_usage(_rl_key, "pronunciation")
         limit = _rl_get_limit("pronunciation", plan)
+        if is_anon:
+            return jsonify({"error": f"免费体验次数已用完（{used}/{limit} 次），登录后可无限使用"}), 429
         return jsonify({"error": f"今日发音评分次数已达上限（{used}/{limit} 次），明日重置"}), 429
-    try:
-        ctx.reserve({"duration_seconds": duration_estimate})
-    except InsufficientFundsError:
-        os.remove(audio_path) if os.path.exists(audio_path) else None
-        return jsonify({"error": "Credits 不足，请充值后重试"}), 402
-    _rl_increment(_uid, "pronunciation")
+
+    if not is_anon:
+        try:
+            ctx.reserve({"duration_seconds": duration_estimate})
+        except InsufficientFundsError:
+            os.remove(audio_path) if os.path.exists(audio_path) else None
+            return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+    _rl_increment(_rl_key, "pronunciation")
 
     t0 = _time.time()
     try:
         result = assess_pronunciation(audio_path, reference_text, lang)
         latency_ms = int((_time.time() - t0) * 1000)
-        ctx.settle({"duration_seconds": duration_estimate}, "azure", "azure-speech", latency_ms)
+        if not is_anon:
+            ctx.settle({"duration_seconds": duration_estimate}, "azure", "azure-speech", latency_ms)
         return jsonify(result)
     except Exception as e:
-        ctx.release_on_error(e)
+        if not is_anon:
+            ctx.release_on_error(e)
         return jsonify({"error": str(e)}), 500
     finally:
         if os.path.exists(audio_path):
@@ -1872,19 +1927,22 @@ def admin_commerce_reconcile():
 @app.route("/api/user/rate-limits")
 def user_rate_limits():
     """返回当前用户今日各 capability 限额使用情况"""
-    db   = get_db()
-    _uid = _get_user_id(db)
-    plan = get_user_plan(db, _uid)
+    db      = get_db()
+    _uid    = _get_user_id(db)
+    _rl_key = _get_rl_key(_uid)
+    is_anon = (_uid == ANONYMOUS_USER_ID)
+    plan    = "device" if is_anon else get_user_plan(db, _uid)
 
     caps = ["transcription", "tts_synthesis", "pronunciation"]
     info = {}
     for cap in caps:
         limit = _rl_get_limit(cap, plan)
         if limit is not None:
+            used = _rl_get_usage(_rl_key, cap)
             info[cap] = {
-                "used":      _rl_get_usage(_uid, cap),
+                "used":      used,
                 "limit":     limit,
-                "remaining": max(0, limit - _rl_get_usage(_uid, cap)),
+                "remaining": max(0, limit - used),
                 "plan":      plan,
             }
     return jsonify({"plan": plan, "rate_limits": info})
