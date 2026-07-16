@@ -3598,7 +3598,7 @@ function showExportModal() {
     const base = currentVideoName.replace(/\.[^.]+$/, "");
     exportPrefixInput.value = base;
     if (!exportDirInput.value) {
-        exportDirInput.value = localStorage.getItem("default-export-dir") || "/Users/apple/Desktop";
+        exportDirInput.value = localStorage.getItem("default-export-dir") || "";
     }
     dirBrowser.style.display = "none";
     updateExportHint();

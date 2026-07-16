@@ -399,6 +399,144 @@
         }
         .setting-saved.show { opacity: 1; }
 
+        /* ── Dir display ──────────────────────────────────────── */
+        .dir-display {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border-hi);
+            border-radius: var(--radius-sm);
+            padding: 7px 10px;
+            font-size: 12px;
+            font-family: "SF Mono", "Menlo", monospace;
+            color: var(--text-2);
+            overflow: hidden;
+        }
+        .dir-display-icon { flex-shrink: 0; font-size: 14px; }
+        .dir-display-path {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .dir-pick-btn {
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.08);
+            color: var(--text-1);
+            border: 1px solid var(--border-hi);
+            border-radius: var(--radius-sm);
+            padding: 7px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s;
+        }
+        .dir-pick-btn:hover { background: rgba(255,255,255,0.14); }
+
+        /* ── Dir browser modal ────────────────────────────────── */
+        .dir-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .dir-modal-overlay.open { display: flex; }
+        .dir-modal {
+            background: #1c1c2e;
+            border: 1px solid var(--border-hi);
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            width: 100%;
+            max-width: 640px;
+            max-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .dir-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .dir-modal-title { font-size: 15px; font-weight: 600; flex: 1; }
+        .dir-modal-close {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+            border: none;
+            color: var(--text-2);
+            font-size: 16px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .dir-modal-current {
+            padding: 10px 16px;
+            font-size: 12px;
+            font-family: "SF Mono", "Menlo", monospace;
+            color: var(--text-3);
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-shrink: 0;
+        }
+        .dir-modal-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .dir-modal-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 12px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-1);
+            transition: background 0.1s;
+        }
+        .dir-modal-item:hover { background: rgba(255,255,255,0.06); }
+        .dir-modal-item.up { color: var(--text-2); }
+        .dir-modal-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .dir-confirm-btn {
+            flex: 1;
+            padding: 12px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .dir-confirm-btn:hover { background: #c73050; }
+        .dir-cancel-btn {
+            padding: 12px 20px;
+            background: rgba(255,255,255,0.06);
+            color: var(--text-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            cursor: pointer;
+        }
+
         /* ── Logout ───────────────────────────────────────────── */
         .logout-btn {
             width: 100%;
@@ -546,14 +684,17 @@
             </div>
 
             <!-- 默认保存路径 -->
-            <div class="setting-row" style="flex-wrap:wrap;gap:8px;">
+            <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
                 <div class="setting-label">
                     默认保存路径
-                    <small>导出字幕/视频时的本地目录</small>
+                    <small>导出字幕/视频时的默认本地目录</small>
                 </div>
-                <div class="setting-control" style="display:flex;align-items:center;gap:6px;">
-                    <input type="text" class="setting-input" id="settingExportDir"
-                           placeholder="/Users/你的名字/Desktop">
+                <div style="display:flex;align-items:center;gap:8px;width:100%;">
+                    <div class="dir-display" id="dirDisplay">
+                        <span class="dir-display-icon">📁</span>
+                        <span class="dir-display-path" id="dirDisplayPath">~/Downloads</span>
+                    </div>
+                    <button class="dir-pick-btn" id="dirPickBtn">选择文件夹</button>
                     <span class="setting-saved" id="exportDirSaved">已保存</span>
                 </div>
             </div>
@@ -567,7 +708,23 @@
     </div>
 
 </div>
+<!-- 目录浏览 Modal -->
+<div class="dir-modal-overlay" id="dirModalOverlay">
+    <div class="dir-modal">
+        <div class="dir-modal-header">
+            <span class="dir-modal-title">选择保存目录</span>
+            <button class="dir-modal-close" id="dirModalClose">✕</button>
+        </div>
+        <div class="dir-modal-current" id="dirModalCurrent"></div>
+        <div class="dir-modal-list" id="dirModalList"></div>
+        <div class="dir-modal-footer">
+            <button class="dir-cancel-btn" id="dirModalCancel">取消</button>
+            <button class="dir-confirm-btn" id="dirModalConfirm">选择此目录</button>
+        </div>
+    </div>
+</div>
+
 <script src="i18n.js?v=20260712a"></script>
-<script src="profile.js?v=20260716a"></script>
+<script src="profile.js?v=20260716b"></script>
 </body>
 </html>

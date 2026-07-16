@@ -222,47 +222,111 @@ async function loadProfile() {
 }
 
 // ── 偏好设置 ────────────────────────────────────────────────────
+
+let _dirModalCurrentPath = "";
+
+async function browseTo(path) {
+    const res  = await fetch(`/api/browse-dir?path=${encodeURIComponent(path)}`);
+    const data = await res.json();
+    _dirModalCurrentPath = data.current;
+
+    document.getElementById("dirModalCurrent").textContent = data.current;
+    const list = document.getElementById("dirModalList");
+    list.innerHTML = "";
+
+    // 返回上级
+    if (data.parent) {
+        const up = document.createElement("div");
+        up.className = "dir-modal-item up";
+        up.innerHTML = `<span>⬆️</span><span>上级目录</span>`;
+        up.addEventListener("click", () => browseTo(data.parent));
+        list.appendChild(up);
+    }
+
+    if (data.dirs.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "padding:16px;color:#636366;font-size:13px;text-align:center;";
+        empty.textContent = "没有子目录";
+        list.appendChild(empty);
+    } else {
+        data.dirs.forEach(name => {
+            const item = document.createElement("div");
+            item.className = "dir-modal-item";
+            item.innerHTML = `<span>📁</span><span>${name}</span>`;
+            item.addEventListener("click", () => browseTo(data.current + "/" + name));
+            list.appendChild(item);
+        });
+    }
+}
+
+function openDirModal(startPath) {
+    document.getElementById("dirModalOverlay").classList.add("open");
+    browseTo(startPath);
+}
+
+function closeDirModal() {
+    document.getElementById("dirModalOverlay").classList.remove("open");
+}
+
+function saveExportDir(path) {
+    localStorage.setItem("default-export-dir", path);
+    document.getElementById("dirDisplayPath").textContent = path;
+    const saved = document.getElementById("exportDirSaved");
+    saved.classList.add("show");
+    setTimeout(() => saved.classList.remove("show"), 1500);
+}
+
 function initSettings() {
-    const uiLangSel      = document.getElementById("settingUiLang");
-    const translateSel   = document.getElementById("settingTranslateLang");
-    const exportDirInput = document.getElementById("settingExportDir");
-    const exportSaved    = document.getElementById("exportDirSaved");
+    const uiLangSel    = document.getElementById("settingUiLang");
+    const translateSel = document.getElementById("settingTranslateLang");
 
-    // 读取已保存的值
-    uiLangSel.value    = localStorage.getItem("ui-lang")          || "zh-CN";
-    translateSel.value = localStorage.getItem("translate-lang")   || "";
-    exportDirInput.value = localStorage.getItem("default-export-dir") || "";
-
-    // 界面语言：切换后立即生效（当前页面 + 写入 localStorage）
+    // ── 界面语言 ──
+    uiLangSel.value = localStorage.getItem("ui-lang") || "zh-CN";
     uiLangSel.addEventListener("change", () => {
-        const lang = uiLangSel.value;
-        localStorage.setItem("ui-lang", lang);
-        I18N.setLang(lang);
+        localStorage.setItem("ui-lang", uiLangSel.value);
+        I18N.setLang(uiLangSel.value);
     });
 
-    // 翻译语言：即存即生效
+    // ── 翻译语言 ──
+    translateSel.value = localStorage.getItem("translate-lang") || "";
     translateSel.addEventListener("change", () => {
         const val = translateSel.value;
-        if (val) {
-            localStorage.setItem("translate-lang", val);
-        } else {
-            localStorage.removeItem("translate-lang");
-        }
+        val ? localStorage.setItem("translate-lang", val)
+            : localStorage.removeItem("translate-lang");
     });
 
-    // 默认保存路径：失去焦点时保存，显示「已保存」提示
-    exportDirInput.addEventListener("blur", () => {
-        const val = exportDirInput.value.trim();
-        if (val) {
-            localStorage.setItem("default-export-dir", val);
-        } else {
-            localStorage.removeItem("default-export-dir");
-        }
-        exportSaved.classList.add("show");
-        setTimeout(() => exportSaved.classList.remove("show"), 1500);
+    // ── 默认保存路径 ──
+    const savedDir = localStorage.getItem("default-export-dir");
+    if (savedDir) {
+        document.getElementById("dirDisplayPath").textContent = savedDir;
+    } else {
+        // 首次：读取服务端 Downloads 真实路径作为默认值
+        fetch("/api/browse-dir?path=~/Downloads")
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById("dirDisplayPath").textContent = data.current;
+                localStorage.setItem("default-export-dir", data.current);
+            })
+            .catch(() => {});
+    }
+
+    // 选择文件夹按钮
+    document.getElementById("dirPickBtn").addEventListener("click", () => {
+        const cur = localStorage.getItem("default-export-dir") || "~/Downloads";
+        openDirModal(cur);
     });
-    exportDirInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") exportDirInput.blur();
+
+    // Modal 关闭 / 取消
+    document.getElementById("dirModalClose").addEventListener("click",  closeDirModal);
+    document.getElementById("dirModalCancel").addEventListener("click", closeDirModal);
+    document.getElementById("dirModalOverlay").addEventListener("click", (e) => {
+        if (e.target === document.getElementById("dirModalOverlay")) closeDirModal();
+    });
+
+    // 确认选择
+    document.getElementById("dirModalConfirm").addEventListener("click", () => {
+        saveExportDir(_dirModalCurrentPath);
+        closeDirModal();
     });
 }
 
