@@ -375,7 +375,7 @@ def prepare_script(text, language="th"):
     raw = None
     split_provider = None
     try:
-        raw = deepseek_provider.chat(prompt, temperature=0, timeout=60)
+        raw = deepseek_provider.chat(prompt, temperature=0, timeout=settings.TIMEOUT_TTS_SPLIT)
         split_provider = "deepseek"
         logger.info("[TTS] 分句: DeepSeek OK")
     except Exception as e:
@@ -467,7 +467,7 @@ def _split_long_sentences(script, language):
     )
     raw = None
     try:
-        raw = deepseek_provider.chat(prompt, temperature=0, timeout=60)
+        raw = deepseek_provider.chat(prompt, temperature=0, timeout=settings.TIMEOUT_TTS_SPLIT)
     except Exception as e:
         logger.warning(f"[SplitLong] DeepSeek 失败 ({e})，降级到 Gemini")
     if raw is None:
@@ -652,7 +652,7 @@ def _cover_image_prompt(text, language):
                 providers.Gemini.TEXT_MODEL,
                 {"contents": [{"parts": [{"text": gemini_prompt}]}],
                  "generationConfig": {"temperature": 0.7, "maxOutputTokens": 80}},
-                timeout=10, tag="CoverPrompt",
+                timeout=settings.TIMEOUT_TTS_COVER_PROMPT, tag="CoverPrompt",
             )
             scene = result["candidates"][0]["content"]["parts"][0]["text"].strip()
             logger.info(f"[Cover] 场景描述: {scene!r}")
@@ -680,7 +680,7 @@ def generate_cover_image(text, language, out_path):
     # ── Cloudflare Workers AI（首选，免费） ──────────────────────
     try:
         from ai.provider import cloudflare as cf_provider
-        img_bytes = cf_provider.generate_image(prompt, timeout=30)
+        img_bytes = cf_provider.generate_image(prompt, timeout=settings.TIMEOUT_CF_IMAGE)
         _save_cover_image(img_bytes, out_path)
         logger.info("[Cover] Cloudflare Workers AI OK")
         return True
@@ -835,3 +835,50 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
     finally:
         import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def generate_tts_content(prompt: str, language: str) -> str:
+    """AI 生成双语学习内容（对话 / 词汇列表）。
+
+    Args:
+        prompt:   用户要求（调用方已截断至合理长度）
+        language: 目标语言代码（如 "th" / "zh" / "en"）
+
+    Returns:
+        格式化的双语内容文本，每行一句或一词。
+
+    Raises:
+        Exception: Provider 调用失败时向上抛出，由路由层处理。
+    """
+    system = (
+        "你是语言学习内容生成专家。根据用户要求生成双语学习材料。\n"
+        "输出格式规则（必须严格遵守）：\n"
+        "- 对话：每行格式为「A: 外语原文（中文翻译）」或「B: 外语原文（中文翻译）」\n"
+        "- 词汇：每行格式为「外语词汇/短语（中文翻译）」\n"
+        "- 原文不加任何括号，译文用（）紧接在原文后括起来\n"
+        "- 每行一句或一词，不加编号\n"
+        "- 直接输出内容，不要有任何前言、后记或说明文字"
+    )
+    user_msg = f"目标语言：{language}\n用户要求：{prompt}"
+    full_prompt = system + "\n\n" + user_msg
+
+    if language == "zh":
+        text = deepseek_provider.chat(
+            full_prompt,
+            temperature=0.7,
+            timeout=settings.TIMEOUT_TTS_CONTENT,
+        )
+    else:
+        result = gemini_provider.request(
+            model=providers.Gemini.TEXT_MODEL,
+            payload={
+                "contents": [{"parts": [{"text": full_prompt}]}],
+                "generationConfig": {"temperature": 0.7},
+            },
+            timeout=settings.TIMEOUT_TTS_CONTENT,
+            tag="TTS-content",
+        )
+        text = result["candidates"][0]["content"]["parts"][0]["text"]
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return "\n".join(lines)

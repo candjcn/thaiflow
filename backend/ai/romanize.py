@@ -3,13 +3,16 @@
 
 支持语言：
   zh → 拼音（带声调，pypinyin）
-  th → 带音调标记的罗马拼音（Gemini 优先；失败时降级 pythainlp RTGS）
+  th → 带音调标记的罗马拼音（DeepSeek 优先；降级 Gemini；兜底 pythainlp RTGS）
 
 其他语言不处理，romanization 字段留空。
 """
 import json
 import re
-from config import providers, get_logger
+
+from config import providers, settings, get_logger
+from ai.provider import deepseek as deepseek_provider
+from ai.provider import gemini as gemini_provider
 
 logger = get_logger(__name__)
 
@@ -81,8 +84,9 @@ def _romanize_th_batch(texts):
 
     # ── DeepSeek（首选） ─────────────────────────────────────────
     try:
-        from ai.provider import deepseek as deepseek_provider
-        content = deepseek_provider.chat(prompt, temperature=0.1, timeout=30)
+        content = deepseek_provider.chat(
+            prompt, temperature=0.1, timeout=settings.TIMEOUT_ROMANIZE
+        )
         romanized = _parse_romanized(content)
         logger.info(f"[romanize] th DeepSeek OK: {len(indexed)} segments")
         return _map_out(romanized)
@@ -91,14 +95,13 @@ def _romanize_th_batch(texts):
 
     # ── Gemini（降级） ───────────────────────────────────────────
     try:
-        from ai.provider import gemini as gemini_provider
         result = gemini_provider.request(
             providers.Gemini.ROMANIZE_MODEL,
             {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.1},
             },
-            timeout=30,
+            timeout=settings.TIMEOUT_ROMANIZE,
             max_retries=2,
             tag="Romanize-TH",
         )
