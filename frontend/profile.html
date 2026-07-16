@@ -575,6 +575,9 @@
             .credits-grid { grid-template-columns: repeat(3, 1fr); }
             .credit-amount { font-size: 18px; }
         }
+        @media (max-width: 1024px), (pointer: coarse) {
+            .setting-row-desktop { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -684,8 +687,8 @@
                 </div>
             </div>
 
-            <!-- Default Save Path -->
-            <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+            <!-- Default Save Path (desktop only) -->
+            <div class="setting-row setting-row-desktop" style="flex-direction:column;align-items:flex-start;gap:10px;">
                 <div class="setting-label">
                     <span data-i18n="profile.savePath">Default Save Path</span>
                     <small data-i18n="profile.savePathDesc">Default local folder for subtitle/video export</small>
