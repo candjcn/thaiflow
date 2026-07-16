@@ -221,6 +221,11 @@ def index():
     return send_from_directory(FRONTEND_DIR, "index.html")
 
 
+@app.route("/profile")
+def profile():
+    return send_from_directory(FRONTEND_DIR, "profile.html")
+
+
 @app.route("/story")
 def ai_story():
     docs_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
@@ -1911,12 +1916,18 @@ def user_wallet():
         (user_id,),
     ).fetchone()
 
+    wallet_row = db.execute(
+        "SELECT gift_expires_at FROM wallets WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+
     return jsonify({
-        "user_id": user_id,
-        "plan":    plan,
-        "balance": balance,
+        "user_id":                 user_id,
+        "plan":                    plan,
+        "balance":                 balance,
         "subscription_expires_at": sub_row["expires_at"] if sub_row else None,
         "monthly_quota":           sub_row["credits_quota"] if sub_row else 0,
+        "gift_expires_at":         wallet_row["gift_expires_at"] if wallet_row else None,
     })
 
 

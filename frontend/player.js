@@ -4925,26 +4925,11 @@ async function initAuth() {
         }
     } catch (_) {}
 
-    // 头像点击展开/收起下拉菜单
-    const userEl    = document.getElementById("authUser");
-    const dropdown  = document.getElementById("authDropdown");
-    const logoutBtn = document.getElementById("authLogoutBtn");
-
-    if (userEl && dropdown) {
-        userEl.addEventListener("click", (e) => {
-            e.stopPropagation();
-            dropdown.style.display = dropdown.style.display === "none" ? "block" : "none";
-        });
-        document.addEventListener("click", () => {
-            if (dropdown) dropdown.style.display = "none";
-        });
-    }
-
-    if (logoutBtn) {
-        logoutBtn.addEventListener("click", async () => {
-            await fetch("/api/auth/logout", { method: "POST" });
-            location.reload();
-        });
+    // 头像点击 → 跳转到 Profile 页
+    const userEl = document.getElementById("authUser");
+    if (userEl) {
+        userEl.style.cursor = "pointer";
+        userEl.addEventListener("click", () => { location.href = "/profile"; });
     }
 
     // 处理 OAuth 回调错误参数

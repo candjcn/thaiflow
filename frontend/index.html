@@ -50,14 +50,9 @@
                     <div class="auth-area" id="authArea">
                         <!-- 未登录：显示登录按钮 -->
                         <a href="/api/auth/google/login" class="auth-login-btn" id="authLoginBtn" data-i18n="auth.login">登录</a>
-                        <!-- 已登录：显示头像 + 下拉菜单 -->
-                        <div class="auth-user" id="authUser" style="display:none;">
+                        <!-- 已登录：显示头像（点击跳转 profile 页） -->
+                        <div class="auth-user" id="authUser" style="display:none;" title="账户">
                             <img class="auth-avatar" id="authAvatar" src="" alt="" width="32" height="32">
-                            <div class="auth-dropdown" id="authDropdown" style="display:none;">
-                                <div class="auth-dropdown-name" id="authDropdownName"></div>
-                                <div class="auth-dropdown-email" id="authDropdownEmail"></div>
-                                <button class="auth-logout-btn" id="authLogoutBtn" data-i18n="auth.logout">退出登录</button>
-                            </div>
                         </div>
                     </div>
                 </div>
