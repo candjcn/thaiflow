@@ -4975,6 +4975,12 @@ loadVideoList();
 renderFavorites();
 loadLocalVideoList();
 initAuth();
+
+// bfcache 修复：从 Back-Forward Cache 恢复时重新检查登录状态
+// 场景：OAuth 登录后，浏览器 bfcache 了登录前的旧页面，返回键会显示旧的未登录 UI
+window.addEventListener("pageshow", (e) => {
+    if (e.persisted) initAuth();
+});
 // 页面版本标识（排查缓存用）
 (() => {
     const rev = document.createElement("div");
