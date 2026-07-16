@@ -844,22 +844,9 @@ function togglePause() {
             jumpToSentence(0);
         }
         video.play();
-        showPauseIcon("▶");
     } else {
         video.pause();
-        showPauseIcon("⏸");
     }
-}
-
-function showPauseIcon(icon) {
-    pauseIndicator.textContent = icon;
-    pauseIndicator.className = "pause-indicator show";
-    setTimeout(() => {
-        pauseIndicator.className = "pause-indicator fade";
-    }, 300);
-    setTimeout(() => {
-        pauseIndicator.className = "pause-indicator";
-    }, 600);
 }
 
 // ========== 全屏 ==========
