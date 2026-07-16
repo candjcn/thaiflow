@@ -36,14 +36,20 @@ class TestCommerceContextPermission:
         ctx = CommerceContext(db, ANONYMOUS_USER_ID, "transcription")
         assert ctx.check_permission("CanTranscribe") is True
 
-    def test_check_permission_tts_free_denied(self, db):
+    def test_check_permission_tts_free_allowed(self, db):
+        # free plan 现在包含 CanTTS（通过限流而非权限管控用量）
         ctx = CommerceContext(db, ANONYMOUS_USER_ID, "tts_synthesis")
-        assert ctx.check_permission("CanTTS") is False
+        assert ctx.check_permission("CanTTS") is True
 
-    def test_check_permission_export_free_denied(self, db):
+    def test_check_permission_export_free_allowed(self, db):
+        # free plan 现在包含 CanExport
         ctx = CommerceContext(db, ANONYMOUS_USER_ID, "export")
-        # free plan 没有 CanExport
-        assert ctx.check_permission("CanExport") is False
+        assert ctx.check_permission("CanExport") is True
+
+    def test_check_permission_image_gen_free_denied(self, db):
+        # CanImageGen 不在 free plan
+        ctx = CommerceContext(db, ANONYMOUS_USER_ID, "tts_synthesis")
+        assert ctx.check_permission("CanImageGen") is False
 
 
 class TestCommerceContextReserve:

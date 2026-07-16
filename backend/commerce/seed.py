@@ -21,10 +21,17 @@ PLAN_DEFINITIONS = {
         "display_name": "免费版",
         "monthly_credits": 100,
         "features": {
-            "capabilities": ["transcription", "translation"],
-            "permissions": ["CanTranscribe", "CanTranslate"],
+            "capabilities": [
+                "transcription", "translation", "tts_synthesis", "content_gen",
+                "romanize", "word_definition", "export", "pronunciation",
+            ],
+            "permissions": [
+                "CanTranscribe", "CanTranslate", "CanTTS", "CanTTSContent",
+                "CanRomanize", "CanWordDefine", "CanExport", "CanPronunciationAssess",
+                "CanUseEconomyQuality",
+            ],
             "quality_tiers": ["economy"],
-            "max_file_duration_min": 5,
+            "max_file_duration_min": 10,
         },
     },
     "plus": {

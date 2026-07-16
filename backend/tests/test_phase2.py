@@ -42,13 +42,17 @@ class TestPermissionPlanBased:
         uid = _user_with_plan(db, "free")
         assert check(db, uid, "CanTranslate") is True
 
-    def test_free_user_cannot_tts(self, db):
+    def test_free_user_can_tts(self, db):
         uid = _user_with_plan(db, "free")
-        assert check(db, uid, "CanTTS") is False
+        assert check(db, uid, "CanTTS") is True
 
-    def test_free_user_cannot_pronunciation(self, db):
+    def test_free_user_can_pronunciation(self, db):
         uid = _user_with_plan(db, "free")
-        assert check(db, uid, "CanPronunciationAssess") is False
+        assert check(db, uid, "CanPronunciationAssess") is True
+
+    def test_free_user_cannot_image_gen(self, db):
+        uid = _user_with_plan(db, "free")
+        assert check(db, uid, "CanImageGen") is False
 
     def test_plus_user_can_tts(self, db):
         uid = _user_with_plan(db, "plus", 1000)
@@ -76,14 +80,14 @@ class TestPermissionPlanBased:
 class TestPermissionManualGrant:
     def test_manual_grant_overrides_plan(self, db):
         uid = _user_with_plan(db, "free")
-        assert check(db, uid, "CanTTS") is False
-        grant(db, uid, "CanTTS")
-        assert check(db, uid, "CanTTS") is True
+        assert check(db, uid, "CanImageGen") is False
+        grant(db, uid, "CanImageGen")
+        assert check(db, uid, "CanImageGen") is True
 
     def test_grant_with_expiry_respected(self, db):
         uid = _user_with_plan(db, "free")
-        grant(db, uid, "CanTTS", expires_at="2000-01-01 00:00:00")  # 已过期
-        assert check(db, uid, "CanTTS") is False
+        grant(db, uid, "CanImageGen", expires_at="2000-01-01 00:00:00")  # 已过期
+        assert check(db, uid, "CanImageGen") is False
 
     def test_grant_never_expires_when_none(self, db):
         uid = _user_with_plan(db, "free")
@@ -92,9 +96,9 @@ class TestPermissionManualGrant:
 
     def test_revoke_removes_manual_grant(self, db):
         uid = _user_with_plan(db, "free")
-        grant(db, uid, "CanTTS")
-        revoke(db, uid, "CanTTS")
-        assert check(db, uid, "CanTTS") is False
+        grant(db, uid, "CanImageGen")
+        revoke(db, uid, "CanImageGen")
+        assert check(db, uid, "CanImageGen") is False
 
     def test_revoke_plan_permission_has_no_effect(self, db):
         """revoke 只能撤手动授权；套餐权限不受影响"""
@@ -131,7 +135,7 @@ class TestPermissionBatch:
         assert "CanTranscribe" in perms    # from plan
         assert "CanTranslate"  in perms    # from plan
         assert "CanOCR"        in perms    # manual grant
-        assert "CanTTS"        not in perms  # not in free plan, not granted
+        assert "CanImageGen"   not in perms  # not in free plan, not granted
 
     def test_check_all_empty_list(self, db):
         uid = _user_with_plan(db, "free")
