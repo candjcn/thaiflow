@@ -4,7 +4,7 @@ import queue
 import re
 import subprocess
 import threading
-from flask import Flask, request, jsonify, send_from_directory, Response
+from flask import Flask, request, jsonify, send_from_directory, Response, make_response, redirect
 from flask_cors import CORS
 from config import settings, providers, get_logger
 from ai.speech import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps, get_video_duration
@@ -20,6 +20,7 @@ from commerce.db import init_db, get_db
 from commerce.seed import run_seed
 from commerce.identity import get_or_create_anonymous, get_user_plan, ANONYMOUS_USER_ID
 from commerce.middleware import CommerceContext
+import commerce.auth as _auth
 from commerce.wallet import (
     add_credits as _wallet_add, refund as _wallet_refund,
     get_balance as _wallet_balance, get_history as _wallet_history,
@@ -35,6 +36,12 @@ from commerce.rate_limit import (
     get_limit as _rl_get_limit,
     get_usage as _rl_get_usage,
 )
+
+
+def _get_user_id(db) -> str:
+    """从 Cookie session 解析当前用户 ID；未登录返回 ANONYMOUS_USER_ID。"""
+    user = _auth.get_current_user(db, request)
+    return user["user_id"] if user else ANONYMOUS_USER_ID
 
 logger = get_logger(__name__)
 
@@ -670,6 +677,7 @@ def api_transcribe():
         segment_target = int(segment_target)
 
     progress_queue = queue.Queue()
+    _uid = _get_user_id(get_db())   # 在请求上下文中获取，闭包内只使用字符串
 
     def do_transcribe():
         import time as _time
@@ -682,18 +690,18 @@ def api_transcribe():
 
         db = get_db()
         ctx = CommerceContext(
-            db, ANONYMOUS_USER_ID, "transcription", "standard", "free",
+            db, _uid, "transcription", "standard", "free",
             extra={"video": video_name, "provider": provider},
         )
         if not ctx.check_permission("CanTranscribe"):
             progress_queue.put(("error", "权限不足，请升级套餐"))
             return
 
-        plan = get_user_plan(db, ANONYMOUS_USER_ID)
-        if not _check_rate_limit(ANONYMOUS_USER_ID, "transcription", plan):
-            used  = _rl_get_usage(ANONYMOUS_USER_ID, "transcription")
+        plan = get_user_plan(db, _uid)
+        if not _check_rate_limit(_uid, "transcription", plan):
+            used  = _rl_get_usage(_uid, "transcription")
             limit = _rl_get_limit("transcription", plan)
-            progress_queue.put(("error", f"今日转录次数已达上限（{used}/{limit} 次），明日重置"))
+            progress_queue.put(("rate_limit", f"今日转录次数已达上限（{used}/{limit} 次），明日重置"))
             return
 
         try:
@@ -702,7 +710,7 @@ def api_transcribe():
             progress_queue.put(("error", "Credits 不足，请充值后重试"))
             return
 
-        _rl_increment(ANONYMOUS_USER_ID, "transcription")
+        _rl_increment(_uid, "transcription")
 
         t0 = _time.time()
         try:
@@ -773,6 +781,9 @@ def api_transcribe():
             elif msg_type == "error":
                 yield f"data: {json.dumps({'error': msg_data})}\n\n"
                 break
+            elif msg_type == "rate_limit":
+                yield f"data: {json.dumps({'rate_limit': msg_data})}\n\n"
+                break
 
     return Response(generate(), mimetype="text/event-stream")
 
@@ -825,8 +836,9 @@ def api_retranscribe():
         import time as _time
         duration_sec = end - start
         db = get_db()
+        _uid = _get_user_id(db)
         ctx = CommerceContext(
-            db, ANONYMOUS_USER_ID, "transcription", "standard", "free",
+            db, _uid, "transcription", "standard", "free",
             extra={"video": video_name, "provider": provider, "mode": "retranscribe"},
         )
         if not ctx.check_permission("CanTranscribe"):
@@ -941,8 +953,9 @@ def api_ocr():
     language = request.form.get("language", "")
 
     db = get_db()
+    _uid = _get_user_id(db)
     ctx = CommerceContext(
-        db, ANONYMOUS_USER_ID, "ocr", "standard", "free",
+        db, _uid, "ocr", "standard", "free",
         extra={"language": language},
     )
     if not ctx.check_permission("CanOCR"):
@@ -975,8 +988,9 @@ def api_tts_content():
         return jsonify({"error": "prompt is required"}), 400
 
     db = get_db()
+    _uid = _get_user_id(db)
     ctx = CommerceContext(
-        db, ANONYMOUS_USER_ID, "content_gen", "standard", "free",
+        db, _uid, "content_gen", "standard", "free",
         extra={"prompt_len": len(prompt), "language": language},
     )
     if not ctx.check_permission("CanTTSContent"):
@@ -1027,6 +1041,7 @@ def api_tts_generate():
 
     os.makedirs(VIDEOS_DIR, exist_ok=True)
     target_lang = data.get("target_lang", "中文")
+    _uid = _get_user_id(get_db())   # 在请求上下文中获取，闭包内只使用字符串
 
     # ── SSE 生成器 ────────────────────────────────────────────────
     def generate():
@@ -1040,24 +1055,24 @@ def api_tts_generate():
             db = get_db()
             char_count = len(text)
             ctx = CommerceContext(
-                db, ANONYMOUS_USER_ID, "tts_synthesis", "standard", "free",
+                db, _uid, "tts_synthesis", "standard", "free",
                 extra={"char_count": char_count, "engine": engine},
             )
             if not ctx.check_permission("CanTTS"):
                 q.put(("error", "权限不足，请升级套餐"))
                 return
-            plan = get_user_plan(db, ANONYMOUS_USER_ID)
-            if not _check_rate_limit(ANONYMOUS_USER_ID, "tts_synthesis", plan):
-                used  = _rl_get_usage(ANONYMOUS_USER_ID, "tts_synthesis")
+            plan = get_user_plan(db, _uid)
+            if not _check_rate_limit(_uid, "tts_synthesis", plan):
+                used  = _rl_get_usage(_uid, "tts_synthesis")
                 limit = _rl_get_limit("tts_synthesis", plan)
-                q.put(("error", f"今日 TTS 次数已达上限（{used}/{limit} 次），明日重置"))
+                q.put(("rate_limit", f"今日 TTS 次数已达上限（{used}/{limit} 次），明日重置"))
                 return
             try:
                 ctx.reserve({"char_count": char_count})
             except InsufficientFundsError:
                 q.put(("error", "Credits 不足，请充值后重试"))
                 return
-            _rl_increment(ANONYMOUS_USER_ID, "tts_synthesis")
+            _rl_increment(_uid, "tts_synthesis")
             t0 = _time.time()
             try:
                 # 检测输入格式
@@ -1162,6 +1177,9 @@ def api_tts_generate():
             elif kind == "error":
                 yield f"data: {json.dumps({'type':'error','error':payload}, ensure_ascii=False)}\n\n"
                 break
+            elif kind == "rate_limit":
+                yield f"data: {json.dumps({'type':'rate_limit','error':payload}, ensure_ascii=False)}\n\n"
+                break
 
     return Response(generate(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -1178,8 +1196,9 @@ def api_romanize():
         return jsonify({"romanization": ""})
 
     db = get_db()
+    _uid = _get_user_id(db)
     ctx = CommerceContext(
-        db, ANONYMOUS_USER_ID, "romanize", "standard", "free",
+        db, _uid, "romanize", "standard", "free",
         extra={"language": language},
     )
     if not ctx.check_permission("CanRomanize"):
@@ -1217,8 +1236,9 @@ def api_romanize_batch():
 
     total_chars = sum(len(s.get("text", "")) for s in segs)
     db = get_db()
+    _uid = _get_user_id(db)
     ctx = CommerceContext(
-        db, ANONYMOUS_USER_ID, "romanize", "standard", "free",
+        db, _uid, "romanize", "standard", "free",
         extra={"language": language, "segment_count": len(segs)},
     )
     if not ctx.check_permission("CanRomanize"):
@@ -1259,8 +1279,9 @@ def api_translate():
 
     char_count = sum(len(s.get("text", "")) for s in segments)
     db = get_db()
+    _uid = _get_user_id(db)
     ctx = CommerceContext(
-        db, ANONYMOUS_USER_ID, "translation", "standard", "free",
+        db, _uid, "translation", "standard", "free",
         extra={"char_count": char_count},
     )
     if not ctx.check_permission("CanTranslate"):
@@ -1296,8 +1317,9 @@ def api_word_define():
         return jsonify({"error": "缺少 word 参数"}), 400
 
     db = get_db()
+    _uid = _get_user_id(db)
     ctx = CommerceContext(
-        db, ANONYMOUS_USER_ID, "word_definition", "standard", "free",
+        db, _uid, "word_definition", "standard", "free",
         extra={"word": word[:50]},
     )
     if not ctx.check_permission("CanWordDefine"):
@@ -1346,7 +1368,8 @@ def api_export_srt():
     base = file_prefix if file_prefix else os.path.splitext(video_name)[0]
 
     db = get_db()
-    ctx = CommerceContext(db, ANONYMOUS_USER_ID, "export", "standard", "free")
+    _uid = _get_user_id(db)
+    ctx = CommerceContext(db, _uid, "export", "standard", "free")
     if not ctx.check_permission("CanExport"):
         return jsonify({"error": "权限不足，请升级套餐"}), 403
     ctx.reserve({})   # export 免费，reserve 0 credits
@@ -1395,7 +1418,8 @@ def api_export():
     progress_queue = queue.Queue()
 
     db = get_db()
-    ctx_export = CommerceContext(db, ANONYMOUS_USER_ID, "export", "standard", "free")
+    _uid = _get_user_id(db)
+    ctx_export = CommerceContext(db, _uid, "export", "standard", "free")
     if not ctx_export.check_permission("CanExport"):
         return jsonify({"error": "权限不足，请升级套餐"}), 403
     ctx_export.reserve({})
@@ -1463,17 +1487,18 @@ def api_pronounce():
     duration_estimate = max(2.0, len(reference_text) * 0.3)
 
     db = get_db()
+    _uid = _get_user_id(db)
     ctx = CommerceContext(
-        db, ANONYMOUS_USER_ID, "pronunciation", "standard", "free",
+        db, _uid, "pronunciation", "standard", "free",
         extra={"lang": lang, "text_len": len(reference_text)},
     )
     if not ctx.check_permission("CanPronunciationAssess"):
         os.remove(audio_path) if os.path.exists(audio_path) else None
         return jsonify({"error": "权限不足，请升级套餐"}), 403
-    plan = get_user_plan(db, ANONYMOUS_USER_ID)
-    if not _check_rate_limit(ANONYMOUS_USER_ID, "pronunciation", plan):
+    plan = get_user_plan(db, _uid)
+    if not _check_rate_limit(_uid, "pronunciation", plan):
         os.remove(audio_path) if os.path.exists(audio_path) else None
-        used  = _rl_get_usage(ANONYMOUS_USER_ID, "pronunciation")
+        used  = _rl_get_usage(_uid, "pronunciation")
         limit = _rl_get_limit("pronunciation", plan)
         return jsonify({"error": f"今日发音评分次数已达上限（{used}/{limit} 次），明日重置"}), 429
     try:
@@ -1481,7 +1506,7 @@ def api_pronounce():
     except InsufficientFundsError:
         os.remove(audio_path) if os.path.exists(audio_path) else None
         return jsonify({"error": "Credits 不足，请充值后重试"}), 402
-    _rl_increment(ANONYMOUS_USER_ID, "pronunciation")
+    _rl_increment(_uid, "pronunciation")
 
     t0 = _time.time()
     try:
@@ -1843,7 +1868,8 @@ def admin_commerce_reconcile():
 def user_rate_limits():
     """返回当前用户今日各 capability 限额使用情况"""
     db   = get_db()
-    plan = get_user_plan(db, ANONYMOUS_USER_ID)
+    _uid = _get_user_id(db)
+    plan = get_user_plan(db, _uid)
 
     caps = ["transcription", "tts_synthesis", "pronunciation"]
     info = {}
@@ -1851,9 +1877,9 @@ def user_rate_limits():
         limit = _rl_get_limit(cap, plan)
         if limit is not None:
             info[cap] = {
-                "used":      _rl_get_usage(ANONYMOUS_USER_ID, cap),
+                "used":      _rl_get_usage(_uid, cap),
                 "limit":     limit,
-                "remaining": max(0, limit - _rl_get_usage(ANONYMOUS_USER_ID, cap)),
+                "remaining": max(0, limit - _rl_get_usage(_uid, cap)),
                 "plan":      plan,
             }
     return jsonify({"plan": plan, "rate_limits": info})
@@ -1865,7 +1891,7 @@ def user_rate_limits():
 def user_wallet():
     """当前用户余额 + 套餐信息（过渡期固定返回 anonymous 用户数据）"""
     db      = get_db()
-    user_id = ANONYMOUS_USER_ID
+    user_id = _get_user_id(db)
 
     try:
         balance = _wallet_balance(db, user_id)
@@ -1901,13 +1927,99 @@ def user_usage():
     limit = min(int(request.args.get("limit", 20)), 100)
     days  = int(request.args.get("days", 30))
 
-    history = _log_user_history(db, ANONYMOUS_USER_ID, limit=limit)
-    summary = _log_summary(db, ANONYMOUS_USER_ID, since_days=days)
+    _uid    = _get_user_id(db)
+    history = _log_user_history(db, _uid, limit=limit)
+    summary = _log_summary(db, _uid, since_days=days)
 
     return jsonify({
-        "user_id": ANONYMOUS_USER_ID,
+        "user_id": _uid,
         "summary": summary,
         "history": history,
+    })
+
+
+# ── Google OAuth 登录 ─────────────────────────────────────────────────────────
+
+@app.route("/api/auth/google/login")
+def auth_google_login():
+    """重定向到 Google 授权页，设置 oauth_state Cookie 防 CSRF。"""
+    import secrets as _secrets
+    state = _secrets.token_urlsafe(16)
+    url   = _auth.google_login_url(state)
+    resp  = make_response("", 302)
+    resp.headers["Location"] = url
+    resp.set_cookie(
+        "oauth_state", state,
+        httponly=True, samesite="Lax", secure=request.is_secure,
+        max_age=600,   # 10 分钟有效
+    )
+    return resp
+
+
+@app.route("/api/auth/google/callback")
+def auth_google_callback():
+    """Google 回调：验证 state → 换取用户信息 → 建立 session → 跳转回前端。"""
+    error = request.args.get("error")
+    if error:
+        return redirect("/?auth_error=" + error)
+
+    code  = request.args.get("code", "")
+    state = request.args.get("state", "")
+    cookie_state = request.cookies.get("oauth_state", "")
+
+    if not code or not state or state != cookie_state:
+        return redirect("/?auth_error=invalid_state")
+
+    try:
+        user_info = _auth.google_exchange_code(code)
+    except Exception as e:
+        logger.warning(f"[auth] Google exchange error: {e}")
+        return redirect("/?auth_error=exchange_failed")
+
+    db      = get_db()
+    user_id = _auth.upsert_user(
+        db, "google",
+        user_info["sub"], user_info["email"],
+        user_info["name"], user_info["picture"],
+    )
+    token = _auth.create_session(db, user_id, request.headers.get("User-Agent"))
+
+    resp = make_response("", 302)
+    resp.headers["Location"] = "/app"
+    resp.set_cookie(
+        _auth.COOKIE_NAME, token,
+        httponly=True, samesite="Lax", secure=request.is_secure,
+        max_age=_auth.SESSION_DAYS * 86400,
+    )
+    resp.delete_cookie("oauth_state")
+    return resp
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    """登出：删除 session，清除 Cookie。"""
+    db    = get_db()
+    token = request.cookies.get(_auth.COOKIE_NAME)
+    if token:
+        _auth.logout(db, token)
+    resp = jsonify({"ok": True})
+    resp.delete_cookie(_auth.COOKIE_NAME)
+    return resp
+
+
+@app.route("/api/auth/me")
+def auth_me():
+    """返回当前登录用户信息，未登录返回 {logged_in: false}。"""
+    db   = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"logged_in": False})
+    return jsonify({
+        "logged_in":   True,
+        "user_id":     user["user_id"],
+        "email":       user["email"],
+        "name":        user["name"],
+        "picture_url": user["picture_url"],
     })
 
 

@@ -60,7 +60,19 @@ GEMINI_TTS_MODEL   = os.getenv("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview
 GEMINI_IMAGE_MODEL = os.getenv("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-lite-image")
 
 # ── Commerce ──────────────────────────────────────────────────────────────────
-COMMERCE_DB_PATH = str(BACKEND_DIR / "commerce.db")
+COMMERCE_DB_PATH = os.getenv("COMMERCE_DB_PATH", str(BACKEND_DIR / "commerce.db"))
+
+# ── Google OAuth ───────────────────────────────────────────────────────────────
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI  = os.getenv(
+    "GOOGLE_REDIRECT_URI",
+    "https://reelspeak.517lang.com/api/auth/google/callback",
+)
+
+# ── 新用户欢迎礼包 ─────────────────────────────────────────────────────────────
+NEW_USER_GIFT_CREDITS = int(os.getenv("NEW_USER_GIFT_CREDITS", "300"))
+NEW_USER_GIFT_DAYS    = int(os.getenv("NEW_USER_GIFT_DAYS", "7"))
 
 # ── 日志控制 ──────────────────────────────────────────────────────────────────
 DEBUG    = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")

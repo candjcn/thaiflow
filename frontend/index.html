@@ -35,15 +35,31 @@
             <header class="header">
                 <h1 class="brand-title">Reel<span class="brand-accent">Speak</span></h1>
                 <p class="brand-subtitle" data-i18n="app.subtitle">用短视频学外语</p>
-                <div class="lang-switcher header-lang">
-                    <select class="lang-switcher-select">
-                        <option value="zh-CN">简体中文</option>
-                        <option value="zh-TW">繁體中文</option>
-                        <option value="en">English</option>
-                        <option value="ja">日本語</option>
-                        <option value="ko">한국어</option>
-                        <option value="th">ภาษาไทย</option>
-                    </select>
+                <div class="header-right">
+                    <div class="lang-switcher header-lang">
+                        <select class="lang-switcher-select">
+                            <option value="zh-CN">简体中文</option>
+                            <option value="zh-TW">繁體中文</option>
+                            <option value="en">English</option>
+                            <option value="ja">日本語</option>
+                            <option value="ko">한국어</option>
+                            <option value="th">ภาษาไทย</option>
+                        </select>
+                    </div>
+                    <!-- 登录入口 -->
+                    <div class="auth-area" id="authArea">
+                        <!-- 未登录：显示登录按钮 -->
+                        <a href="/api/auth/google/login" class="auth-login-btn" id="authLoginBtn" data-i18n="auth.login">登录</a>
+                        <!-- 已登录：显示头像 + 下拉菜单 -->
+                        <div class="auth-user" id="authUser" style="display:none;">
+                            <img class="auth-avatar" id="authAvatar" src="" alt="" width="32" height="32">
+                            <div class="auth-dropdown" id="authDropdown" style="display:none;">
+                                <div class="auth-dropdown-name" id="authDropdownName"></div>
+                                <div class="auth-dropdown-email" id="authDropdownEmail"></div>
+                                <button class="auth-logout-btn" id="authLogoutBtn" data-i18n="auth.logout">退出登录</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </header>
             <div class="video-list-panel" id="videoListPanel">

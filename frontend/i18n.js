@@ -275,6 +275,10 @@ const I18N = {
             "hint.allFiles": "将导出：{prefix}.mp4、{prefix}_泰语.srt、{prefix}_中文.srt",
             "roman.hideForever": "以后都不显示拼音/罗马拼音了吗？",
             "lang.switcher": "语言",
+            "auth.login": "登录",
+            "auth.logout": "退出登录",
+            "auth.rateLimit": "今日免费次数已用完",
+            "auth.loginToContinue": "登录后继续使用 →",
         },
 
         "zh-TW": {
@@ -540,6 +544,10 @@ const I18N = {
             "hint.allFiles": "將導出：{prefix}.mp4、{prefix}_泰語.srt、{prefix}_中文.srt",
             "roman.hideForever": "以後都不顯示拼音/羅馬拼音了嗎？",
             "lang.switcher": "語言",
+            "auth.login": "登入",
+            "auth.logout": "登出",
+            "auth.rateLimit": "今日免費次數已用完",
+            "auth.loginToContinue": "登入後繼續使用 →",
         },
 
         "en": {
@@ -805,6 +813,10 @@ const I18N = {
             "hint.allFiles": "Will export: {prefix}.mp4, {prefix}_original.srt, {prefix}_chinese.srt",
             "roman.hideForever": "Hide romanization permanently?",
             "lang.switcher": "Lang",
+            "auth.login": "Sign in",
+            "auth.logout": "Sign out",
+            "auth.rateLimit": "Daily free limit reached",
+            "auth.loginToContinue": "Sign in to continue →",
         },
 
         "ja": {
@@ -1070,6 +1082,10 @@ const I18N = {
             "hint.allFiles": "書き出し：{prefix}.mp4、{prefix}_原文.srt、{prefix}_中文.srt",
             "roman.hideForever": "ローマ字表示を永久に非表示にしますか？",
             "lang.switcher": "言語",
+            "auth.login": "ログイン",
+            "auth.logout": "ログアウト",
+            "auth.rateLimit": "本日の無料回数を使い切りました",
+            "auth.loginToContinue": "ログインして続ける →",
         },
 
         "ko": {
@@ -1335,6 +1351,10 @@ const I18N = {
             "hint.allFiles": "내보내기: {prefix}.mp4, {prefix}_원문.srt, {prefix}_중문.srt",
             "roman.hideForever": "로마자 표기를 영구적으로 숨기겠습니까?",
             "lang.switcher": "언어",
+            "auth.login": "로그인",
+            "auth.logout": "로그아웃",
+            "auth.rateLimit": "오늘의 무료 횟수를 모두 사용했습니다",
+            "auth.loginToContinue": "로그인 후 계속 →",
         },
 
         "th": {
@@ -1599,6 +1619,10 @@ const I18N = {
             "hint.allFiles": "จะส่งออก: {prefix}.mp4, {prefix}_original.srt, {prefix}_thai.srt",
             "roman.hideForever": "ซ่อนคำอ่านถาวรเลยไหม?",
             "lang.switcher": "ภาษา",
+            "auth.login": "เข้าสู่ระบบ",
+            "auth.logout": "ออกจากระบบ",
+            "auth.rateLimit": "ใช้ครบโควตาฟรีวันนี้แล้ว",
+            "auth.loginToContinue": "เข้าสู่ระบบเพื่อใช้งานต่อ →",
         },
     },
 

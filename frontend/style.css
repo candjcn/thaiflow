@@ -76,6 +76,84 @@ html, body {
     flex-shrink: 0;
 }
 
+/* Auth top bar */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.auth-login-btn {
+    display: inline-block;
+    background: #e94560;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.auth-login-btn:hover { background: #c73050; }
+
+.auth-area {
+    display: flex;
+    align-items: center;
+}
+
+.auth-user {
+    position: relative;
+    align-items: center;
+    cursor: pointer;
+}
+
+.auth-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255,255,255,0.2);
+    display: block;
+}
+
+.auth-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: #1c1c2e;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 12px;
+    min-width: 180px;
+    z-index: 999;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.auth-dropdown-name  { font-size: 14px; font-weight: 600; color: #f5f5f7; margin-bottom: 2px; }
+.auth-dropdown-email { font-size: 12px; color: #86868b; margin-bottom: 10px; word-break: break-all; }
+.auth-logout-btn {
+    width: 100%;
+    background: rgba(233,69,96,0.15);
+    color: #e94560;
+    border: 1px solid rgba(233,69,96,0.3);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.auth-logout-btn:hover { background: rgba(233,69,96,0.25); }
+
+/* Rate-limit login CTA link (appended to loadingTip) */
+.rate-limit-login-cta {
+    color: #e94560;
+    font-weight: 600;
+    text-decoration: underline;
+    white-space: nowrap;
+}
+
 .lang-switcher {
     display: flex;
     gap: 2px;

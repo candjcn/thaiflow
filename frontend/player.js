@@ -1306,6 +1306,10 @@ btnTtsGenerate.addEventListener("click", async () => {
                     ttsStatus.textContent = t("tts.fail") + evt.error;
                     ttsStatus.className = "url-status error";
                     done = true;
+                } else if (evt.type === "rate_limit") {
+                    ttsStatus.textContent = "";
+                    showRateLimitCta(evt);
+                    done = true;
                 }
             }
         }
@@ -2197,6 +2201,7 @@ async function startLoading(videoName, subtitleOnly) {
         let buffer = "";
         let transcribeResult = null;
         let transcribeError = null;
+        let transcribeRateLimit = null;
 
         while (true) {
             const { done, value } = await reader.read();
@@ -2210,9 +2215,15 @@ async function startLoading(videoName, subtitleOnly) {
                 if (data.progress) setTip(data.progress);
                 if (data.done) transcribeResult = data.result;
                 if (data.error) transcribeError = data.error;
+                if (data.rate_limit) { transcribeError = "__rate_limit__"; transcribeRateLimit = data.rate_limit; }
             }
         }
 
+        if (transcribeRateLimit) {
+            setStep("step2", "error");
+            showRateLimitCta(transcribeRateLimit);
+            return;
+        }
         if (transcribeError) {
             setStep("step2", "error");
             setTip(t("status.recognizeFail") + transcribeError);
@@ -4875,6 +4886,79 @@ async function getLocalAudioSliceWav(startSec, endSec) {
     }
 }
 
+// ========== Auth（登录/登出/状态同步）==========
+
+/** 显示限流 CTA：在加载提示区插入带链接的登录引导 */
+function showRateLimitCta(data) {
+    const msg = data && data.message ? data.message : t("auth.rateLimit");
+    setTip(msg);
+    // 追加一个可点击的登录链接（不能用 setTip 因为它用 textContent）
+    if (!loadingTip) return;
+    const btn = document.createElement("a");
+    btn.href = "/api/auth/google/login";
+    btn.className = "rate-limit-login-cta";
+    btn.textContent = " " + t("auth.loginToContinue");
+    loadingTip.appendChild(btn);
+}
+
+/** 初始化 Auth：调用 /api/auth/me，更新顶栏 UI */
+async function initAuth() {
+    try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        const loginBtn = document.getElementById("authLoginBtn");
+        const userEl   = document.getElementById("authUser");
+        const avatarEl = document.getElementById("authAvatar");
+        const nameEl   = document.getElementById("authDropdownName");
+        const emailEl  = document.getElementById("authDropdownEmail");
+
+        if (data.logged_in) {
+            if (loginBtn)  loginBtn.style.display  = "none";
+            if (userEl)    userEl.style.display     = "flex";
+            if (avatarEl)  avatarEl.src             = data.picture_url || "";
+            if (avatarEl)  avatarEl.alt             = data.name || "";
+            if (nameEl)    nameEl.textContent        = data.name || "";
+            if (emailEl)   emailEl.textContent       = data.email || "";
+        } else {
+            if (loginBtn)  loginBtn.style.display  = "";
+            if (userEl)    userEl.style.display     = "none";
+        }
+    } catch (_) {}
+
+    // 头像点击展开/收起下拉菜单
+    const userEl    = document.getElementById("authUser");
+    const dropdown  = document.getElementById("authDropdown");
+    const logoutBtn = document.getElementById("authLogoutBtn");
+
+    if (userEl && dropdown) {
+        userEl.addEventListener("click", (e) => {
+            e.stopPropagation();
+            dropdown.style.display = dropdown.style.display === "none" ? "block" : "none";
+        });
+        document.addEventListener("click", () => {
+            if (dropdown) dropdown.style.display = "none";
+        });
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            location.reload();
+        });
+    }
+
+    // 处理 OAuth 回调错误参数
+    const params = new URLSearchParams(location.search);
+    if (params.get("auth_error")) {
+        const loginBtn = document.getElementById("authLoginBtn");
+        if (loginBtn) {
+            loginBtn.style.outline = "2px solid #f44";
+            loginBtn.title = "登录失败，请重试";
+        }
+        history.replaceState({}, "", location.pathname);
+    }
+}
+
 // ========== 启动初始化（必须在文件末尾，所有 let/const 声明之后执行）==========
 I18N.init();
 document.querySelectorAll(".lang-switcher-select").forEach(sel => {
@@ -4883,6 +4967,7 @@ document.querySelectorAll(".lang-switcher-select").forEach(sel => {
 loadVideoList();
 renderFavorites();
 loadLocalVideoList();
+initAuth();
 // 页面版本标识（排查缓存用）
 (() => {
     const rev = document.createElement("div");
