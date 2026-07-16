@@ -1151,7 +1151,7 @@ btnTtsAiToggle.addEventListener("click", async () => {
         });
         const data = await res.json();
         if (data.error) {
-            ttsStatus.textContent = t("tts.ai.fail") + data.error;
+            ttsStatus.textContent = t("tts.ai.fail") + translateTTSMsg(data.error, { n: data.n });
             ttsStatus.className = "url-status error";
             return;
         }
@@ -1267,6 +1267,19 @@ ttsTextEl.addEventListener("paste", async (e) => {
     }
 });
 
+// ========== TTS 消息 i18n 翻译辅助 ==========
+function translateTTSMsg(key, params) {
+    if (!key || !key.startsWith("tts.")) return key || "";
+    // "tts.prog.voice:3:12" → key="tts.prog.voice", n=3, total=12
+    const colonIdx = key.indexOf(":", 4);
+    if (colonIdx !== -1) {
+        const parts = key.slice(colonIdx + 1).split(":");
+        key = key.slice(0, colonIdx);
+        params = Object.assign({ n: parts[0], total: parts[1] }, params || {});
+    }
+    return t(key, params || {});
+}
+
 // ========== 生成朗读课程 (SSE 流式) ==========
 btnTtsGenerate.addEventListener("click", async () => {
     const text = getActiveTtsText();
@@ -1311,7 +1324,7 @@ btnTtsGenerate.addEventListener("click", async () => {
                 let evt;
                 try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
                 if (evt.type === "progress") {
-                    ttsStatus.textContent = evt.msg;
+                    ttsStatus.textContent = translateTTSMsg(evt.msg);
                 } else if (evt.type === "done") {
                     ttsStatus.textContent = "";
                     ttsTextEl.value = "";
@@ -1319,7 +1332,7 @@ btnTtsGenerate.addEventListener("click", async () => {
                     saveToLocal(false, false, "json");
                     done = true;
                 } else if (evt.type === "error") {
-                    ttsStatus.textContent = t("tts.fail") + evt.error;
+                    ttsStatus.textContent = t("tts.fail") + translateTTSMsg(evt.error);
                     ttsStatus.className = "url-status error";
                     done = true;
                 } else if (evt.type === "rate_limit") {
@@ -4907,7 +4920,9 @@ async function getLocalAudioSliceWav(startSec, endSec) {
 
 /** 显示限流 CTA：在加载提示区插入带链接的登录引导 */
 function showRateLimitCta(data) {
-    const msg = data && data.message ? data.message : t("auth.rateLimit");
+    const msg = data && data.key
+        ? t(data.key, { used: data.used, limit: data.limit, n: data.n })
+        : (data && data.message ? data.message : t("auth.rateLimit"));
     setTip(msg);
     // 追加一个可点击的登录链接（不能用 setTip 因为它用 textContent）
     if (!loadingTip) return;

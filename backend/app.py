@@ -1029,21 +1029,19 @@ def api_tts_content():
         extra={"prompt_len": len(prompt), "language": language},
     )
     if not is_anon and not ctx.check_permission("CanTTSContent"):
-        return jsonify({"error": "权限不足，请升级套餐"}), 403
+        return jsonify({"error": "tts.err.noPermission"}), 403
 
     # 匿名设备限流（不走 credits）
     plan = "device" if is_anon else ctx.plan_id
     if not _check_rate_limit(_rl_key, "content_gen", plan):
         used = _rl_get_usage(_rl_key, "content_gen")
-        if is_anon:
-            return jsonify({"error": f"今日 AI 生成已达上限（{used} 次），登录后可获得更多次数"}), 429
-        return jsonify({"error": f"今日 AI 生成已达上限（{used} 次）"}), 429
+        return jsonify({"error": "tts.err.rateLimitContent", "n": used}), 429
 
     if not is_anon:
         try:
             ctx.reserve({"char_count": len(prompt)})
         except InsufficientFundsError:
-            return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+            return jsonify({"error": "tts.err.creditsLow"}), 402
 
     _rl_increment(_rl_key, "content_gen")
     t0 = _time.time()
@@ -1111,7 +1109,7 @@ def api_tts_generate():
                     extra={"char_count": char_count, "engine": engine},
                 )
                 if not ctx.check_permission("CanTTS"):
-                    q.put(("error", "权限不足，请升级套餐"))
+                    q.put(("error", "tts.err.noPermission"))
                     return
                 plan = get_user_plan(db, _uid)
             else:
@@ -1122,16 +1120,16 @@ def api_tts_generate():
                 used  = _rl_get_usage(_rl_key, "tts_synthesis")
                 limit = _rl_get_limit("tts_synthesis", plan)
                 if is_anon:
-                    q.put(("rate_limit", f"免费体验次数已用完（{used}/{limit} 次），登录后可无限使用"))
+                    q.put(("rate_limit", {"key": "tts.err.rateLimitAnon", "used": used, "limit": limit}))
                 else:
-                    q.put(("rate_limit", f"今日 TTS 次数已达上限（{used}/{limit} 次），明日重置"))
+                    q.put(("rate_limit", {"key": "tts.err.rateLimitFree", "used": used, "limit": limit}))
                 return
 
             if not is_anon:
                 try:
                     ctx.reserve({"char_count": char_count})
                 except InsufficientFundsError:
-                    q.put(("error", "Credits 不足，请充值后重试"))
+                    q.put(("error", "tts.err.creditsLow"))
                     return
             _rl_increment(_rl_key, "tts_synthesis")
             t0 = _time.time()
@@ -1180,7 +1178,7 @@ def api_tts_generate():
                                 (lang == "en" and target_lang == "English")
                     if not same_lang:
                         try:
-                            q.put(("progress", "正在翻译..."))
+                            q.put(("progress", "tts.prog.translating"))
                             translated, translate_provider = translate_segments(
                                 [{"index": s.index, "text": s.text} for s in seg_objs],
                                 source_lang_name, target_lang,
@@ -1230,7 +1228,7 @@ def api_tts_generate():
             try:
                 kind, payload = q.get(timeout=300)
             except queue.Empty:
-                yield "data: {\"type\":\"error\",\"error\":\"生成超时\"}\n\n"
+                yield f"data: {json.dumps({'type':'error','error':'tts.err.timeout'}, ensure_ascii=False)}\n\n"
                 break
             if kind == "progress":
                 yield f"data: {json.dumps({'type':'progress','msg':payload}, ensure_ascii=False)}\n\n"
@@ -1241,7 +1239,8 @@ def api_tts_generate():
                 yield f"data: {json.dumps({'type':'error','error':payload}, ensure_ascii=False)}\n\n"
                 break
             elif kind == "rate_limit":
-                yield f"data: {json.dumps({'type':'rate_limit','error':payload}, ensure_ascii=False)}\n\n"
+                rl_data = payload if isinstance(payload, dict) else {"key": "auth.rateLimit"}
+                yield f"data: {json.dumps({'type':'rate_limit', **rl_data}, ensure_ascii=False)}\n\n"
                 break
 
     return Response(generate(), mimetype="text/event-stream",

@@ -736,7 +736,7 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
 
     if pre_items is not None:
         # 逐行/双语模式：直接构建 script，跳过 AI 分句
-        report("正在准备文本...")
+        report("tts.prog.preparing")
         has_dialogue = any(item.get("speaker") in ("A", "B") for item in pre_items)
         script = []
         for item in pre_items:
@@ -755,7 +755,7 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
         script = _split_long_sentences(script, language)
         meta = {"split_provider": "skipped"}
     else:
-        report("正在分析文本、分配角色...")
+        report("tts.prog.analyzing")
         script, language, split_provider = prepare_script(text, language)
         meta = {"split_provider": split_provider or "unknown"}
 
@@ -772,7 +772,7 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
 
     try:
         for i, item in enumerate(script):
-            report(f"正在生成语音 {i + 1}/{len(script)}...")
+            report(f"tts.prog.voice:{i + 1}:{len(script)}")
             slot = _voice_slot(item["speaker"], item["gender"])
             clip = os.path.join(tmpdir, f"clip_{i:03d}.wav")
 
@@ -815,7 +815,7 @@ def generate_audio_lesson(text, language, engine, out_dir, progress=None, pre_it
             })
             cursor += dur + GAP_SEC
 
-        report("正在拼接音频...")
+        report("tts.prog.merging")
         silence   = os.path.join(tmpdir, "silence.wav")
         subprocess.run(
             ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
