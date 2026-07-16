@@ -108,10 +108,11 @@ def set_user_subscription(
     db.execute(
         """
         INSERT INTO user_subscriptions
-            (sub_id, user_id, plan_id, status, started_at, expires_at, credits_quota)
-        VALUES (?, ?, ?, 'active', ?, ?, ?)
+            (sub_id, user_id, plan_id, status, started_at, expires_at,
+             credits_quota, credits_reset_at)
+        VALUES (?, ?, ?, 'active', ?, ?, ?, ?)
         """,
-        (sub_id, user_id, plan_id, now, expires_at, credits_quota),
+        (sub_id, user_id, plan_id, now, expires_at, credits_quota, now),
     )
     # 同步 wallet 的订阅 credits
     db.execute(
@@ -147,8 +148,8 @@ def _create_default_subscription(db, user_id: str) -> None:
     db.execute(
         """
         INSERT INTO user_subscriptions
-            (sub_id, user_id, plan_id, status, started_at, credits_quota)
-        VALUES (?, ?, 'free', 'active', ?, 0)
+            (sub_id, user_id, plan_id, status, started_at, credits_quota, credits_reset_at)
+        VALUES (?, ?, 'free', 'active', ?, 0, ?)
         """,
-        (sub_id, user_id, now),
+        (sub_id, user_id, now, now),
     )

@@ -44,6 +44,16 @@ def init_db(path: str = ":memory:") -> sqlite3.Connection:
 
     schema_sql = _SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(schema_sql)
+
+    # ── 迁移：为旧版 DB 添加新列（CREATE TABLE IF NOT EXISTS 不会自动加列）
+    for _migration in [
+        "ALTER TABLE wallets ADD COLUMN gift_expires_at TEXT",
+    ]:
+        try:
+            conn.execute(_migration)
+        except Exception:
+            pass   # 列已存在，跳过
+
     conn.commit()
 
     logger.info(f"[commerce.db] initialized: {path}")

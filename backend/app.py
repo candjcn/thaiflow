@@ -29,6 +29,12 @@ from commerce.usage_log import (
     get_log as _log_get, get_user_history as _log_user_history,
     get_summary as _log_summary,
 )
+from commerce.rate_limit import (
+    check_rate_limit as _check_rate_limit,
+    increment as _rl_increment,
+    get_limit as _rl_get_limit,
+    get_usage as _rl_get_usage,
+)
 
 logger = get_logger(__name__)
 
@@ -41,6 +47,8 @@ def _init_commerce():
     run_seed(db)
     get_or_create_anonymous(db)
     db.close()
+    from commerce.cron import start_cron
+    start_cron(get_db)
     logger.info("[commerce] DB ready")
 
 _init_commerce()
@@ -681,11 +689,20 @@ def api_transcribe():
             progress_queue.put(("error", "权限不足，请升级套餐"))
             return
 
+        plan = get_user_plan(db, ANONYMOUS_USER_ID)
+        if not _check_rate_limit(ANONYMOUS_USER_ID, "transcription", plan):
+            used  = _rl_get_usage(ANONYMOUS_USER_ID, "transcription")
+            limit = _rl_get_limit("transcription", plan)
+            progress_queue.put(("error", f"今日转录次数已达上限（{used}/{limit} 次），明日重置"))
+            return
+
         try:
             ctx.reserve({"duration_seconds": duration})
         except InsufficientFundsError:
             progress_queue.put(("error", "Credits 不足，请充值后重试"))
             return
+
+        _rl_increment(ANONYMOUS_USER_ID, "transcription")
 
         t0 = _time.time()
         try:
@@ -1029,11 +1046,18 @@ def api_tts_generate():
             if not ctx.check_permission("CanTTS"):
                 q.put(("error", "权限不足，请升级套餐"))
                 return
+            plan = get_user_plan(db, ANONYMOUS_USER_ID)
+            if not _check_rate_limit(ANONYMOUS_USER_ID, "tts_synthesis", plan):
+                used  = _rl_get_usage(ANONYMOUS_USER_ID, "tts_synthesis")
+                limit = _rl_get_limit("tts_synthesis", plan)
+                q.put(("error", f"今日 TTS 次数已达上限（{used}/{limit} 次），明日重置"))
+                return
             try:
                 ctx.reserve({"char_count": char_count})
             except InsufficientFundsError:
                 q.put(("error", "Credits 不足，请充值后重试"))
                 return
+            _rl_increment(ANONYMOUS_USER_ID, "tts_synthesis")
             t0 = _time.time()
             try:
                 # 检测输入格式
@@ -1446,11 +1470,18 @@ def api_pronounce():
     if not ctx.check_permission("CanPronunciationAssess"):
         os.remove(audio_path) if os.path.exists(audio_path) else None
         return jsonify({"error": "权限不足，请升级套餐"}), 403
+    plan = get_user_plan(db, ANONYMOUS_USER_ID)
+    if not _check_rate_limit(ANONYMOUS_USER_ID, "pronunciation", plan):
+        os.remove(audio_path) if os.path.exists(audio_path) else None
+        used  = _rl_get_usage(ANONYMOUS_USER_ID, "pronunciation")
+        limit = _rl_get_limit("pronunciation", plan)
+        return jsonify({"error": f"今日发音评分次数已达上限（{used}/{limit} 次），明日重置"}), 429
     try:
         ctx.reserve({"duration_seconds": duration_estimate})
     except InsufficientFundsError:
         os.remove(audio_path) if os.path.exists(audio_path) else None
         return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+    _rl_increment(ANONYMOUS_USER_ID, "pronunciation")
 
     t0 = _time.time()
     try:
@@ -1786,6 +1817,46 @@ def admin_commerce_log(log_id):
     if not log:
         return jsonify({"error": "log not found"}), 404
     return jsonify(log)
+
+
+# ── Task 5.1：对账 API ───────────────────────────────────────────────────────
+
+@app.route("/api/admin/commerce/reconcile")
+def admin_commerce_reconcile():
+    """对账报告：usage_logs.credits_charged vs wallet_transactions confirm 之和"""
+    err = _admin_key_check()
+    if err:
+        return err
+
+    from commerce.reconcile import run_reconciliation
+    days        = int(request.args.get("days", 1))
+    webhook_url = request.args.get("webhook")
+    db          = get_db()
+    result      = run_reconciliation(db, since_days=days, webhook_url=webhook_url)
+    status      = 200 if result["ok"] else 409
+    return jsonify(result), status
+
+
+# ── Task 5.2：Rate Limit 状态 API ────────────────────────────────────────────
+
+@app.route("/api/user/rate-limits")
+def user_rate_limits():
+    """返回当前用户今日各 capability 限额使用情况"""
+    db   = get_db()
+    plan = get_user_plan(db, ANONYMOUS_USER_ID)
+
+    caps = ["transcription", "tts_synthesis", "pronunciation"]
+    info = {}
+    for cap in caps:
+        limit = _rl_get_limit(cap, plan)
+        if limit is not None:
+            info[cap] = {
+                "used":      _rl_get_usage(ANONYMOUS_USER_ID, cap),
+                "limit":     limit,
+                "remaining": max(0, limit - _rl_get_usage(ANONYMOUS_USER_ID, cap)),
+                "plan":      plan,
+            }
+    return jsonify({"plan": plan, "rate_limits": info})
 
 
 # ── Task 4.2：用户余额 API ────────────────────────────────────────────────────

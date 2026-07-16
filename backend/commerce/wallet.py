@@ -286,17 +286,24 @@ def add_credits(
         "paid":         "paid_credits",
     }
     col = col_map[credit_type]
-    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.datetime.utcnow()
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
     row = db.execute("SELECT wallet_id FROM wallets WHERE user_id = ?", (user_id,)).fetchone()
     if not row:
         raise WalletNotFoundError(f"wallet not found for user {user_id}")
 
     extra_set = ""
-    params: list = [amount, now, user_id]
+    params: list = [amount, now_str, user_id]
     if credit_type == "subscription" and expires_at:
         extra_set = ", subscription_expires_at = ?"
-        params = [amount, now] + [expires_at] + [user_id]
+        params = [amount, now_str, expires_at, user_id]
+    elif credit_type == "gift":
+        gift_exp = expires_at or (
+            now + datetime.timedelta(days=30)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        extra_set = ", gift_expires_at = ?"
+        params = [amount, now_str, gift_exp, user_id]
 
     db.execute(
         f"""
@@ -347,12 +354,13 @@ def refund(db, usage_log_id: str, amount: int, reason: str) -> None:
     db.execute(
         """
         UPDATE wallets
-        SET gift_credits = gift_credits + ?,
-            version      = version + 1,
-            updated_at   = ?
+        SET gift_credits    = gift_credits + ?,
+            gift_expires_at = ?,
+            version         = version + 1,
+            updated_at      = ?
         WHERE user_id = ?
         """,
-        (amount, now_str, user_id),
+        (amount, expires_at, now_str, user_id),
     )
     db.execute(
         """

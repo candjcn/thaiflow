@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS wallets (
     subscription_credits    INTEGER NOT NULL DEFAULT 0,
     subscription_expires_at TEXT,
     gift_credits            INTEGER NOT NULL DEFAULT 0,
+    gift_expires_at         TEXT,
     paid_credits            INTEGER NOT NULL DEFAULT 0,
     version                 INTEGER NOT NULL DEFAULT 0,  -- 乐观锁
     updated_at              TEXT NOT NULL DEFAULT (datetime('now')),
