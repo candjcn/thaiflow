@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0d0d1a">
-    <title>账户 — ReelSpeak</title>
+    <title>Account — ReelSpeak</title>
     <style>
         /* ── Reset & Base ─────────────────────────────────────── */
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -581,12 +581,12 @@
 
     <!-- Top Nav -->
     <nav class="top-nav">
-        <a href="/app" class="back-btn" aria-label="返回">
+        <a href="/app" class="back-btn" data-i18n-title="profile.navTitle">
             <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
                 <path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
         </a>
-        <span class="nav-title">账户</span>
+        <span class="nav-title" data-i18n="profile.navTitle">Account</span>
     </nav>
 
     <!-- User Hero -->
@@ -600,7 +600,7 @@
 
     <!-- Block 1: Credits -->
     <div class="section">
-        <div class="section-title">Credits 余额</div>
+        <div class="section-title" data-i18n="profile.credits">Credits Balance</div>
         <div class="credits-total" id="creditsTotal">
             <div>
                 <div class="credits-total-label">可用总额</div>
@@ -618,7 +618,7 @@
 
     <!-- Block 2: Today's Usage -->
     <div class="section">
-        <div class="section-title">今日使用</div>
+        <div class="section-title" data-i18n="profile.today">Today's Usage</div>
         <div class="rate-list" id="rateList">
             <div class="rate-item"><div class="skeleton sk-line"></div><div class="skeleton sk-line w60"></div></div>
             <div class="rate-item"><div class="skeleton sk-line"></div><div class="skeleton sk-line w60"></div></div>
@@ -628,7 +628,7 @@
 
     <!-- Block 3: Usage History -->
     <div class="section">
-        <div class="section-title">使用记录</div>
+        <div class="section-title" data-i18n="profile.history">Usage History</div>
         <div class="history-list" id="historyList">
             <div class="skeleton sk-block" style="height:56px;border-radius:12px;margin-bottom:2px;"></div>
             <div class="skeleton sk-block" style="height:56px;border-radius:12px;margin-bottom:2px;"></div>
@@ -636,14 +636,14 @@
         </div>
     </div>
 
-    <!-- Block 4: 偏好设置 -->
+    <!-- Block 4: Preferences -->
     <div class="section">
-        <div class="section-title">偏好设置</div>
+        <div class="section-title" data-i18n="profile.settings">Preferences</div>
         <div class="settings-list">
 
-            <!-- 界面语言 -->
+            <!-- UI Language -->
             <div class="setting-row">
-                <div class="setting-label">界面语言</div>
+                <div class="setting-label" data-i18n="profile.uiLang">Display Language</div>
                 <div class="setting-control">
                     <select class="setting-select" id="settingUiLang">
                         <option value="zh-CN">简体中文</option>
@@ -656,15 +656,15 @@
                 </div>
             </div>
 
-            <!-- 字幕翻译语言 -->
+            <!-- Subtitle Translation Language -->
             <div class="setting-row">
                 <div class="setting-label">
-                    字幕翻译语言
-                    <small>视频识别后自动翻译的目标语言</small>
+                    <span data-i18n="profile.translateLang">Subtitle Translation</span>
+                    <small data-i18n="profile.translateDesc">Target language for auto-translation after transcription</small>
                 </div>
                 <div class="setting-control">
                     <select class="setting-select" id="settingTranslateLang">
-                        <option value="">跟随界面语言</option>
+                        <option value="" data-i18n="profile.followUiLang">Follow display language</option>
                         <option value="中文">中文（简体）</option>
                         <option value="繁體中文">中文（繁體）</option>
                         <option value="English">English</option>
@@ -683,19 +683,19 @@
                 </div>
             </div>
 
-            <!-- 默认保存路径 -->
+            <!-- Default Save Path -->
             <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
                 <div class="setting-label">
-                    默认保存路径
-                    <small>导出字幕/视频时的默认本地目录</small>
+                    <span data-i18n="profile.savePath">Default Save Path</span>
+                    <small data-i18n="profile.savePathDesc">Default local folder for subtitle/video export</small>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;width:100%;">
                     <div class="dir-display" id="dirDisplay">
                         <span class="dir-display-icon">📁</span>
                         <span class="dir-display-path" id="dirDisplayPath">~/Downloads</span>
                     </div>
-                    <button class="dir-pick-btn" id="dirPickBtn">选择文件夹</button>
-                    <span class="setting-saved" id="exportDirSaved">已保存</span>
+                    <button class="dir-pick-btn" id="dirPickBtn" data-i18n="profile.chooseFolder">Choose Folder</button>
+                    <span class="setting-saved" id="exportDirSaved" data-i18n="profile.saved">Saved</span>
                 </div>
             </div>
 
@@ -704,7 +704,7 @@
 
     <!-- Logout -->
     <div class="section">
-        <button class="logout-btn" id="logoutBtn">退出登录</button>
+        <button class="logout-btn" id="logoutBtn" data-i18n="profile.logout">Sign Out</button>
     </div>
 
 </div>
@@ -712,19 +712,19 @@
 <div class="dir-modal-overlay" id="dirModalOverlay">
     <div class="dir-modal">
         <div class="dir-modal-header">
-            <span class="dir-modal-title">选择保存目录</span>
+            <span class="dir-modal-title" data-i18n="profile.dirTitle">Select Save Directory</span>
             <button class="dir-modal-close" id="dirModalClose">✕</button>
         </div>
         <div class="dir-modal-current" id="dirModalCurrent"></div>
         <div class="dir-modal-list" id="dirModalList"></div>
         <div class="dir-modal-footer">
-            <button class="dir-cancel-btn" id="dirModalCancel">取消</button>
-            <button class="dir-confirm-btn" id="dirModalConfirm">选择此目录</button>
+            <button class="dir-cancel-btn" id="dirModalCancel" data-i18n="profile.cancel">Cancel</button>
+            <button class="dir-confirm-btn" id="dirModalConfirm" data-i18n="profile.selectDir">Select This Directory</button>
         </div>
     </div>
 </div>
 
 <script src="i18n.js?v=20260712a"></script>
-<script src="profile.js?v=20260716b"></script>
+<script src="profile.js?v=20260716c"></script>
 </body>
 </html>
