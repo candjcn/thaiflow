@@ -31,6 +31,23 @@ def db():
 def _user_with_credits(db, sub=0, gift=0, paid=0) -> str:
     """创建用户并充值指定 credits，返回 user_id。"""
     uid = create_user(db)
+    db.execute(
+        """
+        UPDATE wallets
+        SET subscription_credits = 0
+        WHERE user_id = ?
+        """,
+        (uid,),
+    )
+    db.execute(
+        """
+        UPDATE user_subscriptions
+        SET credits_quota = 0
+        WHERE user_id = ? AND status = 'active'
+        """,
+        (uid,),
+    )
+    db.commit()
     if sub:
         add_credits(db, uid, sub, "subscription", "test-setup")
     if gift:
@@ -40,28 +57,43 @@ def _user_with_credits(db, sub=0, gift=0, paid=0) -> str:
     return uid
 
 
+def _user_with_zero_baseline(db) -> str:
+    """创建用户并清空默认 Free 配额，用于钱包算账测试。"""
+    uid = create_user(db)
+    db.execute(
+        "UPDATE wallets SET subscription_credits = 0 WHERE user_id = ?",
+        (uid,),
+    )
+    db.execute(
+        "UPDATE user_subscriptions SET credits_quota = 0 WHERE user_id = ? AND status = 'active'",
+        (uid,),
+    )
+    db.commit()
+    return uid
+
+
 # ── Task 1.1：Wallet ─────────────────────────────────────────────────────────
 
 class TestWalletBalance:
     def test_initial_balance_all_zero(self, db):
-        uid = create_user(db)
+        uid = _user_with_zero_baseline(db)
         bal = get_balance(db, uid)
         assert bal == {"subscription": 0, "gift": 0, "paid": 0, "total": 0}
 
     def test_add_subscription_credits(self, db):
-        uid = create_user(db)
+        uid = _user_with_zero_baseline(db)
         add_credits(db, uid, 100, "subscription", "monthly-reset")
         bal = get_balance(db, uid)
         assert bal["subscription"] == 100
         assert bal["total"] == 100
 
     def test_add_gift_credits(self, db):
-        uid = create_user(db)
+        uid = _user_with_zero_baseline(db)
         add_credits(db, uid, 50, "gift", "promo")
         assert get_balance(db, uid)["gift"] == 50
 
     def test_add_paid_credits(self, db):
-        uid = create_user(db)
+        uid = _user_with_zero_baseline(db)
         add_credits(db, uid, 200, "paid", "stripe-order-123")
         assert get_balance(db, uid)["paid"] == 200
 
@@ -188,6 +220,15 @@ class TestWalletConcurrency:
         setup_db = init_db(db_path)
         run_seed(setup_db)
         uid = create_user(setup_db)
+        setup_db.execute(
+            "UPDATE wallets SET subscription_credits = 0 WHERE user_id = ?",
+            (uid,),
+        )
+        setup_db.execute(
+            "UPDATE user_subscriptions SET credits_quota = 0 WHERE user_id = ? AND status = 'active'",
+            (uid,),
+        )
+        setup_db.commit()
         add_credits(setup_db, uid, 100, "subscription", "test-setup")
         setup_db.close()
 

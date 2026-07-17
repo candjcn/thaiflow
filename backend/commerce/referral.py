@@ -11,7 +11,7 @@
 
 奖励规则：
   - 注册奖励：邀请人+100 Credits，被邀请人+100 Credits（首次AI功能触发）
-  - 购买返利：被邀请人充值时，邀请人得20%（在wallet.add_credits后调用on_purchase）
+  - 购买返利：被邀请人充值时，邀请人得10%（在wallet.add_credits后调用on_purchase）
   - 防滥用：激活门槛（注册即得→首次AI使用才得）
 """
 import hashlib
@@ -19,13 +19,19 @@ import base64
 import re
 import datetime
 
-from config import get_logger
+from config import settings, get_logger
 from commerce.wallet import add_credits, get_or_create_wallet
 
 logger = get_logger(__name__)
 
-REFERRAL_SIGNUP_CREDITS = 100    # 邀请人和被邀请人各得 100
-CASHBACK_RATE           = 0.20   # 购买返利 20%
+REFERRAL_SIGNUP_CREDITS = settings.REFERRAL_GIFT_CREDITS
+CASHBACK_RATE           = settings.REFERRAL_CASHBACK_RATE
+
+
+def _gift_expires_at() -> str:
+    return (datetime.datetime.utcnow() + datetime.timedelta(
+        days=settings.GIFT_CREDITS_DAYS
+    )).strftime("%Y-%m-%d %H:%M:%S")
 
 
 # ── 邀请码生成 ────────────────────────────────────────────────────────────────
@@ -126,11 +132,12 @@ def try_activate_referral(db, referred_id: str) -> bool:
         get_or_create_wallet(db, referred_id)
 
         # 发放邀请人奖励
+        expires_at = _gift_expires_at()
         add_credits(db, referrer_id, REFERRAL_SIGNUP_CREDITS,
-                    credit_type="gift", source="referral_register")
+                    credit_type="gift", source="referral_register", expires_at=expires_at)
         # 发放被邀请人欢迎奖励
         add_credits(db, referred_id, REFERRAL_SIGNUP_CREDITS,
-                    credit_type="gift", source="referral_welcome")
+                    credit_type="gift", source="referral_welcome", expires_at=expires_at)
 
         # 更新状态
         db.execute(
@@ -153,7 +160,7 @@ def try_activate_referral(db, referred_id: str) -> bool:
 
 def on_purchase(db, buyer_id: str, credits_purchased: int) -> None:
     """
-    被邀请人充值后调用，给邀请人发放20%返利。
+    被邀请人充值后调用，给邀请人发放10%返利。
     仅适用于直接充值（paid credits），不适用于赠送积分。
     """
     row = db.execute(
@@ -169,7 +176,8 @@ def on_purchase(db, buyer_id: str, credits_purchased: int) -> None:
     try:
         get_or_create_wallet(db, referrer_id)
         add_credits(db, referrer_id, cashback,
-                    credit_type="gift", source="referral_cashback")
+                    credit_type="gift", source="referral_cashback",
+                    expires_at=_gift_expires_at())
         logger.info(f"[referral] cashback: buyer={buyer_id} referrer={referrer_id} "
                     f"purchase={credits_purchased} cashback={cashback}")
     except Exception as e:

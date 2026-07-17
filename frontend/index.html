@@ -128,7 +128,7 @@
                                 <option value="auto" data-i18n="tts.lang.auto">其他（自动检测）</option>
                             </select>
                         </div>
-                        <div class="provider-row">
+                        <div class="provider-row" style="display:none;">
                             <label data-i18n="tts.engine">语音引擎：</label>
                             <select id="ttsEngine">
                                 <option value="azure" selected>Azure</option>
@@ -401,7 +401,7 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,4 20,12 6,20"/></svg>
                         <span class="we-btn-label" data-i18n="we.play">试听</span>
                     </button>
-                    <select id="weEngine" class="we-engine">
+                    <select id="weEngine" class="we-engine" style="display:none;">
                         <option value="openai">OpenAI</option>
                         <option value="groq">Groq</option>
                         <option value="azure">Azure</option>
@@ -533,7 +533,7 @@
         </div>
     </div>
 
-    <script src="i18n.js?v=20260717c"></script>
+    <script src="i18n.js?v=20260717d"></script>
     <script src="player.js?v=20260712b"></script>
 </body>
 </html>

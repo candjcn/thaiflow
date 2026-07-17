@@ -87,9 +87,11 @@ AUTH_COOKIE_SECURE = os.getenv(
     "true" if GOOGLE_REDIRECT_URI.startswith("https://") else "false",
 ).lower() in ("1", "true", "yes")
 
-# ── 新用户欢迎礼包 ─────────────────────────────────────────────────────────────
-NEW_USER_GIFT_CREDITS = int(os.getenv("NEW_USER_GIFT_CREDITS", "300"))
-NEW_USER_GIFT_DAYS    = int(os.getenv("NEW_USER_GIFT_DAYS", "7"))
+# ── Credits 运营规则 ───────────────────────────────────────────────────────────
+# 登录用户的基础权益由 free 套餐的 monthly_credits 提供；不再另送欢迎礼包。
+REFERRAL_GIFT_CREDITS = int(os.getenv("REFERRAL_GIFT_CREDITS", "100"))
+GIFT_CREDITS_DAYS     = int(os.getenv("GIFT_CREDITS_DAYS", "30"))
+REFERRAL_CASHBACK_RATE = float(os.getenv("REFERRAL_CASHBACK_RATE", "0.10"))
 
 # ── 日志控制 ──────────────────────────────────────────────────────────────────
 DEBUG    = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")

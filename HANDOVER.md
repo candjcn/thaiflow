@@ -290,7 +290,7 @@ referrals              推荐关系（referrer_id → referred_id + ref_code）
 | pro | 5000 | premium | 全部权限 |
 | enterprise | 50000 | premium | 全部权限 |
 
-**新用户礼包**: 300 Credits（gift_credits），7天有效（`NEW_USER_GIFT_CREDITS=300`, `NEW_USER_GIFT_DAYS=7`）
+**新用户礼包**: 已取消，登录用户的基础权益由 free 套餐的 monthly_credits 提供。
 
 ### AI Router 路由表
 

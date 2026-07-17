@@ -87,6 +87,18 @@ class TestIdentity:
         ).fetchone()
         assert row is not None
 
+    def test_create_user_starts_with_free_quota(self, db, seeded_db):
+        uid = create_user(db)
+        wallet = db.execute(
+            "SELECT subscription_credits FROM wallets WHERE user_id = ?", (uid,)
+        ).fetchone()
+        sub = db.execute(
+            "SELECT credits_quota FROM user_subscriptions WHERE user_id = ? AND status = 'active'",
+            (uid,),
+        ).fetchone()
+        assert wallet["subscription_credits"] == 100
+        assert sub["credits_quota"] == 100
+
     def test_create_user_with_email(self, db):
         uid = create_user(db, email="test@example.com")
         user = get_user(db, uid)
@@ -123,6 +135,18 @@ class TestIdentity:
             "SELECT wallet_id FROM wallets WHERE user_id = ?", (ANONYMOUS_USER_ID,)
         ).fetchone()
         assert row is not None
+
+    def test_anonymous_starts_with_no_subscription_credits(self, db, seeded_db):
+        get_or_create_anonymous(db)
+        wallet = db.execute(
+            "SELECT subscription_credits FROM wallets WHERE user_id = ?", (ANONYMOUS_USER_ID,)
+        ).fetchone()
+        sub = db.execute(
+            "SELECT credits_quota FROM user_subscriptions WHERE user_id = ? AND status = 'active'",
+            (ANONYMOUS_USER_ID,),
+        ).fetchone()
+        assert wallet["subscription_credits"] == 0
+        assert sub["credits_quota"] == 0
 
 
 # ── Task 0.3：Seed ────────────────────────────────────────────────────────────

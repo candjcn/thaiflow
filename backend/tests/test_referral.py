@@ -240,7 +240,7 @@ def test_on_purchase():
     referrer_after = get_gift_balance(db, "ref_buyer_referrer")
 
     expected_cashback = max(1, int(1000 * referral.CASHBACK_RATE))
-    ok(f"referrer gets 20% cashback on 1000-credit purchase",
+    ok(f"referrer gets 10% cashback on 1000-credit purchase",
        referrer_after == referrer_before + expected_cashback,
        f"expected +{expected_cashback}, got +{referrer_after - referrer_before}")
 

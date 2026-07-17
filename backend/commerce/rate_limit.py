@@ -39,10 +39,10 @@ _FREE_DAILY_LIMITS: dict[str, int] = {
 
 # 匿名设备总限额（capability → max_calls_total，不重置）
 _ANON_TOTAL_LIMITS: dict[str, int] = {
-    "transcription": 5,
+    "transcription": 3,
     "tts_synthesis": 5,
     "pronunciation": 10,
-    "content_gen":   20,
+    "content_gen":   5,
 }
 
 # ── 内存计数器 ────────────────────────────────────────────────────────────────

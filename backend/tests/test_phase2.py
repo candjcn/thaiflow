@@ -7,6 +7,7 @@ import pytest
 from commerce.db import init_db
 from commerce.seed import run_seed
 from commerce.identity import create_user, set_user_subscription
+from commerce.plan import get_default_quality
 from commerce.permission import (
     check, check_all, get_user_permissions,
     grant, revoke, ALL_PERMISSIONS,
@@ -37,6 +38,10 @@ class TestPermissionPlanBased:
     def test_free_user_can_transcribe(self, db):
         uid = _user_with_plan(db, "free")
         assert check(db, uid, "CanTranscribe") is True
+
+    def test_free_user_can_ocr(self, db):
+        uid = _user_with_plan(db, "free")
+        assert check(db, uid, "CanOCR") is True
 
     def test_free_user_can_translate(self, db):
         uid = _user_with_plan(db, "free")
@@ -75,6 +80,12 @@ class TestPermissionPlanBased:
         uid = _user_with_plan(db, "enterprise", 50000)
         assert check(db, uid, "CanImageGen") is True
         assert check(db, uid, "CanProcessLongVideo") is True
+
+    def test_default_quality_is_plan_bound(self):
+        assert get_default_quality("free") == "economy"
+        assert get_default_quality("plus") == "standard"
+        assert get_default_quality("pro") == "premium"
+        assert get_default_quality("enterprise") == "premium"
 
 
 class TestPermissionManualGrant:

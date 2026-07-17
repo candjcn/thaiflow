@@ -32,7 +32,7 @@ def create_user(db, email: str = None) -> str:
         (user_id, email),
     )
     _create_wallet(db, user_id)
-    _create_default_subscription(db, user_id)
+    _create_default_subscription(db, user_id, grant_credits=True)
     db.commit()
     logger.info(f"[identity] created user {user_id}")
     return user_id
@@ -72,6 +72,8 @@ def get_or_create_anonymous(db) -> str:
         (ANONYMOUS_USER_ID,),
     ).fetchone()
     if row:
+        _normalize_anonymous_state(db)
+        db.commit()
         return ANONYMOUS_USER_ID
 
     db.execute(
@@ -79,7 +81,7 @@ def get_or_create_anonymous(db) -> str:
         (ANONYMOUS_USER_ID,),
     )
     _create_wallet(db, ANONYMOUS_USER_ID)
-    _create_default_subscription(db, ANONYMOUS_USER_ID)
+    _create_default_subscription(db, ANONYMOUS_USER_ID, grant_credits=False)
     db.commit()
     logger.info("[identity] created anonymous user")
     return ANONYMOUS_USER_ID
@@ -140,16 +142,53 @@ def _create_wallet(db, user_id: str) -> None:
     )
 
 
-def _create_default_subscription(db, user_id: str) -> None:
-    """创建默认 free 订阅（仅内部调用）。"""
+def _create_default_subscription(db, user_id: str, grant_credits: bool = True) -> None:
+    """创建默认 Free 月度订阅；匿名用户可选择不发放 Credits。"""
     import datetime as _dt
     sub_id = str(uuid.uuid4())
     now = _dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    plan = db.execute(
+        "SELECT monthly_credits FROM plan_definitions WHERE plan_id = 'free'"
+    ).fetchone()
+    quota = (plan["monthly_credits"] if plan else 100) if grant_credits else 0
     db.execute(
         """
         INSERT INTO user_subscriptions
             (sub_id, user_id, plan_id, status, started_at, credits_quota, credits_reset_at)
-        VALUES (?, ?, 'free', 'active', ?, 0, ?)
+        VALUES (?, ?, 'free', 'active', ?, ?, ?)
         """,
-        (sub_id, user_id, now, now),
+        (sub_id, user_id, now, quota, now),
+    )
+    db.execute(
+        """
+        UPDATE wallets
+        SET subscription_credits = ?, updated_at = ?
+        WHERE user_id = ?
+        """,
+        (quota, now, user_id),
+    )
+
+
+def _normalize_anonymous_state(db) -> None:
+    """将 anonymous 账户约束为无订阅 Credits，避免旧数据沿用欢迎额度。"""
+    now = __import__("datetime").datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    db.execute(
+        """
+        UPDATE wallets
+        SET subscription_credits = 0,
+            updated_at = ?
+        WHERE user_id = ?
+        """,
+        (now, ANONYMOUS_USER_ID),
+    )
+    db.execute(
+        """
+        UPDATE user_subscriptions
+        SET credits_quota = 0,
+            credits_reset_at = ?
+        WHERE user_id = ?
+          AND status = 'active'
+          AND plan_id = 'free'
+        """,
+        (now, ANONYMOUS_USER_ID),
     )

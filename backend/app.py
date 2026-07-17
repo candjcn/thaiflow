@@ -20,6 +20,7 @@ from commerce.db import init_db, get_db
 from commerce.seed import run_seed
 from commerce.identity import get_or_create_anonymous, get_user_plan, ANONYMOUS_USER_ID
 from commerce.middleware import CommerceContext
+from commerce.plan import get_default_quality
 import commerce.auth as _auth
 from commerce.wallet import (
     add_credits as _wallet_add, refund as _wallet_refund,
@@ -57,6 +58,14 @@ def _get_rl_key(uid: str) -> str:
         return uid
     device_id = _get_device_id()
     return f"device:{device_id}" if device_id else ANONYMOUS_USER_ID
+
+
+def _commerce_context(db, user_id: str, capability: str, extra: dict = None) -> CommerceContext:
+    """按账户套餐创建计费上下文，质量档位不接受前端 Provider 决定。"""
+    plan = get_user_plan(db, user_id)
+    return CommerceContext(
+        db, user_id, capability, get_default_quality(plan), plan, extra=extra,
+    )
 
 logger = get_logger(__name__)
 
@@ -691,7 +700,7 @@ def api_transcribe():
     if not os.path.exists(video_path):
         return jsonify({"error": "视频文件不存在"}), 404
 
-    provider = data.get("provider", "groq")
+    requested_provider = data.get("provider", "groq")
     segment_target = data.get("segment_target")
     if segment_target:
         segment_target = int(segment_target)
@@ -711,19 +720,16 @@ def api_transcribe():
 
         db = get_db()
         is_anon = (_uid == ANONYMOUS_USER_ID)
-
-        if not is_anon:
-            ctx = CommerceContext(
-                db, _uid, "transcription", "standard", "free",
-                extra={"video": video_name, "provider": provider},
-            )
-            if not ctx.check_permission("CanTranscribe"):
-                progress_queue.put(("error", "权限不足，请升级套餐"))
-                return
-            plan = get_user_plan(db, _uid)
-        else:
-            ctx  = None
-            plan = "device"
+        ctx = _commerce_context(
+            db, _uid, "transcription",
+            extra={"video": video_name, "provider": requested_provider},
+        )
+        if not ctx.check_permission("CanTranscribe"):
+            progress_queue.put(("error", "权限不足，请升级套餐"))
+            return
+        plan = "device" if is_anon else get_user_plan(db, _uid)
+        handle = ctx.get_handle()
+        provider = handle.provider_id
 
         if not _check_rate_limit(_rl_key, "transcription", plan):
             used  = _rl_get_usage(_rl_key, "transcription")
@@ -789,7 +795,7 @@ def api_transcribe():
             if not is_anon:
                 ctx.settle(
                     {"duration_seconds": duration}, provider,
-                    ctx.get_handle(preferred_provider=provider).model_id,
+                    handle.model_id,
                     latency_ms,
                 )
             log_event("transcribe", video=video_name, provider=provider,
@@ -828,7 +834,7 @@ def api_retranscribe():
     """对视频的一个时间片段进行二次识别（用户微调时间戳后重新识别单句）"""
     data = request.get_json()
     video_name = data.get("video", "")
-    provider = data.get("provider", "groq")
+    requested_provider = data.get("provider", "groq")
     do_translate = bool(data.get("translate", True))
     source_lang = data.get("source_lang", "泰语")
     target_lang = data.get("target_lang", "中文")
@@ -840,8 +846,6 @@ def api_retranscribe():
     except (TypeError, ValueError):
         return jsonify({"error": "时间参数无效"}), 400
 
-    if provider not in ("groq", "azure", "gemini", "openai", "qwen"):
-        return jsonify({"error": "不支持的识别引擎"}), 400
     if not (0 <= start < end):
         return jsonify({"error": "时间范围无效"}), 400
     if end - start > 60:
@@ -872,9 +876,9 @@ def api_retranscribe():
         duration_sec = end - start
         db = get_db()
         _uid = _get_user_id(db)
-        ctx = CommerceContext(
-            db, _uid, "transcription", "standard", "free",
-            extra={"video": video_name, "provider": provider, "mode": "retranscribe"},
+        ctx = _commerce_context(
+            db, _uid, "transcription",
+            extra={"video": video_name, "provider": requested_provider, "mode": "retranscribe"},
         )
         if not ctx.check_permission("CanTranscribe"):
             return jsonify({"error": "权限不足，请升级套餐"}), 403
@@ -885,6 +889,8 @@ def api_retranscribe():
 
         t0 = _time.time()
         try:
+            handle = ctx.get_handle()
+            provider = handle.provider_id
             result = transcribe_slice(wav_path, provider, language=language)
             text = result["text"]
 
@@ -902,7 +908,6 @@ def api_retranscribe():
                     logger.warning(f"[Retranscribe] 翻译失败: {te}")
 
             latency_ms = int((_time.time() - t0) * 1000)
-            handle = ctx.get_handle(preferred_provider=provider)
             ctx.settle({"duration_seconds": duration_sec}, handle.provider_id, handle.model_id, latency_ms)
             log_event("retranscribe", video=video_name, provider=provider,
                       range=f"{start:.1f}-{end:.1f}", language=language)
@@ -921,14 +926,11 @@ def api_retranscribe_audio():
     if "audio" not in request.files:
         return jsonify({"error": "缺少音频文件"}), 400
 
-    provider = request.form.get("provider", "groq")
+    requested_provider = request.form.get("provider", "groq")
     do_translate = request.form.get("translate", "true") == "true"
     source_lang = request.form.get("source_lang", "泰语")
     target_lang = request.form.get("target_lang", "中文")
     language = request.form.get("language", "")
-
-    if provider not in ("groq", "azure", "gemini", "openai", "qwen"):
-        return jsonify({"error": "不支持的识别引擎"}), 400
 
     audio_file = request.files["audio"]
     raw_path = os.path.join(VIDEOS_DIR, f".upload_slice_{os.getpid()}.wav")
@@ -948,6 +950,24 @@ def api_retranscribe_audio():
         if r.returncode != 0:
             return jsonify({"error": "音频转换失败: " + r.stderr[-200:]}), 500
 
+        duration_sec = get_video_duration(wav_path)
+        db = get_db()
+        _uid = _get_user_id(db)
+        ctx = _commerce_context(
+            db, _uid, "transcription",
+            extra={"provider": requested_provider, "mode": "retranscribe_audio"},
+        )
+        if not ctx.check_permission("CanTranscribe"):
+            return jsonify({"error": "权限不足，请升级套餐"}), 403
+        try:
+            ctx.reserve({"duration_seconds": duration_sec})
+        except InsufficientFundsError:
+            return jsonify({"error": "Credits 不足，请充值后重试"}), 402
+
+        import time as _time
+        t0 = _time.time()
+        handle = ctx.get_handle()
+        provider = handle.provider_id
         result = transcribe_slice(wav_path, provider, language=language)
         text = result["text"]
 
@@ -964,9 +984,15 @@ def api_retranscribe_audio():
             except Exception as te:
                 logger.warning(f"[RetranscribeAudio] 翻译失败: {te}")
 
+        latency_ms = int((_time.time() - t0) * 1000)
+        ctx.settle({"duration_seconds": duration_sec}, handle.provider_id, handle.model_id, latency_ms)
         log_event("retranscribe_audio", provider=provider, language=language)
         return jsonify({"text": text, "translation": translation})
     except Exception as e:
+        try:
+            ctx.release_on_error(e)  # type: ignore[name-defined]
+        except Exception:
+            pass
         return jsonify({"error": str(e)}), 502
     finally:
         for p in (raw_path, wav_path):
@@ -989,10 +1015,7 @@ def api_ocr():
 
     db = get_db()
     _uid = _get_user_id(db)
-    ctx = CommerceContext(
-        db, _uid, "ocr", "standard", "free",
-        extra={"language": language},
-    )
+    ctx = _commerce_context(db, _uid, "ocr", extra={"language": language})
     if not ctx.check_permission("CanOCR"):
         return jsonify({"error": "权限不足，请升级套餐"}), 403
     try:
@@ -1028,8 +1051,8 @@ def api_tts_content():
     _rl_key = _get_rl_key(_uid)
     is_anon = (_uid == ANONYMOUS_USER_ID)
 
-    ctx = CommerceContext(
-        db, _uid, "content_gen", "standard", "free",
+    ctx = _commerce_context(
+        db, _uid, "content_gen",
         extra={"prompt_len": len(prompt), "language": language},
     )
     if not is_anon and not ctx.check_permission("CanTTSContent"):
@@ -1080,7 +1103,7 @@ def api_tts_generate():
     data = request.get_json()
     text = (data.get("text") or "").strip()
     language = data.get("language", "th")
-    engine = data.get("engine", "gemini")
+    requested_engine = data.get("engine", "gemini")
 
     if not text:
         return jsonify({"error": "缺少文本内容"}), 400
@@ -1088,8 +1111,6 @@ def api_tts_generate():
         return jsonify({"error": "文本过长（最多 3000 字符）"}), 400
     if language not in ("th", "en", "zh", "ja", "ko", "auto"):
         return jsonify({"error": "不支持的语言"}), 400
-    if engine not in ("gemini", "azure", "youdao"):
-        return jsonify({"error": "不支持的语音引擎"}), 400
 
     os.makedirs(VIDEOS_DIR, exist_ok=True)
     target_lang = data.get("target_lang", "中文")
@@ -1108,19 +1129,16 @@ def api_tts_generate():
             db = get_db()
             char_count = len(text)
             is_anon = (_uid == ANONYMOUS_USER_ID)
-
-            if not is_anon:
-                ctx = CommerceContext(
-                    db, _uid, "tts_synthesis", "standard", "free",
-                    extra={"char_count": char_count, "engine": engine},
-                )
-                if not ctx.check_permission("CanTTS"):
-                    q.put(("error", "tts.err.noPermission"))
-                    return
-                plan = get_user_plan(db, _uid)
-            else:
-                ctx  = None
-                plan = "device"
+            ctx = _commerce_context(
+                db, _uid, "tts_synthesis",
+                extra={"char_count": char_count, "engine": requested_engine},
+            )
+            if not ctx.check_permission("CanTTS"):
+                q.put(("error", "tts.err.noPermission"))
+                return
+            plan = "device" if is_anon else get_user_plan(db, _uid)
+            handle = ctx.get_handle()
+            engine = handle.provider_id
 
             if not _check_rate_limit(_rl_key, "tts_synthesis", plan):
                 used  = _rl_get_usage(_rl_key, "tts_synthesis")
@@ -1209,7 +1227,7 @@ def api_tts_generate():
                 if not is_anon:
                     ctx.settle(
                         {"char_count": char_count}, engine,
-                        ctx.get_handle(preferred_provider=engine).model_id,
+                        handle.model_id,
                         latency_ms,
                     )
                 log_event("tts_generate", engine=engine, language=lang,
@@ -1267,10 +1285,7 @@ def api_romanize():
 
     db = get_db()
     _uid = _get_user_id(db)
-    ctx = CommerceContext(
-        db, _uid, "romanize", "standard", "free",
-        extra={"language": language},
-    )
+    ctx = _commerce_context(db, _uid, "romanize", extra={"language": language})
     if not ctx.check_permission("CanRomanize"):
         return jsonify({"error": "权限不足，请升级套餐"}), 403
     # zh 本地免费，reserve 0 credits；th 走 API，reserve 估算
@@ -1307,8 +1322,8 @@ def api_romanize_batch():
     total_chars = sum(len(s.get("text", "")) for s in segs)
     db = get_db()
     _uid = _get_user_id(db)
-    ctx = CommerceContext(
-        db, _uid, "romanize", "standard", "free",
+    ctx = _commerce_context(
+        db, _uid, "romanize",
         extra={"language": language, "segment_count": len(segs)},
     )
     if not ctx.check_permission("CanRomanize"):
@@ -1342,7 +1357,7 @@ def api_translate():
     segments = data.get("segments", [])
     source_lang = data.get("source_lang", "泰语")
     target_lang = data.get("target_lang", "中文")
-    engine = data.get("engine", "auto")
+    requested_engine = data.get("engine", "auto")
 
     if not segments:
         return jsonify({"error": "缺少 segments 参数"}), 400
@@ -1350,9 +1365,9 @@ def api_translate():
     char_count = sum(len(s.get("text", "")) for s in segments)
     db = get_db()
     _uid = _get_user_id(db)
-    ctx = CommerceContext(
-        db, _uid, "translation", "standard", "free",
-        extra={"char_count": char_count},
+    ctx = _commerce_context(
+        db, _uid, "translation",
+        extra={"char_count": char_count, "engine": requested_engine},
     )
     if not ctx.check_permission("CanTranslate"):
         return jsonify({"error": "权限不足，请升级套餐"}), 403
@@ -1363,9 +1378,11 @@ def api_translate():
 
     t0 = _time.time()
     try:
-        translations, provider_used = translate_segments(segments, source_lang, target_lang, engine=engine)
+        handle = ctx.get_handle()
+        translations, provider_used = translate_segments(
+            segments, source_lang, target_lang, engine=handle.provider_id
+        )
         latency_ms = int((_time.time() - t0) * 1000)
-        handle = ctx.get_handle(preferred_provider=provider_used if provider_used != "auto" else None)
         ctx.settle({"char_count": char_count}, handle.provider_id, handle.model_id, latency_ms)
         return jsonify({"translations": translations})
     except Exception as e:
@@ -1388,10 +1405,7 @@ def api_word_define():
 
     db = get_db()
     _uid = _get_user_id(db)
-    ctx = CommerceContext(
-        db, _uid, "word_definition", "standard", "free",
-        extra={"word": word[:50]},
-    )
+    ctx = _commerce_context(db, _uid, "word_definition", extra={"word": word[:50]})
     if not ctx.check_permission("CanWordDefine"):
         return jsonify({"error": "权限不足，请升级套餐"}), 403
     try:
@@ -1439,7 +1453,7 @@ def api_export_srt():
 
     db = get_db()
     _uid = _get_user_id(db)
-    ctx = CommerceContext(db, _uid, "export", "standard", "free")
+    ctx = _commerce_context(db, _uid, "export")
     if not ctx.check_permission("CanExport"):
         return jsonify({"error": "权限不足，请升级套餐"}), 403
     ctx.reserve({})   # export 免费，reserve 0 credits
@@ -1489,7 +1503,7 @@ def api_export():
 
     db = get_db()
     _uid = _get_user_id(db)
-    ctx_export = CommerceContext(db, _uid, "export", "standard", "free")
+    ctx_export = _commerce_context(db, _uid, "export")
     if not ctx_export.check_permission("CanExport"):
         return jsonify({"error": "权限不足，请升级套餐"}), 403
     ctx_export.reserve({})
@@ -1562,8 +1576,8 @@ def api_pronounce():
     is_anon = (_uid == ANONYMOUS_USER_ID)
 
     if not is_anon:
-        ctx = CommerceContext(
-            db, _uid, "pronunciation", "standard", "free",
+        ctx = _commerce_context(
+            db, _uid, "pronunciation",
             extra={"lang": lang, "text_len": len(reference_text)},
         )
         if not ctx.check_permission("CanPronunciationAssess"):

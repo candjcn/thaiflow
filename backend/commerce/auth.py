@@ -20,7 +20,6 @@ import urllib.request
 import uuid
 
 from config import settings, get_logger
-from commerce.wallet import add_credits
 
 logger = get_logger(__name__)
 
@@ -111,7 +110,7 @@ def upsert_user(
 ) -> str:
     """
     找到或创建用户，返回 user_id。
-    新用户自动赠送欢迎 Credits（7 天有效）。
+    新用户自动创建 Free 月度额度。
     """
     # 已有 identity → 更新信息，直接返回
     row = db.execute(
@@ -131,7 +130,7 @@ def upsert_user(
         logger.debug(f"[auth] existing user {row['user_id']} via {provider}")
         return row["user_id"]
 
-    # 新用户：创建 user + identity + 欢迎礼包
+    # 新用户：创建 user + identity + Free 订阅
     from commerce.identity import create_user
     user_id = create_user(db, email=email or None)
 
@@ -145,15 +144,6 @@ def upsert_user(
         (identity_id, user_id, provider, provider_uid, email, name, picture_url),
     )
     db.commit()
-
-    # 欢迎礼包（可通过环境变量调整数量和有效期）
-    credits = getattr(settings, "NEW_USER_GIFT_CREDITS", 300)
-    days    = getattr(settings, "NEW_USER_GIFT_DAYS", 7)
-    if credits > 0:
-        expires_at = (
-            datetime.datetime.utcnow() + datetime.timedelta(days=days)
-        ).strftime("%Y-%m-%d %H:%M:%S")
-        add_credits(db, user_id, credits, "gift", "welcome bonus", expires_at=expires_at)
 
     logger.info(f"[auth] new user created: {user_id} ({email}) via {provider}")
     return user_id

@@ -27,7 +27,7 @@ PLAN_DEFINITIONS = {
             ],
             "permissions": [
                 "CanTranscribe", "CanTranslate", "CanTTS", "CanTTSContent",
-                "CanRomanize", "CanWordDefine", "CanExport", "CanPronunciationAssess",
+                "CanRomanize", "CanWordDefine", "CanExport", "CanPronunciationAssess", "CanOCR",
                 "CanUseEconomyQuality",
             ],
             "quality_tiers": ["economy"],
