@@ -559,12 +559,13 @@ def api_download_video():
 
     def do_download():
         try:
+            download_url = url
             # ── 抖音专用下载通道 ─────────────────────────────────────
-            if _is_douyin_url(url):
+            if _is_douyin_url(download_url):
                 import tempfile, shutil
                 tmp_path = os.path.join(tempfile.gettempdir(), "douyin_tmp.mp4")
                 try:
-                    title = _download_douyin(url, tmp_path,
+                    title = _download_douyin(download_url, tmp_path,
                                              progress_callback=lambda m: progress_queue.put(("progress", m)))
                 except Exception as e:
                     progress_queue.put(("error", str(e)))
@@ -595,26 +596,26 @@ def api_download_video():
 
             cookie_args = ytdlp_cookie_args()
             extra_args = list(cookie_args)
-            if _is_tiktok_url(url):
-                url = _resolve_tiktok_url(url)
+            if _is_tiktok_url(download_url):
+                download_url = _resolve_tiktok_url(download_url)
                 extra_args += _tiktok_extractor_args()
 
             # ── [1/4] 获取视频信息 ───────────────────────────────────
             progress_queue.put(("progress", "[1/4] 正在获取视频信息..."))
-            info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
+            info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [download_url]
             info_result = subprocess.run(
                 info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
             )
-            if info_result.returncode != 0 and not _is_tiktok_url(url) and (
+            if info_result.returncode != 0 and not _is_tiktok_url(download_url) and (
                 "Sign in" in info_result.stderr or "cookies" in info_result.stderr
             ):
-                if "instagram" in info_result.stderr.lower() or "instagram" in url.lower():
+                if "instagram" in info_result.stderr.lower() or "instagram" in download_url.lower():
                     # Instagram 需要登录：自动尝试本地浏览器 cookies（本地运行时有效）
                     progress_queue.put(("progress", "[1/4] Instagram 需要登录，尝试读取本地浏览器..."))
                     _browser_args = None
                     for browser in ("chrome", "firefox", "edge", "chromium"):
                         test_args = cookie_args + ["--cookies-from-browser", browser]
-                        test_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + test_args + [url]
+                        test_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + test_args + [download_url]
                         test_result = subprocess.run(
                             test_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
                         )
@@ -635,15 +636,15 @@ def api_download_video():
                     # YouTube 机器人检测：改用 TV 客户端伪装重试
                     progress_queue.put(("progress", "[1/4] YouTube 验证拦截，尝试备用通道..."))
                     extra_args = cookie_args + ["--extractor-args", "youtube:player_client=tv,web_embedded"]
-                    info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [url]
+                    info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + extra_args + [download_url]
                     info_result = subprocess.run(
                         info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
                     )
-            if _is_tiktok_url(url) and info_result.returncode != 0:
+            if _is_tiktok_url(download_url) and info_result.returncode != 0:
                 # TikTok 再补一轮：有些链接需要 mobile API / app info 才能稳定拉到正文
                 progress_queue.put(("progress", "[1/4] TikTok 尝试移动端接口兜底..."))
                 tiktok_args = cookie_args + _tiktok_extractor_args()
-                info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + tiktok_args + [url]
+                info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + tiktok_args + [download_url]
                 info_result = subprocess.run(
                     info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
                 )
@@ -687,7 +688,7 @@ def api_download_video():
                 "-o", output_path,
                 "--progress",
                 "--newline",
-            ] + extra_args + [url]
+            ] + extra_args + [download_url]
             process = subprocess.Popen(
                 dl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, bufsize=1,
