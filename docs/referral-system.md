@@ -230,8 +230,47 @@ def settle_purchase(user_id: str, credits_purchased: int):
 
 ---
 
-## 五、待定事项
+## 五、已确认决策
 
-- [ ] 邀请统计是否需要展示在 Admin 后台
-- [ ] 是否有邀请上限（比如每个用户最多邀请 N 人获得奖励）
-- [ ] 返利是否有时效（比如仅限被邀请人注册后 1 年内的购买）
+| 事项 | 决策 |
+|------|------|
+| 邀请上限 | 无上限，邀请多少人都有效 |
+| 返利时效 | 无时效，永久有效 |
+| Admin 查看 | 需要，见下方接口设计 |
+
+### Admin 邀请统计接口
+
+`GET /api/admin/referrals?key=ADMIN_KEY`
+
+返回全局邀请概览：
+
+```json
+{
+  "summary": {
+    "total_referrals": 42,
+    "activated": 35,
+    "pending": 7,
+    "total_referrer_credits_issued": 10500,
+    "total_referred_credits_issued": 3500,
+    "total_cashback_issued": 2200
+  },
+  "top_referrers": [
+    {
+      "user_id": "google_xxx",
+      "email": "user@example.com",
+      "invited": 8,
+      "activated": 7,
+      "credits_earned": 2400
+    }
+  ],
+  "recent": [
+    {
+      "referrer_email": "...",
+      "referred_email": "...",
+      "status": "activated",
+      "created_at": "2026-07-17",
+      "activated_at": "2026-07-17",
+      "cashback_total": 200
+    }
+  ]
+}
