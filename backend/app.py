@@ -1950,25 +1950,41 @@ def admin_commerce_reconcile():
 
 @app.route("/api/user/rate-limits")
 def user_rate_limits():
-    """返回当前用户今日各 capability 限额使用情况"""
+    """返回当前用户今日各 capability 限额使用情况（次数来自 usage_logs 表，重启不丢）"""
     db      = get_db()
     _uid    = _get_user_id(db)
     _rl_key = _get_rl_key(_uid)
     is_anon = (_uid == ANONYMOUS_USER_ID)
     plan    = "device" if is_anon else get_user_plan(db, _uid)
 
+    # 从 usage_logs 查今天（UTC）的实际调用次数，不依赖内存计数器
+    today_rows = db.execute(
+        """
+        SELECT capability, COUNT(*) AS cnt
+        FROM usage_logs
+        WHERE user_id = ? AND status = 'success'
+          AND date(requested_at) = date('now')
+        GROUP BY capability
+        """,
+        (_uid,),
+    ).fetchall()
+    today_counts = {r["capability"]: r["cnt"] for r in today_rows}
+
     caps = ["transcription", "tts_synthesis", "pronunciation"]
     info = {}
     for cap in caps:
+        # 内存计数器作为当日调用次数的辅助（匿名用户没有 usage_logs 记录时使用）
+        db_count  = today_counts.get(cap, 0)
+        mem_count = _rl_get_usage(_rl_key, cap)
+        used      = max(db_count, mem_count)  # 取较大值，防止两者不同步时少报
+
         limit = _rl_get_limit(cap, plan)
-        if limit is not None:
-            used = _rl_get_usage(_rl_key, cap)
-            info[cap] = {
-                "used":      used,
-                "limit":     limit,
-                "remaining": max(0, limit - used),
-                "plan":      plan,
-            }
+        info[cap] = {
+            "used":      used,
+            "limit":     limit,       # None = 无限制（plus/pro）
+            "remaining": max(0, limit - used) if limit is not None else None,
+            "plan":      plan,
+        }
     return jsonify({"plan": plan, "rate_limits": info})
 
 

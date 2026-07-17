@@ -124,7 +124,7 @@ function renderCredits(wallet) {
     `;
 }
 
-// ── 渲染：今日限额 ───────────────────────────────────────────────
+// ── 渲染：今日使用 ───────────────────────────────────────────────
 function renderRateLimits(data) {
     const limits = data.rate_limits || {};
     const caps   = ["transcription", "tts_synthesis", "pronunciation"];
@@ -133,10 +133,13 @@ function renderRateLimits(data) {
         const info = limits[cap];
         if (!info) return "";
         const { used, limit } = info;
-        const pct   = limit > 0 ? Math.round((used / limit) * 100) : 0;
-        const full  = used >= limit;
-        const empty = used === 0;
+        // limit=null 表示该套餐无限制，只显示次数不显示进度条
+        const hasLimit  = limit !== null && limit !== undefined;
+        const pct       = hasLimit && limit > 0 ? Math.round((used / limit) * 100) : 0;
+        const full      = hasLimit && used >= limit;
+        const empty     = used === 0;
         const fillClass = full ? "full" : empty ? "empty" : "";
+        const countStr  = hasLimit ? `${used} / ${limit}` : `${used}`;
 
         return `
         <div class="rate-item">
@@ -145,11 +148,11 @@ function renderRateLimits(data) {
                     <div class="rate-cap-icon">${CAP_ICON[cap] || "•"}</div>
                     ${I18N.t(CAP_LABEL_KEY[cap] || cap)}
                 </div>
-                <div class="rate-count">${used} / ${limit}</div>
+                <div class="rate-count">${countStr}</div>
             </div>
-            <div class="rate-bar-bg">
+            ${hasLimit ? `<div class="rate-bar-bg">
                 <div class="rate-bar-fill ${fillClass}" style="width:${pct}%"></div>
-            </div>
+            </div>` : ""}
         </div>`;
     }).join("");
 
@@ -157,45 +160,70 @@ function renderRateLimits(data) {
 }
 
 // ── 渲染：使用记录 ───────────────────────────────────────────────
+const HISTORY_PREVIEW = 5;   // 默认显示条数
+
+function renderHistoryItem(item) {
+    const cap     = item.capability || "";
+    const label   = I18N.t(CAP_LABEL_KEY[cap] || cap);
+    const icon    = CAP_ICON[cap]   || "•";
+    const credits = item.credits_charged || 0;
+    const status  = item.status || "success";
+    const time    = relativeTime(item.requested_at);
+    const statusLabel = {
+        success:  I18N.t("profile.statusSuccess"),
+        failed:   I18N.t("profile.statusFailed"),
+        refunded: I18N.t("profile.statusRefunded"),
+        timeout:  I18N.t("profile.statusTimeout"),
+    }[status] || status;
+
+    return `
+    <div class="history-item">
+        <div class="history-cap-icon">${icon}</div>
+        <div class="history-main">
+            <div class="history-cap-name">${label}</div>
+            <div class="history-time">${time}</div>
+        </div>
+        <div class="history-right">
+            <div class="history-credits ${credits > 0 ? "nonzero" : ""}">
+                ${credits > 0 ? "−" + credits : "0"} C
+            </div>
+            <div class="history-status ${status}">${statusLabel}</div>
+        </div>
+    </div>`;
+}
+
 function renderHistory(history) {
+    const container = document.getElementById("historyList");
     if (!history || history.length === 0) {
-        document.getElementById("historyList").innerHTML = `
-            <div class="empty-history">${I18N.t("profile.noHistory")}</div>
-        `;
+        container.innerHTML = `<div class="empty-history">${I18N.t("profile.noHistory")}</div>`;
         return;
     }
 
-    const html = history.map(item => {
-        const cap     = item.capability || "";
-        const label   = I18N.t(CAP_LABEL_KEY[cap] || cap);
-        const icon    = CAP_ICON[cap]   || "•";
-        const credits = item.credits_charged || 0;
-        const status  = item.status || "success";
-        const time    = relativeTime(item.requested_at);
-        const statusLabel = {
-            success:  I18N.t("profile.statusSuccess"),
-            failed:   I18N.t("profile.statusFailed"),
-            refunded: I18N.t("profile.statusRefunded"),
-            timeout:  I18N.t("profile.statusTimeout"),
-        }[status] || status;
+    const preview  = history.slice(0, HISTORY_PREVIEW);
+    const rest     = history.slice(HISTORY_PREVIEW);
+    const hasMore  = rest.length > 0;
 
-        return `
-        <div class="history-item">
-            <div class="history-cap-icon">${icon}</div>
-            <div class="history-main">
-                <div class="history-cap-name">${label}</div>
-                <div class="history-time">${time}</div>
-            </div>
-            <div class="history-right">
-                <div class="history-credits ${credits > 0 ? "nonzero" : ""}">
-                    ${credits > 0 ? "−" + credits : "0"} C
-                </div>
-                <div class="history-status ${status}">${statusLabel}</div>
-            </div>
-        </div>`;
-    }).join("");
+    let html = preview.map(renderHistoryItem).join("");
 
-    document.getElementById("historyList").innerHTML = html;
+    if (hasMore) {
+        html += `<div id="historyMore" style="display:none;">${rest.map(renderHistoryItem).join("")}</div>`;
+        html += `<button id="historyToggle" class="history-toggle-btn">
+            ${I18N.t("profile.historyShowMore", { n: rest.length })}
+        </button>`;
+    }
+
+    container.innerHTML = html;
+
+    if (hasMore) {
+        document.getElementById("historyToggle").addEventListener("click", function () {
+            const moreEl = document.getElementById("historyMore");
+            const expanded = moreEl.style.display !== "none";
+            moreEl.style.display = expanded ? "none" : "block";
+            this.textContent = expanded
+                ? I18N.t("profile.historyShowMore", { n: rest.length })
+                : I18N.t("profile.historyShowLess");
+        });
+    }
 }
 
 // ── 主流程 ───────────────────────────────────────────────────────
@@ -205,7 +233,7 @@ async function loadProfile() {
         fetch("/api/auth/me"),
         fetch("/api/user/wallet"),
         fetch("/api/user/rate-limits"),
-        fetch("/api/user/usage?limit=20"),
+        fetch("/api/user/usage?limit=50"),
     ]);
 
     const [me, wallet, rate, usage] = await Promise.all([

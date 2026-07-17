@@ -538,6 +538,22 @@
             cursor: pointer;
         }
 
+        /* ── History toggle ──────────────────────────────────── */
+        .history-toggle-btn {
+            display: block;
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-3);
+            font-size: 13px;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .history-toggle-btn:hover { color: var(--text-2); border-color: var(--border-hi); }
+
         /* ── Referral Card ───────────────────────────────────── */
         .referral-card {
             background: var(--bg-card);
@@ -833,6 +849,6 @@
 </div>
 
 <script src="i18n.js?v=20260712a"></script>
-<script src="profile.js?v=20260717a"></script>
+<script src="profile.js?v=20260717b"></script>
 </body>
 </html>
