@@ -85,13 +85,17 @@ def bind_referral(db, referred_id: str, ref_code: str) -> bool:
         logger.info(f"[referral] self-referral blocked for {referred_id}")
         return False
 
-    db.execute(
-        """INSERT OR IGNORE INTO referrals
-           (referrer_id, referred_id, ref_code, status, created_at)
-           VALUES (?, ?, ?, 'pending', datetime('now'))""",
-        (referrer_id, referred_id, ref_code),
-    )
-    db.commit()
+    try:
+        db.execute(
+            """INSERT OR IGNORE INTO referrals
+               (referrer_id, referred_id, ref_code, status, created_at)
+               VALUES (?, ?, ?, 'pending', datetime('now'))""",
+            (referrer_id, referred_id, ref_code),
+        )
+        db.commit()
+    except Exception as e:
+        logger.info(f"[referral] bind failed for referred={referred_id}: {e}")
+        return False
     logger.info(f"[referral] bound: referrer={referrer_id} referred={referred_id}")
     return True
 
