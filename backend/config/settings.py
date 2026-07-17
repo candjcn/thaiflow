@@ -40,6 +40,16 @@ AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "")
 GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")
 DEEPSEEK_API_KEY    = os.getenv("DEEPSEEK_API_KEY")
 DASHSCOPE_API_KEY   = os.getenv("DASHSCOPE_API_KEY", "")   # Qwen3-ASR（阿里云）
+# 工作区专属端点（默认国际节点；CSV 里的 dashScope 字段值）
+DASHSCOPE_BASE_URL  = os.getenv(
+    "DASHSCOPE_BASE_URL",
+    "https://dashscope-intl.aliyuncs.com/api/v1",
+)
+# 文件上传端点（compatible-mode/v1/files）
+DASHSCOPE_UPLOAD_URL = os.getenv(
+    "DASHSCOPE_UPLOAD_URL",
+    "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/files",
+)
 YOUTUBE_COOKIES     = os.getenv("YOUTUBE_COOKIES", "")
 
 # ── R2 对象存储 ───────────────────────────────────────────────────────────────

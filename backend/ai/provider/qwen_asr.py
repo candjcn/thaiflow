@@ -24,22 +24,20 @@ from config import providers, settings, get_logger
 
 logger = get_logger(__name__)
 
-# 国际节点（Railway 部署用）；中国区改 dashscope.aliyuncs.com
-_BASE_INTL      = "https://dashscope-intl.aliyuncs.com"
-_BASE_CN        = "https://dashscope.aliyuncs.com"
-
-_TRANSCRIBE_PATH = "/api/v1/services/audio/asr/transcription"
-_TASK_PATH       = "/api/v1/tasks/{task_id}"
-_UPLOAD_PATH     = "/compatible-mode/v1/files"
-
-_POLL_INTERVAL   = 3     # 轮询间隔秒数
-_POLL_MAX_WAIT   = 300   # 最长等待 5 分钟
+_POLL_INTERVAL = 3    # 轮询间隔秒数
+_POLL_MAX_WAIT = 300  # 最长等待 5 分钟
 
 
-def _base() -> str:
-    """根据 DASHSCOPE_REGION 环境变量选择节点（默认国际）。"""
-    region = os.getenv("DASHSCOPE_REGION", "intl").lower()
-    return _BASE_CN if region == "cn" else _BASE_INTL
+def _transcribe_url() -> str:
+    """转写任务提交 URL（去掉尾部 /api/v1，拼 /services/audio/asr/transcription）"""
+    base = providers.Qwen.BASE_URL.rstrip("/")
+    # base 形如 https://ws-xxx.cn-beijing.maas.aliyuncs.com/api/v1
+    return base + "/services/audio/asr/transcription"
+
+
+def _task_url(task_id: str) -> str:
+    base = providers.Qwen.BASE_URL.rstrip("/")
+    return base + f"/tasks/{task_id}"
 
 
 def _auth_headers() -> dict:
@@ -53,7 +51,7 @@ def _upload_file(audio_path: str) -> str:
     将本地音频文件上传到 DashScope，返回 dashscope://{file_id} 格式 URL。
     DashScope 异步转写 API 只接受 URL，不接受本地路径。
     """
-    url = _base() + _UPLOAD_PATH
+    url = providers.Qwen.UPLOAD_URL
     headers = _auth_headers()
     with open(audio_path, "rb") as f:
         resp = requests.post(
@@ -95,7 +93,7 @@ def _upload_with_sdk_fallback(audio_path: str) -> str:
 
 def _submit_task(file_url: str) -> str:
     """提交异步转写任务，返回 task_id。"""
-    url = _base() + _TRANSCRIBE_PATH
+    url = _transcribe_url()
     payload = {
         "model": providers.Qwen.ASR_MODEL,
         "input": {
@@ -124,7 +122,7 @@ def _submit_task(file_url: str) -> str:
 
 def _poll_task(task_id: str) -> dict:
     """轮询直到任务完成，返回原始任务结果字典。"""
-    url      = _base() + _TASK_PATH.format(task_id=task_id)
+    url      = _task_url(task_id)
     headers  = _auth_headers()
     deadline = time.time() + _POLL_MAX_WAIT
 

@@ -63,9 +63,12 @@ class CloudflareAI:
 
 
 class Qwen:
-    ASR_API_KEY = settings.DASHSCOPE_API_KEY
+    ASR_API_KEY  = settings.DASHSCOPE_API_KEY
+    # 工作区专属端点（从环境变量读取，支持个人 workspace 域名）
+    BASE_URL     = settings.DASHSCOPE_BASE_URL
+    UPLOAD_URL   = settings.DASHSCOPE_UPLOAD_URL
     # qwen3-asr-flash-filetrans：异步文件转写，支持词级时间戳，最长 12h/2GB
-    ASR_MODEL   = "qwen3-asr-flash-filetrans"
+    ASR_MODEL    = "qwen3-asr-flash-filetrans"
 
 
 class Youdao:
