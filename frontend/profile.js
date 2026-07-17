@@ -83,6 +83,7 @@ function renderCredits(wallet) {
     document.getElementById("creditsTotal").innerHTML = `
         <div>
             <div class="credits-total-label">${I18N.t("profile.creditsTotal")}</div>
+            <a href="/usage" class="credits-history-link">${I18N.t("profile.viewHistory")} →</a>
         </div>
         <div>
             <span class="credits-total-value">${total.toLocaleString()}</span>
@@ -127,11 +128,11 @@ function renderCredits(wallet) {
 // ── 渲染：今日使用 ───────────────────────────────────────────────
 function renderRateLimits(data) {
     const limits = data.rate_limits || {};
-    const caps   = ["transcription", "tts_synthesis", "pronunciation"];
+    const caps   = ["transcription", "tts_synthesis"];
 
     const html = caps.map(cap => {
         const info = limits[cap];
-        if (!info) return "";
+        if (!info) return `<div class="rate-item"></div>`;
         const { used, limit } = info;
         // limit=null 表示该套餐无限制，只显示次数不显示进度条
         const hasLimit  = limit !== null && limit !== undefined;
@@ -143,13 +144,11 @@ function renderRateLimits(data) {
 
         return `
         <div class="rate-item">
-            <div class="rate-row">
-                <div class="rate-cap">
-                    <div class="rate-cap-icon">${CAP_ICON[cap] || "•"}</div>
-                    ${I18N.t(CAP_LABEL_KEY[cap] || cap)}
-                </div>
-                <div class="rate-count">${countStr}</div>
+            <div class="rate-cap" style="margin-bottom:12px;">
+                <div class="rate-cap-icon">${CAP_ICON[cap] || "•"}</div>
+                ${I18N.t(CAP_LABEL_KEY[cap] || cap)}
             </div>
+            <div class="rate-count" style="margin-bottom:8px;">${countStr}</div>
             ${hasLimit ? `<div class="rate-bar-bg">
                 <div class="rate-bar-fill ${fillClass}" style="width:${pct}%"></div>
             </div>` : ""}
@@ -229,15 +228,14 @@ function renderHistory(history) {
 // ── 主流程 ───────────────────────────────────────────────────────
 async function loadProfile() {
     // 并发拉三个接口
-    const [meRes, walletRes, rateRes, usageRes] = await Promise.all([
+    const [meRes, walletRes, rateRes] = await Promise.all([
         fetch("/api/auth/me"),
         fetch("/api/user/wallet"),
         fetch("/api/user/rate-limits"),
-        fetch("/api/user/usage?limit=50"),
     ]);
 
-    const [me, wallet, rate, usage] = await Promise.all([
-        meRes.json(), walletRes.json(), rateRes.json(), usageRes.json(),
+    const [me, wallet, rate] = await Promise.all([
+        meRes.json(), walletRes.json(), rateRes.json(),
     ]);
 
     // 未登录 → 跳回主页
@@ -251,12 +249,11 @@ async function loadProfile() {
     wallet._gift_expires_at = wallet.gift_expires_at || null;
 
     // 缓存数据，供语言切换时重渲染
-    window._profileData = { me, wallet, rate, usage };
+    window._profileData = { me, wallet, rate };
 
     renderUserHero(me, wallet.plan || "free");
     renderCredits(wallet);
     renderRateLimits(rate);
-    renderHistory(usage.history || []);
 
     // 邀请统计
     loadReferralCard().catch(err => console.warn("[referral]", err));
@@ -326,13 +323,12 @@ function initSettings() {
     uiLangSel.addEventListener("change", () => {
         I18N.setLang(uiLangSel.value);
         document.title = I18N.t("profile.navTitle") + " — ReelSpeak";
-        // 重渲染动态区块（Credits / RateLimits / History 用了 I18N.t()）
+        // 重渲染动态区块（Credits / RateLimits 用了 I18N.t()）
         if (window._profileData) {
-            const { me, wallet, rate, usage } = window._profileData;
+            const { me, wallet, rate } = window._profileData;
             renderUserHero(me, wallet.plan || "free");
             renderCredits(wallet);
             renderRateLimits(rate);
-            renderHistory(usage.history || []);
         }
     });
 

@@ -28,6 +28,7 @@ from commerce.wallet import (
 )
 from commerce.usage_log import (
     get_log as _log_get, get_user_history as _log_user_history,
+    get_user_history_count as _log_user_history_count,
     get_summary as _log_summary,
 )
 import commerce.referral as _referral
@@ -2031,17 +2032,20 @@ def user_wallet():
 
 @app.route("/api/user/usage")
 def user_usage():
-    """当前用户最近用量记录"""
-    db    = get_db()
-    limit = min(int(request.args.get("limit", 20)), 100)
-    days  = int(request.args.get("days", 30))
+    """当前用户最近用量记录（支持分页）"""
+    db     = get_db()
+    limit  = min(int(request.args.get("limit", 20)), 200)
+    offset = max(int(request.args.get("offset", 0)), 0)
+    days   = int(request.args.get("days", 30))
 
     _uid    = _get_user_id(db)
-    history = _log_user_history(db, _uid, limit=limit)
+    history = _log_user_history(db, _uid, limit=limit, offset=offset)
+    total   = _log_user_history_count(db, _uid)
     summary = _log_summary(db, _uid, since_days=days)
 
     return jsonify({
         "user_id": _uid,
+        "total":   total,
         "summary": summary,
         "history": history,
     })

@@ -117,8 +117,8 @@ def get_log(db, log_id: str) -> dict | None:
     return result
 
 
-def get_user_history(db, user_id: str, limit: int = 50) -> list:
-    """返回用户最近 limit 条调用记录（倒序）。"""
+def get_user_history(db, user_id: str, limit: int = 50, offset: int = 0) -> list:
+    """返回用户最近 limit 条调用记录（倒序，支持分页）。"""
     rows = db.execute(
         """
         SELECT log_id, capability, quality_tier, provider_id,
@@ -126,11 +126,20 @@ def get_user_history(db, user_id: str, limit: int = 50) -> list:
         FROM usage_logs
         WHERE user_id = ?
         ORDER BY requested_at DESC
-        LIMIT ?
+        LIMIT ? OFFSET ?
         """,
-        (user_id, limit),
+        (user_id, limit, offset),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_user_history_count(db, user_id: str) -> int:
+    """返回用户历史记录总条数。"""
+    row = db.execute(
+        "SELECT COUNT(*) AS cnt FROM usage_logs WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+    return row["cnt"] if row else 0
 
 
 def get_summary(db, user_id: str, since_days: int = 30) -> dict:
