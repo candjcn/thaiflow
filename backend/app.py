@@ -4,6 +4,11 @@ import queue
 import re
 import subprocess
 import threading
+import random
+import sys
+import time
+import urllib.request
+from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory, Response, make_response, redirect
 from flask_cors import CORS
 from config import settings, providers, get_logger
@@ -81,8 +86,6 @@ def _init_commerce():
     from commerce.cron import start_cron
     start_cron(get_db)
     logger.info("[commerce] DB ready")
-
-_init_commerce()
 
 
 @app.after_request
@@ -347,6 +350,132 @@ def _is_douyin_url(url):
     return any(d in url for d in ('v.douyin.com', 'www.douyin.com', 'm.douyin.com', 'iesdouyin.com'))
 
 
+def _is_tiktok_url(url):
+    return any(d in url for d in ('vt.tiktok.com', 'vm.tiktok.com', 'www.tiktok.com', 'm.tiktok.com', 'tiktok.com'))
+
+
+def _resolve_tiktok_url(url):
+    """尽量展开 TikTok 短链到最终落点，减少 yt-dlp 直接处理短链时的失败面。"""
+    if not _is_tiktok_url(url):
+        return url
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": (
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        })
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            final_url = resp.geturl() or url
+        return final_url
+    except Exception as exc:
+        logger.warning(f"[TikTok] resolve shortlink failed: {exc}")
+        return url
+
+
+def _tiktok_extractor_args():
+    """给 yt-dlp 的 TikTok extractor 传入 mobile API 兜底参数。"""
+    device_id = settings.TIKTOK_DEVICE_ID or "".join(str(random.randint(0, 9)) for _ in range(19))
+    app_info = settings.TIKTOK_APP_INFO or device_id
+    return [
+        "--extractor-args",
+        f"tiktok:app_info={app_info};device_id={device_id}",
+    ]
+
+
+def _maybe_auto_update_ytdlp() -> None:
+    """部署环境启动时自动升级 yt-dlp，避免等到下载失败后再处理。"""
+    if not settings.YTDLP_AUTO_UPDATE:
+        return
+
+    stamp_path = Path(settings.YTDLP_UPDATE_STAMP)
+    interval = max(1, settings.YTDLP_AUTO_UPDATE_INTERVAL_HOURS) * 3600
+    try:
+        if stamp_path.exists() and (time.time() - stamp_path.stat().st_mtime) < interval:
+            logger.info("[yt-dlp] auto-update skipped (recently checked)")
+            return
+    except Exception:
+        pass
+
+    try:
+        current_version = subprocess.check_output(
+            ["yt-dlp", "--version"], text=True, timeout=10
+        ).strip()
+    except Exception:
+        current_version = "unknown"
+
+    try:
+        logger.info(f"[yt-dlp] auto-update start (current={current_version})")
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-U", "yt-dlp"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if result.returncode != 0:
+            stderr = (result.stderr or result.stdout or "").strip()[-400:]
+            raise RuntimeError(stderr or "pip install -U yt-dlp failed")
+        new_version = subprocess.check_output(
+            ["yt-dlp", "--version"], text=True, timeout=10
+        ).strip()
+        stamp_path.parent.mkdir(parents=True, exist_ok=True)
+        stamp_path.write_text(
+            json.dumps(
+                {
+                    "updated_at": time.time(),
+                    "current_version": current_version,
+                    "new_version": new_version,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        logger.info(f"[yt-dlp] auto-update done ({current_version} -> {new_version})")
+    except Exception as exc:
+        logger.warning(f"[yt-dlp] auto-update skipped/failed: {exc}")
+
+
+def _classify_download_error(stderr: str) -> str:
+    """把 yt-dlp/ffmpeg stderr 归入 5 大错误类，返回用户友好提示。"""
+    e = stderr
+    lower_e = e.lower()
+    if _is_tiktok_url(e) and any(k in lower_e for k in ("failed to resolve", "unable to download webpage", "name or service not known", "nodename nor servname")):
+        return ("🌐 TikTok 链接解析失败（可能是短链、DNS 或站点反爬）。"
+                "请先在浏览器里展开成 tiktok.com 原始链接再试；"
+                "如果仍失败，请稍后重试。")
+    # 🔒 版权保护
+    if "DRM" in e or "drm" in e:
+        return "🔒 该视频受版权保护（DRM），无法下载。请换一个视频试试。"
+    # 🗑️ 视频不存在/已删除/私密
+    if any(k in e for k in ("404", "not found", "unavailable", "This video is private",
+                             "has been removed", "no longer available", "deleted")):
+        return "🗑️ 视频不存在、已被删除或设为私密，请确认链接是否有效。"
+    # 🚫 Instagram 强制登录（即使是公开内容）
+    if "instagram" in e.lower() and ("empty media response" in e or "cookies" in e):
+        return ("🚫 Instagram 需要登录才能下载。\n"
+                "• 电脑端：请确保在浏览器（Chrome/Firefox）中已登录 Instagram，"
+                "并使用本地版 ReelSpeak（非 getreelspeak.com）下载。\n"
+                "• 手机端：请在手机上保存视频后直接上传。")
+    # 🚫 需要登录/会员/防盗链
+    if any(k in e for k in ("Sign in", "log in", "login", "member", "403", "Forbidden",
+                              "cookies", "Premium", "age-restricted", "age restricted")):
+        return "🚫 该视频需要登录或仅限会员观看，暂时无法在服务器端下载。请换一个公开视频。"
+    # ⏱️ 平台反爬/限速
+    if any(k in e for k in ("429", "rate limit", "Too Many Requests", "bot", "challenge",
+                              "JavaScript", "rmats", "player_client")):
+        return "⏱️ 平台暂时限制了服务器访问。请等待 1–2 分钟后重试，或改用其他平台的链接。"
+    # 🔇 无音频（此处兜底，通常已在下载后 ffprobe 拦截）
+    if any(k in e for k in ("matches no streams", "no audio", "Invalid argument")):
+        return "🔇 视频没有音频轨道，无法进行语音识别。请将视频本地下载后直接上传。"
+    # ❓ 未知错误：截取最后 120 字符，去掉路径和 ANSI 码
+    snippet = re.sub(r'\x1b\[[0-9;]*m', '', e).strip()[-120:]
+    return f"❓ 下载失败：{snippet}"
+
+
+_init_commerce()
+
+
 def _download_douyin(url, output_path, progress_callback=None):
     """自定义抖音下载：短链解析 → 分享页提取视频 URI → CDN 下载"""
     import ssl
@@ -428,37 +557,6 @@ def api_download_video():
         except Exception:
             return []
 
-    def _classify_error(stderr):
-        """把 yt-dlp/ffmpeg stderr 归入 5 大错误类，返回用户友好提示。"""
-        e = stderr
-        # 🔒 版权保护
-        if "DRM" in e or "drm" in e:
-            return "🔒 该视频受版权保护（DRM），无法下载。请换一个视频试试。"
-        # 🗑️ 视频不存在/已删除/私密
-        if any(k in e for k in ("404", "not found", "unavailable", "This video is private",
-                                 "has been removed", "no longer available", "deleted")):
-            return "🗑️ 视频不存在、已被删除或设为私密，请确认链接是否有效。"
-        # 🚫 Instagram 强制登录（即使是公开内容）
-        if "instagram" in e.lower() and ("empty media response" in e or "cookies" in e):
-            return ("🚫 Instagram 需要登录才能下载。\n"
-                    "• 电脑端：请确保在浏览器（Chrome/Firefox）中已登录 Instagram，"
-                    "并使用本地版 ReelSpeak（非 getreelspeak.com）下载。\n"
-                    "• 手机端：请在手机上保存视频后直接上传。")
-        # 🚫 需要登录/会员/防盗链
-        if any(k in e for k in ("Sign in", "log in", "login", "member", "403", "Forbidden",
-                                  "cookies", "Premium", "age-restricted", "age restricted")):
-            return "🚫 该视频需要登录或仅限会员观看，暂时无法在服务器端下载。请换一个公开视频。"
-        # ⏱️ 平台反爬/限速
-        if any(k in e for k in ("429", "rate limit", "Too Many Requests", "bot", "challenge",
-                                  "JavaScript", "rmats", "player_client")):
-            return "⏱️ 平台暂时限制了服务器访问。请等待 1–2 分钟后重试，或改用其他平台的链接。"
-        # 🔇 无音频（此处兜底，通常已在下载后 ffprobe 拦截）
-        if any(k in e for k in ("matches no streams", "no audio", "Invalid argument")):
-            return "🔇 视频没有音频轨道，无法进行语音识别。请将视频本地下载后直接上传。"
-        # ❓ 未知错误：截取最后 120 字符，去掉路径和 ANSI 码
-        snippet = re.sub(r'\x1b\[[0-9;]*m', '', e).strip()[-120:]
-        return f"❓ 下载失败：{snippet}"
-
     def do_download():
         try:
             # ── 抖音专用下载通道 ─────────────────────────────────────
@@ -497,6 +595,9 @@ def api_download_video():
 
             cookie_args = ytdlp_cookie_args()
             extra_args = list(cookie_args)
+            if _is_tiktok_url(url):
+                url = _resolve_tiktok_url(url)
+                extra_args += _tiktok_extractor_args()
 
             # ── [1/4] 获取视频信息 ───────────────────────────────────
             progress_queue.put(("progress", "[1/4] 正在获取视频信息..."))
@@ -504,7 +605,7 @@ def api_download_video():
             info_result = subprocess.run(
                 info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
             )
-            if info_result.returncode != 0 and (
+            if info_result.returncode != 0 and not _is_tiktok_url(url) and (
                 "Sign in" in info_result.stderr or "cookies" in info_result.stderr
             ):
                 if "instagram" in info_result.stderr.lower() or "instagram" in url.lower():
@@ -538,8 +639,16 @@ def api_download_video():
                     info_result = subprocess.run(
                         info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
                     )
+            if _is_tiktok_url(url) and info_result.returncode != 0:
+                # TikTok 再补一轮：有些链接需要 mobile API / app info 才能稳定拉到正文
+                progress_queue.put(("progress", "[1/4] TikTok 尝试移动端接口兜底..."))
+                tiktok_args = cookie_args + _tiktok_extractor_args()
+                info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + tiktok_args + [url]
+                info_result = subprocess.run(
+                    info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
+                )
             if info_result.returncode != 0:
-                progress_queue.put(("error", _classify_error(info_result.stderr)))
+                progress_queue.put(("error", _classify_download_error(info_result.stderr)))
                 return
 
             lines = info_result.stdout.strip().splitlines()
@@ -595,7 +704,7 @@ def api_download_video():
             dl_stderr = process.stderr.read()
             process.wait()
             if process.returncode != 0:
-                progress_queue.put(("error", _classify_error(dl_stderr)))
+                progress_queue.put(("error", _classify_download_error(dl_stderr)))
                 return
 
             # 文件名兜底（yt-dlp 偶尔自行修改文件名）

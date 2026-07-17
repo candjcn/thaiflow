@@ -135,6 +135,83 @@ class TestGoogleOAuthSecurity:
         assert "SameSite=Lax" in session_cookie
 
 
+class TestTikTokDownloadHelpers:
+    def test_tiktok_extractor_args_include_device_info(self, monkeypatch):
+        import config.settings as _settings
+        import app as app_module
+
+        monkeypatch.setattr(_settings, "TIKTOK_DEVICE_ID", "1234567890123456789")
+        monkeypatch.setattr(_settings, "TIKTOK_APP_INFO", "9876543210987654321")
+
+        args = app_module._tiktok_extractor_args()
+        assert args == [
+            "--extractor-args",
+            "tiktok:app_info=9876543210987654321;device_id=1234567890123456789",
+        ]
+
+    def test_tiktok_dns_error_is_classified(self):
+        import app as app_module
+
+        msg = app_module._classify_download_error(
+            "[vm.tiktok] XYZ: Unable to download webpage: Failed to resolve 'vt.tiktok.com'"
+        )
+        assert "TikTok 链接解析失败" in msg
+
+    def test_tiktok_shortlink_resolution_uses_final_url(self, monkeypatch):
+        import app as app_module
+
+        class _Resp:
+            def __init__(self, final_url):
+                self._final_url = final_url
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def geturl(self):
+                return self._final_url
+
+        monkeypatch.setattr(
+            app_module.urllib.request,
+            "urlopen",
+            lambda req, timeout=15: _Resp("https://www.tiktok.com/@demo/video/123"),
+        )
+        final = app_module._resolve_tiktok_url("https://vt.tiktok.com/abcd/")
+        assert final == "https://www.tiktok.com/@demo/video/123"
+
+    def test_ytdlp_auto_update_runs_in_deploy_env(self, monkeypatch, tmp_path):
+        import app as app_module
+        import config.settings as _settings
+
+        calls = []
+
+        def _check_output(cmd, text=True, timeout=10):
+            calls.append(("check_output", tuple(cmd)))
+            return "2026.03.17"
+
+        def _run(cmd, capture_output=True, text=True, timeout=300):
+            calls.append(("run", tuple(cmd)))
+            class _Result:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+            return _Result()
+
+        monkeypatch.setattr(_settings, "YTDLP_AUTO_UPDATE", True)
+        monkeypatch.setattr(_settings, "YTDLP_AUTO_UPDATE_INTERVAL_HOURS", 24)
+        monkeypatch.setattr(_settings, "YTDLP_UPDATE_STAMP", str(tmp_path / "yt-dlp.stamp"))
+        monkeypatch.setattr(app_module.subprocess, "check_output", _check_output)
+        monkeypatch.setattr(app_module.subprocess, "run", _run)
+        monkeypatch.setattr(app_module.sys, "executable", "/usr/bin/python3")
+
+        app_module._maybe_auto_update_ytdlp()
+
+        assert any(call[0] == "run" and "pip" in call[1] for call in calls)
+        assert (tmp_path / "yt-dlp.stamp").exists()
+
+
 class TestAdminUsers:
     def test_returns_users_list(self, client):
         r = client.get("/api/admin/commerce/users", headers=_auth())

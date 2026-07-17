@@ -51,6 +51,14 @@ DASHSCOPE_UPLOAD_URL = os.getenv(
     "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/files",
 )
 YOUTUBE_COOKIES     = os.getenv("YOUTUBE_COOKIES", "")
+TIKTOK_DEVICE_ID    = os.getenv("TIKTOK_DEVICE_ID", "")
+TIKTOK_APP_INFO     = os.getenv("TIKTOK_APP_INFO", "")
+YTDLP_AUTO_UPDATE   = os.getenv(
+    "YTDLP_AUTO_UPDATE",
+    "true" if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RENDER") else "false",
+).lower() in ("1", "true", "yes")
+YTDLP_AUTO_UPDATE_INTERVAL_HOURS = int(os.getenv("YTDLP_AUTO_UPDATE_INTERVAL_HOURS", "24"))
+YTDLP_UPDATE_STAMP  = str(Path(TMP_DIR) / "yt_dlp_update_stamp.json")
 
 # ── R2 对象存储 ───────────────────────────────────────────────────────────────
 R2_ACCOUNT_ID       = os.getenv("R2_ACCOUNT_ID")
