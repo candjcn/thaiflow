@@ -970,9 +970,10 @@ def api_transcribe():
                 progress_callback=lambda msg: progress_queue.put(("progress", msg)),
             )
 
+            language_code = result.get("language", "")
             # 泰语等无空格语言：用 Gemini 按词加空格，方便学习者阅读
-            lang = (result.get("language") or "")[:2].lower()
-            lang_full = (result.get("language") or "").lower()
+            lang = (language_code or "")[:2].lower()
+            lang_full = (language_code or "").lower()
             if lang == "th" or lang_full == "thai":
                 progress_queue.put(("progress", "正在处理泰语分词..."))
                 # Gemini 负责泰语分词（OpenAI word tokens 是字符级，不适合直接用）
@@ -984,11 +985,10 @@ def api_transcribe():
                 # OpenAI word tokens 用于时间戳对齐（不用于文本拼接）
                 raw_words = result.get("words", [])
                 if raw_words:
-                    align_word_timestamps(result["segments"], raw_words)
+                    align_word_timestamps(result["segments"], raw_words, language_code)
                     result.pop("words", None)
 
             # 构造 Segment 对象（同时清洗内部私有字段 _conf/_source/_logprob 等）
-            language_code = result.get("language", "")
             segments = [Segment.from_internal_dict(s) for s in result.get("segments", [])]
 
             # 生成拼音 / 罗马拼音（中文→带声调拼音，泰语→RTGS）

@@ -748,22 +748,59 @@ def add_word_spacing(texts, language="th"):
         return texts
 
 
-def align_word_timestamps(segments, groq_words):
-    """把 Groq word-level timestamps 对齐到 Gemini 分词后的每个句子。"""
+def _alignment_tokens(text, language=None):
+    """给时间戳对齐使用的 token 列表。
+
+    - 泰语：优先按空格分词；没有空格时用 PyThaiNLP 断词
+    - 其他语言：有空格按空格分；无空格按字符分
+    """
+    if not text:
+        return []
+
+    lang = (language or "")[:2].lower()
+    if lang == "th":
+        if " " in text:
+            return [tk for tk in text.split() if tk.strip()]
+        try:
+            from pythainlp.tokenize import word_tokenize
+            trie = _get_th_trie()
+            return [tk for tk in word_tokenize(text, engine="newmm", custom_dict=trie, keep_whitespace=False) if tk.strip()]
+        except Exception as e:
+            logger.warning(f"[ThaiAlign] 断词失败: {e}，回退为整句 token")
+            return [text]
+
+    if " " in text:
+        return [tk for tk in text.split() if tk.strip()]
+    return [ch for ch in text if ch.strip()]
+
+
+def align_word_timestamps(segments, groq_words, language=None):
+    """把 word-level timestamps 对齐到分词后的每个句子。
+
+    泰语会先做专用断词；其他语言保持原有策略。
+    """
     if not groq_words:
         return
+    lang = (language or "")[:2].lower()
     for seg in segments:
         text = seg.get("text", "")
-        if not text or " " not in text:
-            continue
-        gemini_words = text.split()
         seg_start    = seg["start"]
         seg_end      = seg["end"]
         seg_gwords   = [w for w in groq_words
                         if w["start"] >= seg_start - 0.05 and w["end"] <= seg_end + 0.05]
         if not seg_gwords:
             continue
-        gemini_chars    = list(text.replace(" ", ""))
+        tokens = _alignment_tokens(text, lang)
+        if lang == "th" and (len(tokens) == 1 or tokens == [text]) and " " not in text:
+            source_tokens = [w["word"] for w in seg_gwords if (w.get("word") or "").strip()]
+            if source_tokens and "".join(source_tokens) == text.replace(" ", ""):
+                tokens = source_tokens
+        if not tokens:
+            continue
+        if lang != "th" and len(tokens) == 1 and " " not in text:
+            # 非空格语言若只有一个 token，后续逐字对齐更稳
+            tokens = [ch for ch in text if ch.strip()]
+        gemini_chars    = list("".join(tokens))
         groq_chars      = []
         groq_char_times = []
         for gw in seg_gwords:
@@ -772,7 +809,7 @@ def align_word_timestamps(segments, groq_words):
                 groq_char_times.append((gw["start"], gw["end"]))
         timings = []
         gi = 0
-        for gword in gemini_words:
+        for gword in tokens:
             word_start = None
             word_end   = None
             for ch in gword:
@@ -789,7 +826,7 @@ def align_word_timestamps(segments, groq_words):
             else:
                 timings = []
                 break
-        if timings and len(timings) == len(gemini_words):
+        if timings and len(timings) == len(tokens):
             seg["wordTimings"] = timings
 
 

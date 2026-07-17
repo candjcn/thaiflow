@@ -3131,8 +3131,8 @@ function renderKaraoke(seg) {
     if (Array.isArray(wt) && wt.length === tokens.length) {
         kwTimings = wt;
     } else {
-        // fallback: 按字符数等比分配
-        const weights = tokens.map(tk => Math.max(1, tk.length));
+        // fallback: 泰语不要按字母数推时长；直接按词等权更稳
+        const weights = hasThai ? tokens.map(() => 1) : tokens.map(tk => Math.max(1, tk.length));
         const total = weights.reduce((a, b) => a + b, 0);
         let cum = 0;
         for (const w of weights) {

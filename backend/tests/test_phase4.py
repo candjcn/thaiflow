@@ -245,6 +245,22 @@ class TestTikTokDownloadHelpers:
 
 
 class TestTranscribeErrorHandling:
+    def test_thai_alignment_uses_word_tokens(self):
+        import ai.speech as speech
+
+        segments = [{"text": "สวัสดีครับ", "start": 0.0, "end": 1.2}]
+        groq_words = [
+            {"word": "สวัสดี", "start": 0.0, "end": 0.6},
+            {"word": "ครับ", "start": 0.6, "end": 1.2},
+        ]
+
+        speech.align_word_timestamps(segments, groq_words, language="th")
+
+        assert segments[0]["wordTimings"] == [
+            {"start": 0.0, "end": 0.6},
+            {"start": 0.6, "end": 1.2},
+        ]
+
     def test_transcribe_error_413_is_classified(self):
         import app as app_module
 
