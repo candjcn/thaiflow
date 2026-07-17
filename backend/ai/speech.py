@@ -23,6 +23,8 @@ logger = get_logger(__name__)
 # 超过此时长（秒）自动分段识别；每段时长
 _CHUNK_THRESHOLD = 300   # 5 分钟以上才切段
 _CHUNK_SIZE      = 180   # 每段 3 分钟
+# OpenAI transcription 的保守音频大小上限（留一点余量，避免贴边踩 25MB 限制）
+_OPENAI_MAX_AUDIO_BYTES = 24 * 1024 * 1024
 
 # OpenAI Whisper-1 返回英文全名（"chinese"），Groq 返回 ISO 码（"zh"）
 # 所有读取 result_obj.language 的地方必须经过此表归一化
@@ -76,6 +78,62 @@ def _extract_chunk_wav(video_path, start, duration):
             raise RuntimeError("视频没有音频轨道，无法识别。请检查下载的视频文件是否包含音频。")
         raise RuntimeError(f"分段提取失败: {err[-300:]}")
     return wav_path
+
+
+def _format_openai_too_large_error(wav_path, prefix="音频文件过大"):
+    size_mb = os.path.getsize(wav_path) / (1024 * 1024)
+    return (
+        f"{prefix}（约 {size_mb:.1f}MB，超过 OpenAI 单次上传限制）。"
+        "请缩短片段、改用 Groq/Azure，或把视频切得更短后再试。"
+    )
+
+
+def _is_openai_too_large_error(exc) -> bool:
+    msg = str(exc).lower()
+    status_code = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    return bool(
+        status_code == 413
+        or "request_too_large" in msg
+        or "request entity too large" in msg
+        or "payload too large" in msg
+        or "超过 openai 单次上传限制" in msg
+        or "识别请求过大" in msg
+    )
+
+
+def _transcribe_openai_wav(wav_path):
+    """调用 OpenAI 转写前先做大小检查，并把 413 包装成可执行提示。"""
+    size = os.path.getsize(wav_path)
+    if size > _OPENAI_MAX_AUDIO_BYTES:
+        raise RuntimeError(_format_openai_too_large_error(wav_path))
+
+    try:
+        return openai_provider.transcribe_file(
+            wav_path, timestamp_granularities=["segment", "word"]
+        )
+    except Exception as exc:
+        msg = str(exc)
+        lower = msg.lower()
+        status_code = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+        if (
+            status_code == 413
+            or "request_too_large" in lower
+            or "request entity too large" in lower
+            or "payload too large" in lower
+        ):
+            raise RuntimeError(_format_openai_too_large_error(wav_path, "识别请求过大")) from exc
+        raise
+
+
+def _transcribe_groq_wav(wav_path):
+    result_obj = groq_provider.transcribe_file(
+        wav_path, timestamp_granularities=["segment", "word"]
+    )
+    segments, words, language = _parse_result_obj(result_obj)
+    out = {"segments": segments, "language": language}
+    if words:
+        out["words"] = words
+    return out
 
 
 def _apply_offset(segs_raw, words_raw, offset):
@@ -169,9 +227,7 @@ def transcribe_openai(video_path):
             raise RuntimeError("视频没有音频轨道，无法识别。请检查下载的视频文件是否包含音频。")
         raise RuntimeError(f"音频提取失败: {err[-300:]}")
     try:
-        result_obj = openai_provider.transcribe_file(
-            wav_path, timestamp_granularities=["segment", "word"]
-        )
+        result_obj = _transcribe_openai_wav(wav_path)
         segments, words, language = _parse_result_obj(result_obj)
         out = {"segments": segments, "language": language}
         if words:
@@ -321,9 +377,7 @@ def transcribe_chunked(video_path, provider, duration, progress_callback=None):
         wav_path = _extract_chunk_wav(video_path, start, chunk_dur)
         try:
             if provider == "openai":
-                result_obj = openai_provider.transcribe_file(
-                    wav_path, timestamp_granularities=["segment", "word"]
-                )
+                result_obj = _transcribe_openai_wav(wav_path)
             else:  # groq
                 result_obj = groq_provider.transcribe_file(
                     wav_path, timestamp_granularities=["segment", "word"]
@@ -482,18 +536,26 @@ def transcribe_video(video_path, provider="groq", segment_target=None, progress_
     duration    = get_video_duration(video_path)
     use_chunked = duration > _CHUNK_THRESHOLD and provider in ("openai", "groq")
 
-    if use_chunked:
-        result = transcribe_chunked(video_path, provider, duration, progress_callback)
-    elif provider == "azure":
-        result = transcribe_azure(video_path)
-    elif provider == "combined":
-        result = transcribe_combined(video_path)
-    elif provider == "openai":
-        result = transcribe_openai(video_path)
-    elif provider == "qwen":
-        result = transcribe_qwen(video_path)
-    else:
-        result = transcribe_groq(video_path)
+    try:
+        if use_chunked:
+            result = transcribe_chunked(video_path, provider, duration, progress_callback)
+        elif provider == "azure":
+            result = transcribe_azure(video_path)
+        elif provider == "combined":
+            result = transcribe_combined(video_path)
+        elif provider == "openai":
+            result = transcribe_openai(video_path)
+        elif provider == "qwen":
+            result = transcribe_qwen(video_path)
+        else:
+            result = transcribe_groq(video_path)
+    except Exception as exc:
+        if provider == "openai" and _is_openai_too_large_error(exc):
+            if progress_callback:
+                progress_callback("OpenAI 单次上传超限，自动切换 Groq 分段识别...")
+            result = transcribe_chunked(video_path, "groq", duration, progress_callback)
+        else:
+            raise
 
     if provider == "openai":
         _retry_low_confidence_with_groq(
@@ -512,16 +574,22 @@ def transcribe_video(video_path, provider="groq", segment_target=None, progress_
 
 def transcribe_slice(audio_path, provider="groq", language=None):
     """识别一个音频切片，返回拼接后的完整文本。"""
-    if provider == "azure":
-        result = transcribe_azure_slice(audio_path, language)
-    elif provider == "gemini":
-        result = transcribe_gemini_slice(audio_path, language)
-    elif provider == "openai":
-        result = transcribe_openai(audio_path)
-    elif provider == "qwen":
-        result = qwen_provider.transcribe_file(audio_path)
-    else:
-        result = transcribe_groq(audio_path)
+    try:
+        if provider == "azure":
+            result = transcribe_azure_slice(audio_path, language)
+        elif provider == "gemini":
+            result = transcribe_gemini_slice(audio_path, language)
+        elif provider == "openai":
+            result = transcribe_openai(audio_path)
+        elif provider == "qwen":
+            result = qwen_provider.transcribe_file(audio_path)
+        else:
+            result = _transcribe_groq_wav(audio_path)
+    except Exception as exc:
+        if provider == "openai" and _is_openai_too_large_error(exc):
+            result = _transcribe_groq_wav(audio_path)
+        else:
+            raise
     text = " ".join(seg["text"] for seg in result["segments"]).strip()
     return {"text": text, "language": result.get("language", "unknown")}
 

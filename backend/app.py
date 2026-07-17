@@ -376,12 +376,72 @@ def _resolve_tiktok_url(url):
 
 def _tiktok_extractor_args():
     """给 yt-dlp 的 TikTok extractor 传入 mobile API 兜底参数。"""
-    device_id = settings.TIKTOK_DEVICE_ID or "".join(str(random.randint(0, 9)) for _ in range(19))
-    app_info = settings.TIKTOK_APP_INFO or device_id
+    global _TIKTOK_DEVICE_ID_CACHE, _TIKTOK_APP_INFO_CACHE
+    try:
+        device_id = _TIKTOK_DEVICE_ID_CACHE
+        app_info = _TIKTOK_APP_INFO_CACHE
+    except NameError:
+        _TIKTOK_DEVICE_ID_CACHE = settings.TIKTOK_DEVICE_ID or "1234567890123456789"
+        _TIKTOK_APP_INFO_CACHE = settings.TIKTOK_APP_INFO or _TIKTOK_DEVICE_ID_CACHE
+        device_id = _TIKTOK_DEVICE_ID_CACHE
+        app_info = _TIKTOK_APP_INFO_CACHE
     return [
         "--extractor-args",
         f"tiktok:app_info={app_info};device_id={device_id}",
     ]
+
+
+def _select_tiktok_format_id(info_text: str) -> str | None:
+    """从 yt-dlp -J 输出里挑一个稳定可下载的 TikTok format_id。
+
+    规则：
+    1) 优先选 h264 + aac 的 mp4；
+    2) 排除 download/watermarked；
+    3) 选 filesize 最小的可用流（通常更稳，也更省流量）。
+    """
+    try:
+        start = info_text.find("{")
+        if start < 0:
+            return None
+        data = json.loads(info_text[start:])
+    except Exception:
+        return None
+
+    formats = data.get("formats") or []
+    candidates = []
+    for f in formats:
+        format_id = f.get("format_id") or ""
+        if not format_id or format_id == "download":
+            continue
+        if f.get("ext") != "mp4":
+            continue
+        if f.get("vcodec") != "h264" or f.get("acodec") != "aac":
+            continue
+        size = f.get("filesize") or f.get("filesize_approx") or float("inf")
+        try:
+            size = float(size)
+        except Exception:
+            size = float("inf")
+        candidates.append((size, format_id))
+
+    if not candidates:
+        for f in formats:
+            format_id = f.get("format_id") or ""
+            if not format_id or format_id == "download":
+                continue
+            if f.get("ext") != "mp4":
+                continue
+            size = f.get("filesize") or f.get("filesize_approx") or float("inf")
+            try:
+                size = float(size)
+            except Exception:
+                size = float("inf")
+            candidates.append((size, format_id))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0])
+    return candidates[0][1]
 
 
 def _maybe_auto_update_ytdlp() -> None:
@@ -440,10 +500,13 @@ def _classify_download_error(stderr: str) -> str:
     """把 yt-dlp/ffmpeg stderr 归入 5 大错误类，返回用户友好提示。"""
     e = stderr
     lower_e = e.lower()
-    if _is_tiktok_url(e) and any(k in lower_e for k in ("failed to resolve", "unable to download webpage", "name or service not known", "nodename nor servname")):
+    if "tiktok" in lower_e and any(k in lower_e for k in ("failed to resolve", "unable to download webpage", "name or service not known", "nodename nor servname")):
         return ("🌐 TikTok 链接解析失败（可能是短链、DNS 或站点反爬）。"
                 "请先在浏览器里展开成 tiktok.com 原始链接再试；"
                 "如果仍失败，请稍后重试。")
+    if "tiktok" in lower_e and "universal data for rehydration" in lower_e:
+        return ("🌐 TikTok 页面结构变更或反爬拦截，当前抽取器无法提取视频信息。"
+                "请稍后重试，或先在浏览器中打开该链接后再复制原始视频页链接。")
     # 🔒 版权保护
     if "DRM" in e or "drm" in e:
         return "🔒 该视频受版权保护（DRM），无法下载。请换一个视频试试。"
@@ -471,6 +534,25 @@ def _classify_download_error(stderr: str) -> str:
     # ❓ 未知错误：截取最后 120 字符，去掉路径和 ANSI 码
     snippet = re.sub(r'\x1b\[[0-9;]*m', '', e).strip()[-120:]
     return f"❓ 下载失败：{snippet}"
+
+
+def _classify_transcribe_error(err) -> str:
+    """把识别/转写错误翻译成可执行的用户提示。"""
+    e = str(err)
+    lower_e = e.lower()
+    if any(k in lower_e for k in ("request_too_large", "request entity too large", "payload too large")) or "413" in lower_e:
+        return (
+            "📦 识别请求过大：当前音频或切片超出所选引擎允许的上传大小。"
+            "请缩短片段后重试，或切换 Groq / Azure。"
+        )
+    if any(k in lower_e for k in ("no audio", "matches no streams", "does not contain any stream", "invalid argument")):
+        return "🔇 视频没有音频轨道，无法进行语音识别。请检查下载的视频文件是否包含音频。"
+    if any(k in lower_e for k in ("timeout", "timed out")):
+        return "⏱️ 识别超时：请稍后重试，或改用更短的片段。"
+    if "api_key" in lower_e and "not configured" in lower_e:
+        return f"⚙️ {e}"
+    snippet = re.sub(r'\x1b\[[0-9;]*m', '', e).strip()[-160:]
+    return f"❓ 识别失败：{snippet}"
 
 
 _init_commerce()
@@ -560,6 +642,7 @@ def api_download_video():
     def do_download():
         try:
             download_url = url
+            tiktok_format_id = None
             # ── 抖音专用下载通道 ─────────────────────────────────────
             if _is_douyin_url(download_url):
                 import tempfile, shutil
@@ -598,7 +681,8 @@ def api_download_video():
             extra_args = list(cookie_args)
             if _is_tiktok_url(download_url):
                 download_url = _resolve_tiktok_url(download_url)
-                extra_args += _tiktok_extractor_args()
+                tiktok_args = _tiktok_extractor_args()
+                extra_args += tiktok_args
 
             # ── [1/4] 获取视频信息 ───────────────────────────────────
             progress_queue.put(("progress", "[1/4] 正在获取视频信息..."))
@@ -643,7 +727,7 @@ def api_download_video():
             if _is_tiktok_url(download_url) and info_result.returncode != 0:
                 # TikTok 再补一轮：有些链接需要 mobile API / app info 才能稳定拉到正文
                 progress_queue.put(("progress", "[1/4] TikTok 尝试移动端接口兜底..."))
-                tiktok_args = cookie_args + _tiktok_extractor_args()
+                tiktok_args = cookie_args + tiktok_args
                 info_cmd = ["yt-dlp", "--no-download", "--print", "title", "--print", "duration"] + tiktok_args + [download_url]
                 info_result = subprocess.run(
                     info_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
@@ -651,6 +735,14 @@ def api_download_video():
             if info_result.returncode != 0:
                 progress_queue.put(("error", _classify_download_error(info_result.stderr)))
                 return
+
+            if _is_tiktok_url(download_url):
+                probe_cmd = ["yt-dlp", "-J", "--skip-download"] + extra_args + [download_url]
+                probe_result = subprocess.run(
+                    probe_cmd, capture_output=True, text=True, timeout=settings.TIMEOUT_YTDLP
+                )
+                if probe_result.returncode == 0:
+                    tiktok_format_id = _select_tiktok_format_id(probe_result.stdout)
 
             lines = info_result.stdout.strip().splitlines()
             title = lines[0] if lines else ""
@@ -679,10 +771,14 @@ def api_download_video():
 
             # ── [2/4] 下载视频 ───────────────────────────────────────
             progress_queue.put(("progress", f"[2/4] 正在下载：{title}"))
-            # 格式优先级：mp4视频+m4a音频 → mp4视频+任意音频 → 任意视频+任意音频 → best
+            # TikTok：优先选稳定的 h264/mp4 progressive 流，避免默认最佳流 404
+            # 其他平台：保持原有优先级
+            format_selector = tiktok_format_id or (
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/bestvideo+bestaudio/best"
+            )
             dl_cmd = [
                 "yt-dlp",
-                "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/bestvideo+bestaudio/best",
+                "-f", format_selector,
                 "--merge-output-format", "mp4",
                 "--no-playlist",
                 "-o", output_path,
@@ -917,7 +1013,7 @@ def api_transcribe():
             if not is_anon:
                 ctx.release_on_error(e)
             log_event("transcribe_fail", video=video_name, provider=provider, error=str(e)[:200])
-            progress_queue.put(("error", str(e)))
+            progress_queue.put(("error", _classify_transcribe_error(e)))
 
     threading.Thread(target=do_transcribe, daemon=True).start()
 
@@ -1024,7 +1120,7 @@ def api_retranscribe():
             return jsonify({"text": text, "translation": translation})
         except Exception as e:
             ctx.release_on_error(e)
-            return jsonify({"error": str(e)}), 502
+            return jsonify({"error": _classify_transcribe_error(e)}), 502
     finally:
         if os.path.exists(wav_path):
             os.remove(wav_path)
@@ -1103,7 +1199,7 @@ def api_retranscribe_audio():
             ctx.release_on_error(e)  # type: ignore[name-defined]
         except Exception:
             pass
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": _classify_transcribe_error(e)}), 502
     finally:
         for p in (raw_path, wav_path):
             if os.path.exists(p):

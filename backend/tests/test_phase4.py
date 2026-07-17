@@ -142,12 +142,17 @@ class TestTikTokDownloadHelpers:
 
         monkeypatch.setattr(_settings, "TIKTOK_DEVICE_ID", "1234567890123456789")
         monkeypatch.setattr(_settings, "TIKTOK_APP_INFO", "9876543210987654321")
+        monkeypatch.delattr(app_module, "_TIKTOK_DEVICE_ID_CACHE", raising=False)
+        monkeypatch.delattr(app_module, "_TIKTOK_APP_INFO_CACHE", raising=False)
 
         args = app_module._tiktok_extractor_args()
         assert args == [
             "--extractor-args",
             "tiktok:app_info=9876543210987654321;device_id=1234567890123456789",
         ]
+
+        args2 = app_module._tiktok_extractor_args()
+        assert args2 == args
 
     def test_tiktok_dns_error_is_classified(self):
         import app as app_module
@@ -156,6 +161,14 @@ class TestTikTokDownloadHelpers:
             "[vm.tiktok] XYZ: Unable to download webpage: Failed to resolve 'vt.tiktok.com'"
         )
         assert "TikTok 链接解析失败" in msg
+
+    def test_tiktok_universal_data_error_is_classified(self):
+        import app as app_module
+
+        msg = app_module._classify_download_error(
+            "[TikTok] Unable to extract universal data for rehydration; please report this issue"
+        )
+        assert "TikTok 页面结构变更或反爬拦截" in msg
 
     def test_tiktok_shortlink_resolution_uses_final_url(self, monkeypatch):
         import app as app_module
@@ -180,6 +193,20 @@ class TestTikTokDownloadHelpers:
         )
         final = app_module._resolve_tiktok_url("https://vt.tiktok.com/abcd/")
         assert final == "https://www.tiktok.com/@demo/video/123"
+
+    def test_tiktok_format_probe_prefers_h264_progressive(self):
+        import app as app_module
+
+        sample = {
+            "formats": [
+                {"format_id": "download", "ext": "mp4", "vcodec": "h264", "acodec": "aac"},
+                {"format_id": "bytevc1_1080p_1320963-1", "ext": "mp4", "vcodec": "h265", "acodec": "aac", "filesize": 39645463},
+                {"format_id": "h264_540p_748415-0", "ext": "mp4", "vcodec": "h264", "acodec": "aac", "filesize": 22146927},
+                {"format_id": "h264_540p_1478862-0", "ext": "mp4", "vcodec": "h264", "acodec": "aac", "filesize": 43762137},
+            ]
+        }
+        msg = json.dumps(sample, ensure_ascii=False)
+        assert app_module._select_tiktok_format_id(msg) == "h264_540p_748415-0"
 
     def test_ytdlp_auto_update_runs_in_deploy_env(self, monkeypatch, tmp_path):
         import app as app_module
@@ -210,6 +237,72 @@ class TestTikTokDownloadHelpers:
 
         assert any(call[0] == "run" and "pip" in call[1] for call in calls)
         assert (tmp_path / "yt-dlp.stamp").exists()
+
+
+class TestTranscribeErrorHandling:
+    def test_transcribe_error_413_is_classified(self):
+        import app as app_module
+
+        msg = app_module._classify_transcribe_error(
+            "Error code:413-['error':{'message':'Request Entity Too Large','type':'invalid_request_error','code':'request_too_large'}]"
+        )
+        assert "识别请求过大" in msg
+
+    def test_openai_transcribe_rejects_oversized_wav_before_api_call(self, monkeypatch, tmp_path):
+        import ai.speech as speech
+
+        wav_path = tmp_path / "oversize.wav"
+        wav_path.write_bytes(b"0")
+
+        def _safe_wav_path(_video_path, _suffix):
+            return str(wav_path)
+
+        class _Result:
+            returncode = 0
+            stderr = ""
+
+        called = {"api": False}
+
+        def _transcribe_file(*args, **kwargs):
+            called["api"] = True
+            raise AssertionError("OpenAI API should not be called when file is oversized")
+
+        monkeypatch.setattr(speech, "_safe_wav_path", _safe_wav_path)
+        monkeypatch.setattr(speech.subprocess, "run", lambda *a, **k: _Result())
+        monkeypatch.setattr(speech.os.path, "getsize", lambda p: 25 * 1024 * 1024 + 1)
+        monkeypatch.setattr(speech.openai_provider, "transcribe_file", _transcribe_file)
+
+        with pytest.raises(RuntimeError) as exc:
+            speech.transcribe_openai("/tmp/video.mp4")
+
+        assert "超过 OpenAI 单次上传限制" in str(exc.value)
+        assert called["api"] is False
+
+    def test_transcribe_video_falls_back_to_groq_when_openai_is_too_large(self, monkeypatch):
+        import ai.speech as speech
+
+        calls = []
+
+        monkeypatch.setattr(speech, "get_video_duration", lambda _path: 10)
+        monkeypatch.setattr(speech, "transcribe_openai", lambda _path: (_ for _ in ()).throw(RuntimeError("识别请求过大（约 30.0MB，超过 OpenAI 单次上传限制）")))
+        monkeypatch.setattr(speech, "transcribe_chunked", lambda video_path, provider, duration, progress_callback=None: calls.append((video_path, provider, duration)) or {"segments": [{"text": "ok", "start": 0, "end": 1}], "language": "en"})
+        monkeypatch.setattr(speech, "fix_timestamps", lambda segs: segs)
+        monkeypatch.setattr(speech, "normalize_segments", lambda segs, target: segs)
+
+        result = speech.transcribe_video("/tmp/video.mp4", provider="openai")
+
+        assert result["segments"][0]["text"] == "ok"
+        assert calls and calls[0][1] == "groq"
+
+    def test_transcribe_slice_falls_back_to_groq_when_openai_is_too_large(self, monkeypatch):
+        import ai.speech as speech
+
+        monkeypatch.setattr(speech, "transcribe_openai", lambda _path: (_ for _ in ()).throw(RuntimeError("request_too_large")))
+        monkeypatch.setattr(speech, "_transcribe_groq_wav", lambda _path: {"segments": [{"text": "ok", "start": 0, "end": 1}], "language": "en"})
+
+        result = speech.transcribe_slice("/tmp/slice.wav", provider="openai")
+
+        assert result["text"] == "ok"
 
 
 class TestAdminUsers:
