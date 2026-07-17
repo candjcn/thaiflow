@@ -4932,6 +4932,16 @@ async function initAuth() {
             if (avatarEl)  avatarEl.alt             = data.name || "";
             if (nameEl)    nameEl.textContent        = data.name || "";
             if (emailEl)   emailEl.textContent       = data.email || "";
+            // 登录后尝试绑定待处理的邀请码（幂等，服务端已绑定则忽略）
+            const pendingRef = localStorage.getItem("pending-ref");
+            if (pendingRef) {
+                fetch("/api/auth/bind-referral", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ref_code: pendingRef }),
+                }).catch(() => {});
+                localStorage.removeItem("pending-ref");
+            }
         } else {
             if (loginBtn)  loginBtn.style.display  = "";
             if (userEl)    userEl.style.display     = "none";
@@ -4966,6 +4976,13 @@ async function initAuth() {
 }
 
 // ========== 启动初始化（必须在文件末尾，所有 let/const 声明之后执行）==========
+
+// 捕获邀请码参数（访客点击邀请链接时保存到 localStorage，登录后绑定）
+(function captureRefCode() {
+    const ref = new URLSearchParams(location.search).get("ref");
+    if (ref) localStorage.setItem("pending-ref", ref.trim().toUpperCase());
+})();
+
 I18N.init();
 renderFavorites();
 loadLocalVideoList();

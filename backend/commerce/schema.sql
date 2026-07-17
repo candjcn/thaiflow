@@ -148,6 +148,21 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
+-- ── 邀请返利 ──────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS referrals (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    referrer_id       TEXT NOT NULL,           -- 邀请人 user_id
+    referred_id       TEXT NOT NULL UNIQUE,    -- 被邀请人 user_id（唯一，一人只能有一个邀请人）
+    ref_code          TEXT NOT NULL,           -- 使用的邀请码
+    status            TEXT NOT NULL DEFAULT 'pending',  -- pending | activated
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    activated_at      TEXT,                    -- 首次 AI 使用时间
+    referrer_rewarded INTEGER NOT NULL DEFAULT 0,
+    referred_rewarded INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (referrer_id) REFERENCES users(user_id),
+    FOREIGN KEY (referred_id) REFERENCES users(user_id)
+);
+
 -- ── 索引 ──────────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user     ON usage_logs (user_id, requested_at);
 CREATE INDEX IF NOT EXISTS idx_wallet_tx_wallet    ON wallet_transactions (wallet_id, created_at);
@@ -155,3 +170,5 @@ CREATE INDEX IF NOT EXISTS idx_permission_user     ON permission_grants (user_id
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user  ON user_subscriptions (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user       ON user_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_identities_user     ON user_identities (user_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer  ON referrals (referrer_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_ref_code  ON referrals (ref_code);

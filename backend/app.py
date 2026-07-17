@@ -30,6 +30,7 @@ from commerce.usage_log import (
     get_log as _log_get, get_user_history as _log_user_history,
     get_summary as _log_summary,
 )
+import commerce.referral as _referral
 from commerce.rate_limit import (
     check_rate_limit as _check_rate_limit,
     increment as _rl_increment,
@@ -792,6 +793,8 @@ def api_transcribe():
                 )
             log_event("transcribe", video=video_name, provider=provider,
                       language=language_code, segments=len(segments))
+            if not is_anon:
+                _referral.try_activate_referral(db, _uid)
             progress_queue.put(("done", result))
         except Exception as e:
             if not is_anon:
@@ -1053,6 +1056,8 @@ def api_tts_content():
             handle = ctx.get_handle(preferred_provider=provider_used)
             ctx.settle({"char_count": len(prompt)}, handle.provider_id, handle.model_id, latency_ms)
         log_event("tts_content_gen", language=language, prompt_len=len(prompt))
+        if not is_anon:
+            _referral.try_activate_referral(db, _uid)
         return jsonify({"text": text})
     except Exception as e:
         if not is_anon:
@@ -1211,6 +1216,8 @@ def api_tts_generate():
                           input_mode=mode,
                           split_provider=tts_meta.get("split_provider", "unknown"),
                           translate_provider=translate_provider)
+                if not is_anon:
+                    _referral.try_activate_referral(db, _uid)
 
                 result = subtitle_file.to_json()
                 result["name"] = audio_name
@@ -1588,6 +1595,7 @@ def api_pronounce():
         latency_ms = int((_time.time() - t0) * 1000)
         if not is_anon:
             ctx.settle({"duration_seconds": duration_estimate}, "azure", "azure-speech", latency_ms)
+            _referral.try_activate_referral(get_db(), _uid)
         return jsonify(result)
     except Exception as e:
         if not is_anon:
@@ -2117,6 +2125,55 @@ def auth_me():
         "name":        user["name"],
         "picture_url": user["picture_url"],
     })
+
+
+# ── 邀请返利 API ──────────────────────────────────────────────────────────────
+
+@app.route("/api/auth/bind-referral", methods=["POST"])
+def api_bind_referral():
+    """登录后绑定邀请关系（幂等：已绑定则静默忽略）。"""
+    db   = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"ok": False, "error": "not logged in"}), 401
+
+    data     = request.get_json(silent=True) or {}
+    ref_code = (data.get("ref_code") or "").strip()
+    if not ref_code:
+        return jsonify({"ok": False, "error": "missing ref_code"}), 400
+
+    bound = _referral.bind_referral(db, user["user_id"], ref_code)
+    return jsonify({"ok": True, "bound": bound})
+
+
+@app.route("/api/user/ref-code")
+def api_user_ref_code():
+    """返回当前用户的专属邀请码。"""
+    db   = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "not logged in"}), 401
+    return jsonify({"code": _referral.get_ref_code(user["user_id"])})
+
+
+@app.route("/api/user/referrals")
+def api_user_referrals():
+    """返回当前用户的邀请统计（Profile 页用）。"""
+    db   = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "not logged in"}), 401
+    return jsonify(_referral.get_referral_stats(db, user["user_id"]))
+
+
+@app.route("/api/admin/referrals")
+def api_admin_referrals():
+    """管理员查看全局邀请统计。"""
+    key = request.args.get("key", "")
+    if key != settings.ADMIN_KEY:
+        return jsonify({"error": "unauthorized"}), 401
+    db = get_db()
+    return jsonify(_referral.get_admin_stats(db))
 
 
 if __name__ == "__main__":

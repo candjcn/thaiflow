@@ -63,6 +63,21 @@ def init_db(path: str = ":memory:") -> sqlite3.Connection:
             FOREIGN KEY (user_id) REFERENCES users(user_id))""",
         "CREATE INDEX IF NOT EXISTS idx_sessions_user   ON user_sessions (user_id)",
         "CREATE INDEX IF NOT EXISTS idx_identities_user ON user_identities (user_id)",
+        # Referral system
+        """CREATE TABLE IF NOT EXISTS referrals (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            referrer_id       TEXT NOT NULL,
+            referred_id       TEXT NOT NULL UNIQUE,
+            ref_code          TEXT NOT NULL,
+            status            TEXT NOT NULL DEFAULT 'pending',
+            created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+            activated_at      TEXT,
+            referrer_rewarded INTEGER NOT NULL DEFAULT 0,
+            referred_rewarded INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (referrer_id) REFERENCES users(user_id),
+            FOREIGN KEY (referred_id) REFERENCES users(user_id))""",
+        "CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_id)",
+        "CREATE INDEX IF NOT EXISTS idx_referrals_ref_code  ON referrals (ref_code)",
     ]:
         try:
             conn.execute(_migration)

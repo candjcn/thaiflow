@@ -229,6 +229,9 @@ async function loadProfile() {
     renderCredits(wallet);
     renderRateLimits(rate);
     renderHistory(usage.history || []);
+
+    // 邀请统计（已登录才显示）
+    loadReferralCard().catch(() => {});
 }
 
 // ── 偏好设置 ────────────────────────────────────────────────────
@@ -368,6 +371,52 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     location.href = "/app";
 });
+
+// ── 邀请返利卡片 ─────────────────────────────────────────────────
+async function loadReferralCard() {
+    const section = document.getElementById("referralSection");
+    if (!section) return;
+
+    const [codeRes, statsRes] = await Promise.all([
+        fetch("/api/user/ref-code"),
+        fetch("/api/user/referrals"),
+    ]);
+    if (!codeRes.ok || !statsRes.ok) return;
+
+    const { code }   = await codeRes.json();
+    const stats      = await statsRes.json();
+    const refUrl     = `${location.origin}/app?ref=${code}`;
+
+    const input      = document.getElementById("referralLinkInput");
+    const copyBtn    = document.getElementById("referralCopyBtn");
+    const statInv    = document.getElementById("refStatInvited");
+    const statAct    = document.getElementById("refStatActivated");
+    const statCred   = document.getElementById("refStatCredits");
+
+    if (input)    input.value              = refUrl;
+    if (statInv)  statInv.textContent      = stats.total_invited   ?? 0;
+    if (statAct)  statAct.textContent      = stats.total_activated ?? 0;
+    if (statCred) statCred.textContent     = stats.credits_earned  ?? 0;
+
+    if (copyBtn) {
+        copyBtn.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(refUrl);
+            } catch (_) {
+                // 兼容旧浏览器
+                if (input) { input.select(); document.execCommand("copy"); }
+            }
+            copyBtn.textContent = "已复制！";
+            copyBtn.classList.add("copied");
+            setTimeout(() => {
+                copyBtn.textContent = "复制链接";
+                copyBtn.classList.remove("copied");
+            }, 2000);
+        });
+    }
+
+    section.style.display = "";
+}
 
 // ── Init ─────────────────────────────────────────────────────────
 I18N.init();
