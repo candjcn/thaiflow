@@ -39,6 +39,7 @@ AZURE_SPEECH_KEY    = os.getenv("AZURE_SPEECH_KEY", "")
 AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "")
 GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")
 DEEPSEEK_API_KEY    = os.getenv("DEEPSEEK_API_KEY")
+DASHSCOPE_API_KEY   = os.getenv("DASHSCOPE_API_KEY", "")   # Qwen3-ASR（阿里云）
 YOUTUBE_COOKIES     = os.getenv("YOUTUBE_COOKIES", "")
 
 # ── R2 对象存储 ───────────────────────────────────────────────────────────────
@@ -91,6 +92,7 @@ TIMEOUT_GEMINI_TTS        = 120
 TIMEOUT_GEMINI_COVER      = 90
 TIMEOUT_GEMINI_TEST       = 20
 TIMEOUT_GEMINI_MODELS     = 10
+TIMEOUT_QWEN_ASR          = 300   # Qwen3-ASR 轮询最长等待（秒）
 TIMEOUT_DEEPSEEK          = 15
 TIMEOUT_TRANSLATE         = 30
 TIMEOUT_ROMANIZE          = 30

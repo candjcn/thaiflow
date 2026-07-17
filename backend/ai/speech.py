@@ -16,6 +16,7 @@ from ai.provider import groq as groq_provider
 from ai.provider import openai_whisper as openai_provider
 from ai.provider import azure as azure_provider
 from ai.provider import gemini as gemini_provider
+from ai.provider import qwen_asr as qwen_provider
 
 logger = get_logger(__name__)
 
@@ -211,6 +212,37 @@ def transcribe_azure(video_path):
 
 def transcribe_azure_slice(wav_path, language=None):
     return azure_provider.transcribe_slice(wav_path, language)
+
+
+# ── Qwen3-ASR ────────────────────────────────────────────────────────────────────
+
+def transcribe_qwen(video_path):
+    """
+    使用 Qwen3-ASR（DashScope）转写视频。
+    流程：提取 WAV → 上传 DashScope → 异步转写 → 轮询 → 解析词级时间戳。
+    """
+    wav_path = _safe_wav_path(video_path, "qwen")
+    cmd = [
+        "ffmpeg", "-y", "-i", video_path,
+        "-map", "0:a", "-ar", "16000", "-ac", "1", "-sample_fmt", "s16",
+        wav_path,
+    ]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        err = r.stderr
+        if "matches no streams" in err or "does not contain any stream" in err or "Invalid argument" in err:
+            raise RuntimeError("视频没有音频轨道，无法识别。请检查下载的视频文件是否包含音频。")
+        raise RuntimeError(f"音频提取失败: {err[-300:]}")
+    try:
+        result = qwen_provider.transcribe_file(wav_path)
+        # result 已是内部格式：{"segments": [...], "language": str, "words": [...]}
+        # 语言码用 _LANG_NAME_TO_ISO 再过一次归一化（Qwen 可能返回全名）
+        lang = result.get("language", "unknown")
+        result["language"] = _LANG_NAME_TO_ISO.get(lang.lower(), lang)
+        return result
+    finally:
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
 
 
 def get_azure_result(video_path):
@@ -445,7 +477,7 @@ def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
 
 def transcribe_video(video_path, provider="groq", segment_target=None, progress_callback=None):
     """对视频进行语音识别和断句。
-    provider: "groq" | "azure" | "combined" | "openai"
+    provider: "groq" | "azure" | "combined" | "openai" | "qwen"
     """
     duration    = get_video_duration(video_path)
     use_chunked = duration > _CHUNK_THRESHOLD and provider in ("openai", "groq")
@@ -458,6 +490,8 @@ def transcribe_video(video_path, provider="groq", segment_target=None, progress_
         result = transcribe_combined(video_path)
     elif provider == "openai":
         result = transcribe_openai(video_path)
+    elif provider == "qwen":
+        result = transcribe_qwen(video_path)
     else:
         result = transcribe_groq(video_path)
 
@@ -484,6 +518,8 @@ def transcribe_slice(audio_path, provider="groq", language=None):
         result = transcribe_gemini_slice(audio_path, language)
     elif provider == "openai":
         result = transcribe_openai(audio_path)
+    elif provider == "qwen":
+        result = qwen_provider.transcribe_file(audio_path)
     else:
         result = transcribe_groq(audio_path)
     text = " ".join(seg["text"] for seg in result["segments"]).strip()

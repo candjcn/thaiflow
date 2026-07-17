@@ -62,5 +62,11 @@ class CloudflareAI:
     BASE_URL    = "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}"
 
 
+class Qwen:
+    ASR_API_KEY = settings.DASHSCOPE_API_KEY
+    # qwen3-asr-flash-filetrans：异步文件转写，支持词级时间戳，最长 12h/2GB
+    ASR_MODEL   = "qwen3-asr-flash-filetrans"
+
+
 class Youdao:
     BASE_URL = "https://confucius4-tts.youdao.com/gradio"
