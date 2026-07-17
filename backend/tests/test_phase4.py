@@ -136,6 +136,11 @@ class TestGoogleOAuthSecurity:
 
 
 class TestTikTokDownloadHelpers:
+    def test_download_limit_is_five_minutes(self):
+        import app as app_module
+
+        assert app_module._MAX_DOWNLOAD_DURATION_SECONDS == 300
+
     def test_tiktok_extractor_args_include_device_info(self, monkeypatch):
         import config.settings as _settings
         import app as app_module

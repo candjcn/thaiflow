@@ -73,6 +73,7 @@ def _commerce_context(db, user_id: str, capability: str, extra: dict = None) -> 
     )
 
 logger = get_logger(__name__)
+_MAX_DOWNLOAD_DURATION_SECONDS = 300  # 5 分钟；当前仅保证短视频稳定下载
 
 app = Flask(__name__)
 CORS(app)
@@ -749,12 +750,12 @@ def api_download_video():
             # 下载前检查时长
             try:
                 duration_sec = float(lines[1]) if len(lines) > 1 else 0
-                if duration_sec > 600:
+                if duration_sec > _MAX_DOWNLOAD_DURATION_SECONDS:
                     mins = int(duration_sec // 60)
                     secs = int(duration_sec % 60)
                     progress_queue.put(("error",
-                        f"⏰ 视频时长 {mins}:{secs:02d}，超过 10 分钟限制。"
-                        f"ReelSpeak 专为短视频设计，建议截取片段后再上传。"))
+                        f"⏰ 视频时长 {mins}:{secs:02d}，超过 5 分钟限制。"
+                        f"当前仅支持 5 分钟以内的视频，请截取更短片段后再试。"))
                     return
             except (ValueError, IndexError):
                 pass
@@ -917,11 +918,11 @@ def api_transcribe():
 
     def do_transcribe():
         import time as _time
-        # 检查视频时长，超过 10 分钟拒绝识别
+        # 检查视频时长，超过 5 分钟拒绝识别
         duration = get_video_duration(video_path)
-        if duration > 600:
+        if duration > _MAX_DOWNLOAD_DURATION_SECONDS:
             mins = int(duration // 60)
-            progress_queue.put(("error", f"视频时长 {mins} 分钟，超过 10 分钟限制。ReelSpeak 专为短视频设计，建议截取片段后再上传。"))
+            progress_queue.put(("error", f"视频时长 {mins} 分钟，超过 5 分钟限制。当前仅支持 5 分钟以内的视频，请截取更短片段后再上传。"))
             return
 
         db = get_db()
