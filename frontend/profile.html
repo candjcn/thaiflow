@@ -782,29 +782,29 @@
 
     <!-- Block 5: Referral -->
     <div class="section" id="referralSection" style="display:none;">
-        <div class="section-title">邀请好友</div>
+        <div class="section-title" data-i18n="profile.referral.title">Invite Friends</div>
         <div class="referral-card">
             <div class="referral-desc">
-                好友通过你的链接注册并首次使用 AI 功能后：<br>
-                <strong>你获得 100 Credits · 好友获得 100 Credits 欢迎礼</strong><br>
-                好友每次充值，你额外获得 <strong>20% 积分返利</strong>，永久有效
+                <span data-i18n="profile.referral.desc">After a friend signs up via your link and uses an AI feature for the first time:</span><br>
+                <strong data-i18n="profile.referral.reward">You get 100 Credits · Friend gets 100 Credits welcome gift</strong><br>
+                <span data-i18n="profile.referral.cashback">Every time your friend tops up, you earn an extra 20% credits cashback — forever</span>
             </div>
             <div class="referral-link-row">
-                <input class="referral-link-input" id="referralLinkInput" readonly value="加载中…">
-                <button class="referral-copy-btn" id="referralCopyBtn">复制链接</button>
+                <input class="referral-link-input" id="referralLinkInput" readonly value="…">
+                <button class="referral-copy-btn" id="referralCopyBtn" data-i18n="profile.referral.copy">Copy Link</button>
             </div>
             <div class="referral-stats">
                 <div class="referral-stat">
                     <div class="referral-stat-value" id="refStatInvited">—</div>
-                    <div class="referral-stat-label">已邀请</div>
+                    <div class="referral-stat-label" data-i18n="profile.referral.invited">Invited</div>
                 </div>
                 <div class="referral-stat">
                     <div class="referral-stat-value" id="refStatActivated">—</div>
-                    <div class="referral-stat-label">已激活</div>
+                    <div class="referral-stat-label" data-i18n="profile.referral.activated">Activated</div>
                 </div>
                 <div class="referral-stat">
                     <div class="referral-stat-value" id="refStatCredits">—</div>
-                    <div class="referral-stat-label">获得积分</div>
+                    <div class="referral-stat-label" data-i18n="profile.referral.credits">Credits Earned</div>
                 </div>
             </div>
         </div>

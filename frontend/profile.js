@@ -406,10 +406,10 @@ async function loadReferralCard() {
                 // 兼容旧浏览器
                 if (input) { input.select(); document.execCommand("copy"); }
             }
-            copyBtn.textContent = "已复制！";
+            copyBtn.textContent = I18N.t("profile.referral.copied");
             copyBtn.classList.add("copied");
             setTimeout(() => {
-                copyBtn.textContent = "复制链接";
+                copyBtn.textContent = I18N.t("profile.referral.copy");
                 copyBtn.classList.remove("copied");
             }, 2000);
         });
