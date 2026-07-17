@@ -77,6 +77,7 @@ PORT = int(os.getenv("PORT", "5000"))
 GEMINI_TEXT_MODEL  = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 GEMINI_TTS_MODEL   = os.getenv("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview")
 GEMINI_IMAGE_MODEL = os.getenv("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-lite-image")
+OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-transcribe")
 
 # ── Commerce ──────────────────────────────────────────────────────────────────
 COMMERCE_DB_PATH = os.getenv("COMMERCE_DB_PATH", str(BACKEND_DIR / "commerce.db"))

@@ -299,6 +299,60 @@ class TestTranscribeErrorHandling:
         assert "超过 OpenAI 单次上传限制" in str(exc.value)
         assert called["api"] is False
 
+    def test_openai_gpt4o_merges_text_with_groq_timestamps(self, monkeypatch):
+        import ai.speech as speech
+
+        monkeypatch.setattr(speech.providers.OpenAI, "TRANSCRIBE_MODEL", "gpt-4o-transcribe")
+        monkeypatch.setattr(speech.providers.Groq, "API_KEY", "dummy")
+        monkeypatch.setattr(speech.os.path, "getsize", lambda _path: 1024)
+        monkeypatch.setattr(speech.openai_provider, "transcribe_text", lambda _path: "hello there world")
+        monkeypatch.setattr(
+            speech,
+            "_transcribe_groq_wav",
+            lambda _path: {
+                "segments": [
+                    {"index": 0, "text": "hello", "start": 0.0, "end": 1.0},
+                    {"index": 1, "text": "world", "start": 1.0, "end": 2.0},
+                ],
+                "language": "en",
+                "words": [
+                    {"word": "hello", "start": 0.0, "end": 1.0},
+                    {"word": "world", "start": 1.0, "end": 2.0},
+                ],
+            },
+        )
+
+        result = speech._transcribe_openai_wav("/tmp/sample.wav")
+
+        assert result["segments"][0]["text"] == "hello there"
+        assert result["segments"][1]["text"] == "world"
+        assert result["words"][0]["word"] == "hello"
+
+    def test_transcribe_video_skips_retry_for_gpt4o(self, monkeypatch):
+        import ai.speech as speech
+
+        monkeypatch.setattr(speech.providers.OpenAI, "TRANSCRIBE_MODEL", "gpt-4o-transcribe")
+        monkeypatch.setattr(speech, "get_video_duration", lambda _path: 10)
+        monkeypatch.setattr(
+            speech,
+            "transcribe_openai",
+            lambda _path: {
+                "segments": [{"text": "ok", "start": 0.0, "end": 1.0, "_logprob": -1.2}],
+                "language": "en",
+            },
+        )
+        monkeypatch.setattr(speech, "fix_timestamps", lambda segs: segs)
+        monkeypatch.setattr(speech, "normalize_segments", lambda segs, target: segs)
+        monkeypatch.setattr(
+            speech,
+            "_retry_low_confidence_with_groq",
+            lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not retry")),
+        )
+
+        result = speech.transcribe_video("/tmp/video.mp4", provider="openai")
+
+        assert result["segments"][0]["text"] == "ok"
+
     def test_transcribe_video_falls_back_to_groq_when_openai_is_too_large(self, monkeypatch):
         import ai.speech as speech
 

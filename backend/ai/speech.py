@@ -10,6 +10,7 @@ import re
 import subprocess
 import tempfile
 import threading
+import unicodedata
 
 from config import providers, settings, get_logger
 from ai.provider import groq as groq_provider
@@ -38,6 +39,11 @@ _LANG_NAME_TO_ISO = {
     "romanian": "ro", "hungarian": "hu", "greek": "el", "hebrew": "he",
     "ukrainian": "uk", "catalan": "ca", "croatian": "hr",
 }
+
+
+def _openai_uses_gpt4o_transcribe():
+    model = (getattr(providers.OpenAI, "TRANSCRIBE_MODEL", "") or "").lower()
+    return model.startswith("gpt-4o-transcribe")
 
 
 # ── 工具函数 ────────────────────────────────────────────────────────────────────
@@ -108,6 +114,32 @@ def _transcribe_openai_wav(wav_path):
         raise RuntimeError(_format_openai_too_large_error(wav_path))
 
     try:
+        if _openai_uses_gpt4o_transcribe():
+            text = openai_provider.transcribe_text(wav_path)
+            text = text if isinstance(text, str) else str(text or "")
+            text = text.strip()
+
+            if providers.Groq.API_KEY:
+                groq_result = _transcribe_groq_wav(wav_path)
+                segments = _project_text_to_segments(groq_result["segments"], text)
+                out = {"segments": segments, "language": groq_result.get("language", "unknown")}
+                if groq_result.get("words"):
+                    out["words"] = groq_result["words"]
+                return out
+
+            duration = get_video_duration(wav_path)
+            if text:
+                return {
+                    "segments": [{
+                        "index": 0,
+                        "text": text,
+                        "start": 0.0,
+                        "end": round(duration, 2) if duration else 0.0,
+                    }],
+                    "language": "unknown",
+                }
+            return {"segments": [], "language": "unknown"}
+
         return openai_provider.transcribe_file(
             wav_path, timestamp_granularities=["segment", "word"]
         )
@@ -213,7 +245,7 @@ def transcribe_groq(video_path):
 # ── OpenAI ──────────────────────────────────────────────────────────────────────
 
 def transcribe_openai(video_path):
-    """使用 OpenAI whisper-1。提取 WAV 音频（<25MB）避免超限。"""
+    """使用 OpenAI 转写。提取 WAV 音频（<25MB）避免超限。"""
     wav_path = _safe_wav_path(video_path, "openai")
     cmd = [
         "ffmpeg", "-y", "-i", video_path,
@@ -228,6 +260,8 @@ def transcribe_openai(video_path):
         raise RuntimeError(f"音频提取失败: {err[-300:]}")
     try:
         result_obj = _transcribe_openai_wav(wav_path)
+        if isinstance(result_obj, dict):
+            return result_obj
         segments, words, language = _parse_result_obj(result_obj)
         out = {"segments": segments, "language": language}
         if words:
@@ -236,6 +270,80 @@ def transcribe_openai(video_path):
     finally:
         if os.path.exists(wav_path):
             os.remove(wav_path)
+
+
+def _alignment_normalize(text):
+    """返回用于跨模型对齐的规范化文本，以及规范化字符对应的原始下标。"""
+    norm_chars = []
+    raw_indices = []
+    for idx, ch in enumerate(text or ""):
+        if ch.isspace():
+            continue
+        cat = unicodedata.category(ch)
+        if cat and cat[0] in ("L", "M", "N"):
+            norm_chars.append(ch.casefold())
+            raw_indices.append(idx)
+    return "".join(norm_chars), raw_indices
+
+
+def _project_text_to_segments(source_segments, target_text):
+    """用 LCS 把目标文本投影到现有分段骨架上。"""
+    if not source_segments:
+        return source_segments
+
+    source_norm = []
+    source_ranges = []
+    for seg in source_segments:
+        seg_norm, _ = _alignment_normalize(seg.get("text", ""))
+        start = len(source_norm)
+        source_norm.extend(seg_norm)
+        source_ranges.append((start, len(source_norm)))
+
+    target_norm, target_raw_map = _alignment_normalize(target_text or "")
+    if not source_norm or not target_norm:
+        return [dict(seg) for seg in source_segments]
+
+    pairs = lcs_alignment("".join(source_norm), target_norm)
+    if not pairs:
+        return [dict(seg) for seg in source_segments]
+
+    src_to_tgt = {src_idx: tgt_idx for src_idx, tgt_idx in pairs}
+    seg_targets = []
+    for src_start, src_end in source_ranges:
+        mapped = [src_to_tgt[i] for i in range(src_start, src_end) if i in src_to_tgt]
+        seg_targets.append(mapped)
+
+    next_starts = [None] * len(seg_targets)
+    next_known = None
+    for idx in range(len(seg_targets) - 1, -1, -1):
+        next_starts[idx] = next_known
+        if seg_targets[idx]:
+            next_known = min(seg_targets[idx])
+
+    projected = []
+
+    for seg, mapped, next_start in zip(source_segments, seg_targets, next_starts):
+        new_seg = dict(seg)
+
+        if mapped:
+            tgt_start = max(0, min(mapped))
+            if next_start is not None and next_start > tgt_start:
+                tgt_end = min(len(target_norm), next_start)
+            else:
+                tgt_end = min(len(target_norm), max(mapped) + 1)
+            if tgt_start < tgt_end:
+                raw_start = target_raw_map[tgt_start]
+                raw_end = target_raw_map[tgt_end - 1] + 1
+                if raw_start < raw_end:
+                    slice_text = target_text[raw_start:raw_end].strip()
+                    if slice_text:
+                        new_seg["text"] = slice_text
+                        projected.append(new_seg)
+                        continue
+
+        projected.append(new_seg)
+
+    return projected
 
 
 # ── Azure ────────────────────────────────────────────────────────────────────────
@@ -378,16 +486,19 @@ def transcribe_chunked(video_path, provider, duration, progress_callback=None):
         try:
             if provider == "openai":
                 result_obj = _transcribe_openai_wav(wav_path)
+                segs_raw  = result_obj["segments"] or []
+                words_raw = result_obj.get("words") or []
+                lang      = result_obj.get("language", "unknown")
             else:  # groq
                 result_obj = groq_provider.transcribe_file(
                     wav_path, timestamp_granularities=["segment", "word"]
                 )
-            segs_raw  = result_obj.segments or []
-            words_raw = result_obj.words or []
-            lang      = _LANG_NAME_TO_ISO.get(
-                (getattr(result_obj, "language", None) or "unknown").lower(),
-                getattr(result_obj, "language", "unknown") or "unknown",
-            )
+                segs_raw  = result_obj.segments or []
+                words_raw = result_obj.words or []
+                lang      = _LANG_NAME_TO_ISO.get(
+                    (getattr(result_obj, "language", None) or "unknown").lower(),
+                    getattr(result_obj, "language", "unknown") or "unknown",
+                )
         finally:
             if os.path.exists(wav_path):
                 os.remove(wav_path)
@@ -557,7 +668,7 @@ def transcribe_video(video_path, provider="groq", segment_target=None, progress_
         else:
             raise
 
-    if provider == "openai":
+    if provider == "openai" and not _openai_uses_gpt4o_transcribe():
         _retry_low_confidence_with_groq(
             video_path, result["segments"],
             language=result.get("language", "unknown"),

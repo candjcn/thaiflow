@@ -15,6 +15,7 @@ class Groq:
 class OpenAI:
     API_KEY       = settings.OPENAI_API_KEY
     WHISPER_MODEL = "whisper-1"
+    TRANSCRIBE_MODEL = settings.OPENAI_TRANSCRIBE_MODEL
 
 
 class Gemini:
