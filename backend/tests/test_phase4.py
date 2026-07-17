@@ -82,6 +82,59 @@ class TestAdminAuth:
         assert r.status_code == 200
 
 
+# ── Google OAuth 安全边界 ────────────────────────────────────────────────────
+
+class TestGoogleOAuthSecurity:
+    def test_login_sets_secure_state_cookie(self, client, monkeypatch):
+        import config.settings as _settings
+        monkeypatch.setattr(_settings, "AUTH_COOKIE_SECURE", True)
+
+        r = client.get("/api/auth/google/login")
+
+        assert r.status_code == 302
+        cookie = r.headers["Set-Cookie"]
+        assert "oauth_state=" in cookie
+        assert "HttpOnly" in cookie
+        assert "Secure" in cookie
+        assert "SameSite=Lax" in cookie
+
+    def test_invalid_state_is_rejected_before_token_exchange(self, client, monkeypatch):
+        import app as app_module
+        exchange = MagicMock()
+        monkeypatch.setattr(app_module._auth, "google_exchange_code", exchange)
+        client.set_cookie("oauth_state", "expected-state", domain="localhost")
+
+        r = client.get(
+            "/api/auth/google/callback?code=authorization-code&state=wrong-state"
+        )
+
+        assert r.status_code == 302
+        assert r.headers["Location"] == "/app?auth_error=invalid_state"
+        exchange.assert_not_called()
+        assert "oauth_state=;" in r.headers["Set-Cookie"]
+
+    def test_valid_state_creates_secure_session_cookie(self, client, monkeypatch):
+        import app as app_module
+        import config.settings as _settings
+        monkeypatch.setattr(_settings, "AUTH_COOKIE_SECURE", True)
+        monkeypatch.setattr(app_module._auth, "google_exchange_code", lambda _code: {
+            "sub": "google-user-1", "email": "user@example.com",
+            "name": "User", "picture": "",
+        })
+        client.set_cookie("oauth_state", "expected-state", domain="localhost")
+
+        r = client.get(
+            "/api/auth/google/callback?code=authorization-code&state=expected-state"
+        )
+
+        assert r.status_code == 302
+        cookies = r.headers.getlist("Set-Cookie")
+        session_cookie = next(cookie for cookie in cookies if cookie.startswith("session="))
+        assert "HttpOnly" in session_cookie
+        assert "Secure" in session_cookie
+        assert "SameSite=Lax" in session_cookie
+
+
 class TestAdminUsers:
     def test_returns_users_list(self, client):
         r = client.get("/api/admin/commerce/users", headers=_auth())

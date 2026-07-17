@@ -2063,7 +2063,7 @@ def auth_google_login():
     resp.headers["Location"] = url
     resp.set_cookie(
         "oauth_state", state,
-        httponly=True, samesite="Lax", secure=False,
+        httponly=True, samesite="Lax", secure=settings.AUTH_COOKIE_SECURE,
         max_age=600,   # 10 分钟有效
     )
     return resp
@@ -2086,9 +2086,12 @@ def auth_google_callback():
     if not code:
         return redirect("/app?auth_error=no_code")
     if not state or state != cookie_state:
-        # state 不匹配时跳过校验继续（避免 cookie 被阻拦导致登录失败）
-        logger.warning(f"[auth] state mismatch — continuing anyway "
-                       f"(url={state!r} cookie={cookie_state!r})")
+        # state 是 OAuth 回调的 CSRF 防护边界，不匹配时绝不能继续登录。
+        logger.warning("[auth] rejected callback with invalid OAuth state")
+        resp = make_response("", 302)
+        resp.headers["Location"] = "/app?auth_error=invalid_state"
+        resp.delete_cookie("oauth_state")
+        return resp
 
     try:
         user_info = _auth.google_exchange_code(code)
@@ -2112,7 +2115,7 @@ def auth_google_callback():
     resp.headers["Location"] = "/app"
     resp.set_cookie(
         _auth.COOKIE_NAME, token,
-        httponly=True, samesite="Lax", secure=False,
+        httponly=True, samesite="Lax", secure=settings.AUTH_COOKIE_SECURE,
         max_age=_auth.SESSION_DAYS * 86400,
     )
     resp.delete_cookie("oauth_state")

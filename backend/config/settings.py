@@ -80,6 +80,12 @@ GOOGLE_REDIRECT_URI  = os.getenv(
     "GOOGLE_REDIRECT_URI",
     "https://getreelspeak.com/api/auth/google/callback",
 )
+# OAuth Cookie 默认只通过 HTTPS 传输。本地 HTTP 开发只需将
+# GOOGLE_REDIRECT_URI 配为 http://localhost:...，或显式设为 false。
+AUTH_COOKIE_SECURE = os.getenv(
+    "AUTH_COOKIE_SECURE",
+    "true" if GOOGLE_REDIRECT_URI.startswith("https://") else "false",
+).lower() in ("1", "true", "yes")
 
 # ── 新用户欢迎礼包 ─────────────────────────────────────────────────────────────
 NEW_USER_GIFT_CREDITS = int(os.getenv("NEW_USER_GIFT_CREDITS", "300"))
