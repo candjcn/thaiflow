@@ -22,7 +22,7 @@
 - 移动端判定：宽度 ≤1024px 或触屏（平板也用手机 UI）；CSS 用 `max-width: 1024px, (pointer: coarse)`
 
 ## 部署与运行
-- **线上**: https://reelspeak.517lang.com （正式地址，Cloudflare 仅 DNS 直连 Railway；备用 https://thaiflow.up.railway.app）
+- **线上**: https://getreelspeak.com （正式地址，Cloudflare 仅 DNS 直连 Railway；备用 https://thaiflow.up.railway.app）
 - GitHub `candjcn/thaiflow`，push main 自动部署到 Railway
 - **本地**: `python backend/app.py`，端口 5000；手机局域网测试 `http://192.168.1.3:5000`
 - **HTTPS 限制**: 录音（麦克风）和原生全屏在本地 HTTP 下不可用，必须用 Railway 线上测

@@ -51,7 +51,7 @@ videoplayer/
 
 | 项目 | 值 |
 |------|----|
-| 线上地址 | https://reelspeak.517lang.com |
+| 线上地址 | https://getreelspeak.com |
 | 备用地址 | https://thaiflow.up.railway.app |
 | 平台 | Railway（push main 自动部署） |
 | GitHub | candjcn/thaiflow |

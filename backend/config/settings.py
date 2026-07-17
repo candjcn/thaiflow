@@ -67,7 +67,7 @@ GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI  = os.getenv(
     "GOOGLE_REDIRECT_URI",
-    "https://reelspeak.517lang.com/api/auth/google/callback",
+    "https://getreelspeak.com/api/auth/google/callback",
 )
 
 # ── 新用户欢迎礼包 ─────────────────────────────────────────────────────────────

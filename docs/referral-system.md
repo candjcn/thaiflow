@@ -12,7 +12,7 @@
 用户在 **Profile 页**看到自己的专属邀请链接，一键复制：
 
 ```
-https://reelspeak.517lang.com/app?ref=ABC12345
+https://getreelspeak.com/app?ref=ABC12345
 ```
 
 邀请码是根据用户 ID 派生的 8 位字母数字码（base62 哈希），固定不变，不需要单独生成和存储。
@@ -210,7 +210,7 @@ def settle_purchase(user_id: str, credits_purchased: int):
 │  • 好友每次充值，你额外获得 20% 积分回扣        │
 │                                         │
 │  你的专属链接：                             │
-│  [https://reelspeak.517lang.com/app?... ]│
+│  [https://getreelspeak.com/app?... ]│
 │                           [复制链接]      │
 │                                         │
 │  已邀请 3 人 · 已激活 2 人 · 共获 700 Credits│

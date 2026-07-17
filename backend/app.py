@@ -431,7 +431,7 @@ def api_download_video():
         if "instagram" in e.lower() and ("empty media response" in e or "cookies" in e):
             return ("🚫 Instagram 需要登录才能下载。\n"
                     "• 电脑端：请确保在浏览器（Chrome/Firefox）中已登录 Instagram，"
-                    "并使用本地版 ReelSpeak（非 reelspeak.517lang.com）下载。\n"
+                    "并使用本地版 ReelSpeak（非 getreelspeak.com）下载。\n"
                     "• 手机端：请在手机上保存视频后直接上传。")
         # 🚫 需要登录/会员/防盗链
         if any(k in e for k in ("Sign in", "log in", "login", "member", "403", "Forbidden",
@@ -516,7 +516,7 @@ def api_download_video():
                         progress_queue.put(("error",
                             "🚫 Instagram 需要登录才能下载。\n"
                             "• 电脑端：请确保在浏览器（Chrome/Firefox）中已登录 Instagram，"
-                            "并使用本地版 ReelSpeak（非 reelspeak.517lang.com）下载。\n"
+                            "并使用本地版 ReelSpeak（非 getreelspeak.com）下载。\n"
                             "• 手机端：请在手机上保存视频后直接上传。"))
                         return
                 else:
