@@ -1016,9 +1016,6 @@ async function downloadFromUrl() {
             }
         }
 
-        // 刷新视频列表
-        await loadVideoList();
-
         // 下载成功后自动开始识别翻译
         if (downloadedName) {
             videoUrlInput.value = "";
@@ -2456,7 +2453,6 @@ function backToSelect() {
     // Reset mobile overlays
     mOverlaysInitialized = false;
     hideMobileOverlays();
-    loadVideoList();
     loadLocalVideoList();
     renderFavorites();
 }
@@ -4971,7 +4967,6 @@ async function initAuth() {
 
 // ========== 启动初始化（必须在文件末尾，所有 let/const 声明之后执行）==========
 I18N.init();
-loadVideoList();
 renderFavorites();
 loadLocalVideoList();
 
