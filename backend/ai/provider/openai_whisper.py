@@ -1,6 +1,6 @@
 """
-OpenAI Whisper Provider
-唯一职责：通过 OpenAI SDK 调用 whisper-1 API。
+OpenAI Transcription Provider
+唯一职责：通过 OpenAI SDK 调用转写 API。
 文件命名为 openai_whisper.py 以避免与顶层 openai 包名冲突。
 """
 from config import providers, settings, get_logger

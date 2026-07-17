@@ -27,7 +27,7 @@ _CHUNK_SIZE      = 180   # 每段 3 分钟
 # OpenAI transcription 的保守音频大小上限（留一点余量，避免贴边踩 25MB 限制）
 _OPENAI_MAX_AUDIO_BYTES = 24 * 1024 * 1024
 
-# OpenAI Whisper-1 返回英文全名（"chinese"），Groq 返回 ISO 码（"zh"）
+# Whisper-style 返回英文全名（"chinese"），Groq 返回 ISO 码（"zh"）
 # 所有读取 result_obj.language 的地方必须经过此表归一化
 _LANG_NAME_TO_ISO = {
     "chinese": "zh", "english": "en", "japanese": "ja", "korean": "ko",
