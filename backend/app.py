@@ -118,6 +118,19 @@ def clean_video_title(title):
     return t or "video"
 
 
+def _unique_video_output_path(base_path):
+    """避免同名文件误复用旧视频；存在时自动追加序号后缀。"""
+    if not os.path.exists(base_path):
+        return base_path
+    root, ext = os.path.splitext(base_path)
+    idx = 2
+    while True:
+        candidate = f"{root} ({idx}){ext}"
+        if not os.path.exists(candidate):
+            return candidate
+        idx += 1
+
+
 def subtitle_path(video_name):
     """视频对应的字幕 JSON 文件路径"""
     base = os.path.splitext(video_name)[0]
@@ -761,14 +774,8 @@ def api_download_video():
                 pass
 
             safe_title = clean_video_title(title)
-            output_path = os.path.join(VIDEOS_DIR, safe_title + ".mp4")
-
-            if os.path.exists(output_path):
-                progress_queue.put(("done", {
-                    "name": safe_title + ".mp4",
-                    "message": "视频已存在，无需重复下载",
-                }))
-                return
+            output_path = _unique_video_output_path(os.path.join(VIDEOS_DIR, safe_title + ".mp4"))
+            output_name = os.path.basename(output_path)
 
             # ── [2/4] 下载视频 ───────────────────────────────────────
             progress_queue.put(("progress", f"[2/4] 正在下载：{title}"))
@@ -833,7 +840,7 @@ def api_download_video():
                 normalize_audio(output_path)
 
                 progress_queue.put(("done", {
-                    "name": safe_title + ".mp4",
+                    "name": output_name,
                     "message": "下载完成",
                 }))
             else:

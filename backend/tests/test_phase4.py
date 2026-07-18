@@ -199,6 +199,15 @@ class TestTikTokDownloadHelpers:
         final = app_module._resolve_tiktok_url("https://vt.tiktok.com/abcd/")
         assert final == "https://www.tiktok.com/@demo/video/123"
 
+    def test_unique_video_output_path_appends_suffix(self, tmp_path):
+        import app as app_module
+
+        base = tmp_path / "same-title.mp4"
+        base.write_bytes(b"old")
+
+        second = app_module._unique_video_output_path(str(base))
+        assert second.endswith("same-title (2).mp4")
+
     def test_tiktok_format_probe_prefers_h264_progressive(self):
         import app as app_module
 

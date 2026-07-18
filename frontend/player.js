@@ -1,4 +1,4 @@
-const APP_REV = "20260708i"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260718a"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 设备 UUID（匿名用户限流指纹） ==========
 function getDeviceId() {
@@ -2089,6 +2089,9 @@ async function openLocalFiles() {
 function showPlayerWithVideo(videoName) {
     currentVideoName = videoName;
     localVideoFile = null; // 切换到服务器视频时清除本地文件引用
+    segments = [];
+    language = "";
+    currentIndex = -1;
     switchMode("normal");
     videoContainer.classList.remove("follow-active");
     isLoading = true;
@@ -2111,6 +2114,11 @@ function showPlayerWithVideo(videoName) {
     setStep("step2", "");
     setStep("step3", "");
     setTip("");
+    renderSentenceList();
+    updateRomanizationState();
+    subtitleOriginal.textContent = "";
+    subtitleRomanization.textContent = "";
+    subtitleTranslation.textContent = "";
 }
 
 // ========== 朗读课程封面 ==========
@@ -2274,6 +2282,7 @@ async function startLoading(videoName, subtitleOnly) {
         if (data.error) {
             setStep("step3", "error");
             setTip(t("status.translateFail") + data.error + t("status.translateRetry"));
+            return;
         } else {
             (data.translations || []).forEach((tr) => {
                 if (segments[tr.index]) segments[tr.index].translation = tr.translation;
@@ -2284,6 +2293,7 @@ async function startLoading(videoName, subtitleOnly) {
     } catch (e) {
         setStep("step3", "error");
         setTip(t("status.translateFail") + e.message + t("status.translateRetry"));
+        return;
     }
 
     // 保存字幕
