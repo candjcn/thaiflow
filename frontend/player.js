@@ -1763,6 +1763,13 @@ function lessonsPut(metaRec, mediaRec) {
     });
 }
 
+function lessonMetaPut(metaRec) {
+    return lessonsOp(["meta"], "readwrite", tx => {
+        tx.objectStore("meta").put(metaRec);
+        return null;
+    });
+}
+
 function lessonsDelete(name) {
     return lessonsOp(["meta", "media"], "readwrite", tx => {
         tx.objectStore("meta").delete(name);
@@ -2500,7 +2507,10 @@ function finishLoading() {
 async function syncCurrentSubtitleSnapshot() {
     if (!currentVideoName || segments.length === 0) return;
 
-    const subtitleJson = JSON.stringify({ segments, language }, null, 2);
+    // 保存开始时冻结快照，避免后续切换课程或其他异步入库改写全局 segments。
+    const videoName = currentVideoName;
+    const subtitleSnapshot = JSON.parse(JSON.stringify({ segments, language }));
+    const subtitleJson = JSON.stringify(subtitleSnapshot, null, 2);
 
     // 桌面端：如果用户已经选过保存目录，就把同名 JSON 一并覆盖掉。
     // 这样“重新识别 → 保存”后，重新打开本地视频时读到的就是最新字幕，
@@ -2510,7 +2520,7 @@ async function syncCurrentSubtitleSnapshot() {
             const dir = await getSaveDir(false);
             if (dir) {
                 const jsonBlob = new Blob([subtitleJson], { type: "application/json" });
-                const jsonName = currentVideoName.replace(/\.[^.]+$/, "") + ".json";
+                const jsonName = videoName.replace(/\.[^.]+$/, "") + ".json";
                 await writeFileToDir(dir, jsonName, jsonBlob);
                 loadLocalVideoList();
                 return;
@@ -2521,10 +2531,21 @@ async function syncCurrentSubtitleSnapshot() {
     }
 
     // 移动端本地库：把最新字幕回写到 IndexedDB 课程库。
-    // 这里复用现有课程入库逻辑，确保列表里重新点开时拿到的是最新字幕快照。
+    // 只原子更新轻量 meta，不走整门课程入库，避免并发媒体/缩略图写入覆盖新字幕。
     if (isMobile()) {
         try {
-            await saveLessonToLibrary(localVideoFile || null, null);
+            const existingMeta = await metaGet(videoName);
+            if (existingMeta) {
+                await lessonMetaPut({
+                    ...existingMeta,
+                    subtitle: subtitleSnapshot,
+                    savedAt: Date.now(),
+                });
+                loadLocalVideoList();
+            } else if (currentVideoName === videoName) {
+                // 非课程库来源首次保存时，仍需创建完整课程记录。
+                await saveLessonToLibrary(localVideoFile || null, null);
+            }
         } catch (e) {
             console.error("同步本地课程库失败:", e);
         }
