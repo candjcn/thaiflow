@@ -565,6 +565,62 @@ class TestTranscribeErrorHandling:
         assert fallback_from == "groq"
         assert calls == [("groq", "th")]
 
+    def test_retranscribe_attempt_starts_from_next_provider(self, monkeypatch):
+        import app as app_module
+        from ai.recognition_mode import resolve_recognition_mode
+
+        calls = []
+
+        def fake_transcribe_slice(_path, provider="groq", language=None):
+            calls.append(provider)
+            return {"text": "different result", "language": "th"}
+
+        class DummyCtx:
+            def get_handle(self, preferred_provider=None):
+                return SimpleNamespace(provider_id=preferred_provider, model_id=f"{preferred_provider}-model")
+
+        monkeypatch.setattr(app_module, "transcribe_slice", fake_transcribe_slice)
+        result, handle, _, _ = app_module._attempt_transcription_with_mode(
+            DummyCtx(),
+            resolve_recognition_mode("accuracy"),
+            audio_path="/tmp/slice.wav",
+            language="th",
+            candidate_offset=1,
+        )
+
+        assert result["text"] == "different result"
+        assert handle.provider_id == "openai"
+        assert calls == ["openai"]
+
+    def test_retranscribe_skips_repeated_text(self, monkeypatch):
+        import app as app_module
+        from ai.recognition_mode import resolve_recognition_mode
+
+        calls = []
+
+        def fake_transcribe_slice(_path, provider="groq", language=None):
+            calls.append(provider)
+            text = "same result" if provider == "openai" else "new result"
+            return {"text": text, "language": "th"}
+
+        class DummyCtx:
+            def get_handle(self, preferred_provider=None):
+                return SimpleNamespace(provider_id=preferred_provider, model_id=f"{preferred_provider}-model")
+
+        monkeypatch.setattr(app_module, "transcribe_slice", fake_transcribe_slice)
+        result, handle, _, _ = app_module._attempt_transcription_with_mode(
+            DummyCtx(),
+            resolve_recognition_mode("accuracy"),
+            audio_path="/tmp/slice.wav",
+            language="th",
+            candidate_offset=1,
+            rejected_texts=["same result"],
+        )
+
+        assert result["text"] == "new result"
+        assert handle.provider_id == "gemini"
+        assert calls == ["openai", "gemini"]
+
     def test_transcribe_video_falls_back_to_chunked_when_groq_is_too_large(self, monkeypatch):
         import ai.speech as speech
 

@@ -4591,6 +4591,9 @@ const we = {
     lastX: 0,
     pinch0: null,
     playing: false,
+    retransKey: "",
+    retransResults: [],
+    retransAttempt: 0,
 };
 
 // ---- 峰值提取与缓存 ----
@@ -4644,6 +4647,9 @@ async function openWaveEditor(i) {
     we.idx = i;
     we.start = seg.start;
     we.end = seg.end;
+    we.retransKey = "";
+    we.retransResults = [];
+    we.retransAttempt = 0;
     we.viewStart = Math.max(0, seg.start - 3);
     we.viewEnd = seg.end + 3;
     we.playing = false;
@@ -4996,7 +5002,15 @@ weBtnRetrans.addEventListener("click", async () => {
     weBtnRetrans.disabled = true;
     const recognitionMode = "accuracy";
     const modeInfo = getRecognitionModeInfo(recognitionMode);
-    weStatus.textContent = `${modeInfo.label} · ${t("we.recognizing")}`;
+    const retransKey = `${currentVideoName}|${we.idx}|${we.start.toFixed(2)}|${we.end.toFixed(2)}`;
+    if (we.retransKey !== retransKey) {
+        we.retransKey = retransKey;
+        we.retransResults = [];
+        we.retransAttempt = 0;
+    }
+    const attempt = Math.min(we.retransAttempt, 3);
+    const attemptLabels = ["Groq", "OpenAI", "Gemini", "多引擎综合校正"];
+    weStatus.textContent = `${attemptLabels[attempt]} · ${t("we.recognizing")}`;
 
     const langNameMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
     const shortLang = (language || "").slice(0, 2).toLowerCase();
@@ -5011,6 +5025,8 @@ weBtnRetrans.addEventListener("click", async () => {
             const formData = new FormData();
             formData.append("audio", wavBlob, "slice.wav");
             formData.append("recognition_mode", recognitionMode);
+            formData.append("retranscribe_attempt", String(attempt));
+            formData.append("prior_results", JSON.stringify(we.retransResults));
             formData.append("translate", "true");
             formData.append("language", shortLang);
             formData.append("source_lang", langNameMap[shortLang] || "外语");
@@ -5029,6 +5045,8 @@ weBtnRetrans.addEventListener("click", async () => {
                     start: we.start,
                     end: we.end,
                     recognition_mode: recognitionMode,
+                    retranscribe_attempt: attempt,
+                    prior_results: we.retransResults,
                     translate: true,
                     language: shortLang,
                     source_lang: langNameMap[shortLang] || "外语",
@@ -5047,9 +5065,14 @@ weBtnRetrans.addEventListener("click", async () => {
         delete seg.wordTimings; // 单句重识别没有词级时间戳，清除旧数据
         renderSentenceList();
         if (we.idx === currentIndex) updateSubtitle(seg);
+        if (data.text && !we.retransResults.includes(data.text)) {
+            we.retransResults.push(data.text);
+        }
+        we.retransAttempt += 1;
         const detectedLang = getLanguageLabel(data.language || shortLang);
         const providerLabel = data.provider ? ` · ${data.provider}` : "";
-        weStatus.textContent = `✓ ${modeInfo.label} · ${detectedLang}${providerLabel}${data.text ? " · " + data.text : ""}`;
+        const resultLabel = attempt >= 3 ? "多引擎综合校正" : modeInfo.label;
+        weStatus.textContent = `✓ ${resultLabel} · ${detectedLang}${providerLabel}${data.text ? " · " + data.text : ""}`;
         await saveSubtitle();
     } catch (e) {
         weStatus.textContent = "❌ " + e.message;

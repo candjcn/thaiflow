@@ -119,3 +119,25 @@ def word_define(word, source_lang, target_lang, context=""):
     if content.startswith("```"):
         content = content.split("\n", 1)[1].rsplit("```", 1)[0]
     return json.loads(content.strip())
+
+
+def choose_transcription(candidates, language):
+    """从多个 ASR 候选中选出或修正最可信的原文。"""
+    texts = [str(text).strip() for text in candidates if str(text).strip()]
+    if not texts:
+        return ""
+    if len(texts) == 1:
+        return texts[0]
+    prompt = (
+        f"以下是同一段{language or '外语'}音频由不同语音识别引擎产生的候选文本。\n"
+        "请结合各候选的共同部分，返回最可能准确的原文；可以修正明显错字，但不要翻译、解释或添加内容。\n"
+        "只返回最终原文。\n\n" +
+        "\n".join(f"候选{i + 1}: {text}" for i, text in enumerate(texts))
+    )
+    try:
+        return deepseek_provider.chat(
+            prompt, temperature=0.1, timeout=settings.TIMEOUT_TRANSLATE
+        ).strip()
+    except Exception as exc:
+        logger.warning(f"[ASR仲裁] DeepSeek 失败 ({exc})，降级到 Gemini")
+        return _call_gemini(prompt, language or "外语", language or "外语").strip()

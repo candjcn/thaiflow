@@ -18,7 +18,7 @@ from ai.recognition_mode import (
     list_visible_modes,
     get_accuracy_provider_candidates,
 )
-from ai.translation import translate_segments, word_define as _word_define
+from ai.translation import translate_segments, word_define as _word_define, choose_transcription
 from ai.tts import generate_audio_lesson, generate_cover_image, ocr_image, detect_input_mode, generate_tts_content
 from ai.pronunciation import assess_pronunciation
 from ai.romanize import generate_romanization
@@ -87,6 +87,8 @@ def _attempt_transcription_with_mode(
     segment_target=None,
     progress_callback=None,
     language=None,
+    candidate_offset=0,
+    rejected_texts=None,
 ):
     """
     按识别模式尝试 provider，必要时自动回退。
@@ -118,6 +120,11 @@ def _attempt_transcription_with_mode(
                 language_unaware.append(candidate)
         candidates = language_aware + language_unaware
 
+    if audio_path is not None and candidate_offset:
+        offset = min(max(0, int(candidate_offset)), len(candidates) - 1)
+        candidates = candidates[offset:]
+    rejected = {" ".join(str(text).split()).casefold() for text in (rejected_texts or []) if text}
+
     for idx, candidate in enumerate(candidates):
         handle = ctx.get_handle(preferred_provider=candidate)
         if first_provider is None:
@@ -145,6 +152,10 @@ def _attempt_transcription_with_mode(
                 )
                 if idx + 1 < len(candidates):
                     continue
+            result_text = " ".join(str(result.get("text", "")).split()).casefold()
+            if result_text and result_text in rejected and idx + 1 < len(candidates):
+                logger.info(f"[retranscribe] provider={handle.provider_id} repeated previous text; trying next")
+                continue
             return result, handle, idx > 0, first_provider
         except Exception as exc:
             last_error = exc
@@ -154,6 +165,13 @@ def _attempt_transcription_with_mode(
     if last_error is not None:
         raise last_error
     raise RuntimeError("识别失败")
+
+
+def _retranscribe_attempt(value) -> int:
+    try:
+        return min(max(int(value or 0), 0), 3)
+    except (TypeError, ValueError):
+        return 0
 
 logger = get_logger(__name__)
 _MAX_DOWNLOAD_DURATION_SECONDS = 300  # 5 分钟；当前仅保证短视频稳定下载
@@ -1157,6 +1175,8 @@ def api_retranscribe():
     source_lang = data.get("source_lang", "泰语")
     target_lang = data.get("target_lang", "中文")
     language = data.get("language", "")  # 短语言码如 "th"，Azure 识别需要
+    retranscribe_attempt = _retranscribe_attempt(data.get("retranscribe_attempt"))
+    prior_results = [str(x).strip() for x in (data.get("prior_results") or []) if str(x).strip()][:3]
 
     try:
         start = float(data.get("start", -1))
@@ -1217,8 +1237,13 @@ def api_retranscribe():
                 mode,
                 audio_path=wav_path,
                 language=language,
+                candidate_offset=retranscribe_attempt,
+                rejected_texts=prior_results,
             )
             text = result["text"]
+
+            if retranscribe_attempt >= 3 and prior_results and text:
+                text = choose_transcription(prior_results + [text], source_lang)
 
             # 泰语：按词加空格
             if (language or "")[:2].lower() == "th" and text:
@@ -1272,6 +1297,12 @@ def api_retranscribe_audio():
     source_lang = request.form.get("source_lang", "泰语")
     target_lang = request.form.get("target_lang", "中文")
     language = request.form.get("language", "")
+    retranscribe_attempt = _retranscribe_attempt(request.form.get("retranscribe_attempt"))
+    try:
+        prior_results = json.loads(request.form.get("prior_results", "[]"))
+        prior_results = [str(x).strip() for x in prior_results if str(x).strip()][:3]
+    except (TypeError, ValueError, json.JSONDecodeError):
+        prior_results = []
 
     audio_file = request.files["audio"]
     raw_path = os.path.join(VIDEOS_DIR, f".upload_slice_{os.getpid()}.wav")
@@ -1316,8 +1347,13 @@ def api_retranscribe_audio():
             mode,
             audio_path=wav_path,
             language=language,
+            candidate_offset=retranscribe_attempt,
+            rejected_texts=prior_results,
         )
         text = result["text"]
+
+        if retranscribe_attempt >= 3 and prior_results and text:
+            text = choose_transcription(prior_results + [text], source_lang)
 
         # 泰语：按词加空格 + 发音时长权重
         if (language or "")[:2].lower() == "th" and text:
