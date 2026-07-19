@@ -104,7 +104,6 @@ function syncRecognitionModeDescription() {
     if (!recognitionModeSelect) return;
     const info = getRecognitionModeInfo(recognitionModeSelect.value);
     if (recognitionModeDesc) recognitionModeDesc.textContent = info.description || "";
-    if (weModeHint) weModeHint.textContent = `${t("we.modeHint")}（${info.label}）`;
 }
 
 function renderRecognitionModes(modes) {
@@ -4488,7 +4487,6 @@ const weBtnClose = document.getElementById("weBtnClose");
 const weBtnPlay = document.getElementById("weBtnPlay");
 const weBtnSave = document.getElementById("weBtnSave");
 const weBtnRetrans = document.getElementById("weBtnRetrans");
-const weModeHint = document.getElementById("weModeHint");
 const weStatus = document.getElementById("weStatus");
 
 const WE_PPS = 50; // 每秒峰值数
