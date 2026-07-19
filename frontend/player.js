@@ -5067,6 +5067,21 @@ async function initAuth() {
         }
     } catch (_) {}
 
+    try {
+        const cfgRes = await fetch("/api/auth/google/status");
+        if (cfgRes.ok) {
+            const cfg = await cfgRes.json();
+            const loginBtn = document.getElementById("authLoginBtn");
+            if (loginBtn && !cfg.enabled) {
+                loginBtn.textContent = "Google 登录未配置";
+                loginBtn.href = "javascript:void(0)";
+                loginBtn.style.opacity = "0.55";
+                loginBtn.style.pointerEvents = "none";
+                loginBtn.title = "请先配置 GOOGLE_CLIENT_ID";
+            }
+        }
+    } catch (_) {}
+
     // 头像点击 → 跳转到 Profile 页
     const userEl = document.getElementById("authUser");
     if (userEl) {

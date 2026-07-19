@@ -85,8 +85,32 @@ class TestAdminAuth:
 # ── Google OAuth 安全边界 ────────────────────────────────────────────────────
 
 class TestGoogleOAuthSecurity:
+    def test_login_rejects_missing_client_id(self, client, monkeypatch):
+        import config.settings as _settings
+
+        monkeypatch.setattr(_settings, "GOOGLE_CLIENT_ID", "")
+
+        r = client.get("/api/auth/google/login")
+
+        assert r.status_code == 503
+        assert "GOOGLE_CLIENT_ID" in r.get_data(as_text=True)
+
+    def test_google_login_status_reflects_config(self, client, monkeypatch):
+        import config.settings as _settings
+
+        monkeypatch.setattr(_settings, "GOOGLE_CLIENT_ID", "")
+        r = client.get("/api/auth/google/status")
+        assert r.status_code == 200
+        assert r.get_json()["enabled"] is False
+
+        monkeypatch.setattr(_settings, "GOOGLE_CLIENT_ID", "test-client-id")
+        r2 = client.get("/api/auth/google/status")
+        assert r2.status_code == 200
+        assert r2.get_json()["enabled"] is True
+
     def test_login_sets_secure_state_cookie(self, client, monkeypatch):
         import config.settings as _settings
+        monkeypatch.setattr(_settings, "GOOGLE_CLIENT_ID", "test-client-id")
         monkeypatch.setattr(_settings, "AUTH_COOKIE_SECURE", True)
 
         r = client.get("/api/auth/google/login")
@@ -244,6 +268,14 @@ class TestRecognitionModes:
         data = r.get_json()
         assert data["default"] == "balanced"
         assert [m["key"] for m in data["modes"]] == ["speed", "balanced", "accuracy"]
+
+
+class TestUsagePageRoute:
+    def test_usage_page_exists(self, client):
+        r = client.get("/usage")
+        assert r.status_code == 200
+        body = r.get_data(as_text=True)
+        assert "Usage History" in body or "使用记录" in body
 
     def test_ytdlp_auto_update_runs_in_deploy_env(self, monkeypatch, tmp_path):
         import app as app_module

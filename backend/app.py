@@ -315,6 +315,11 @@ def profile():
     return send_from_directory(FRONTEND_DIR, "profile.html")
 
 
+@app.route("/usage")
+def usage():
+    return send_from_directory(FRONTEND_DIR, "usage.html")
+
+
 @app.route("/story")
 def ai_story():
     docs_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
@@ -2387,6 +2392,12 @@ def user_usage():
 @app.route("/api/auth/google/login")
 def auth_google_login():
     """重定向到 Google 授权页，设置 oauth_state Cookie 防 CSRF。"""
+    if not settings.GOOGLE_CLIENT_ID:
+        return (
+            "Google 登录未配置：缺少 GOOGLE_CLIENT_ID。"
+            "请在 backend/.env 或部署环境中配置后再尝试登录。",
+            503,
+        )
     import secrets as _secrets
     state = _secrets.token_urlsafe(16)
     url   = _auth.google_login_url(state)
@@ -2398,6 +2409,15 @@ def auth_google_login():
         max_age=600,   # 10 分钟有效
     )
     return resp
+
+
+@app.route("/api/auth/google/status")
+def auth_google_status():
+    """告诉前端当前环境是否已配置可用的 Google OAuth。"""
+    return jsonify({
+        "enabled": bool(settings.GOOGLE_CLIENT_ID),
+        "configured": bool(settings.GOOGLE_CLIENT_ID and settings.GOOGLE_REDIRECT_URI),
+    })
 
 
 @app.route("/api/auth/google/callback")
