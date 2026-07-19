@@ -865,14 +865,6 @@ def api_download_video():
                 progress_queue.put(("error", _classify_download_error(dl_stderr)))
                 return
 
-            # 文件名兜底（yt-dlp 偶尔自行修改文件名）
-            if not os.path.exists(output_path):
-                for f in os.listdir(VIDEOS_DIR):
-                    if f.startswith(safe_title) and f.endswith(".mp4"):
-                        output_path = os.path.join(VIDEOS_DIR, f)
-                        safe_title = f.replace(".mp4", "")
-                        break
-
             if os.path.exists(output_path):
                 # ── [3/4] 验证音频轨道 ───────────────────────────────
                 progress_queue.put(("progress", "[3/4] 正在验证音频轨道..."))
@@ -897,7 +889,9 @@ def api_download_video():
                     "message": "下载完成",
                 }))
             else:
-                progress_queue.put(("error", "下载完成但找不到文件"))
+                # 不能用同标题前缀扫描目录兜底：并发下载或历史文件同名时，
+                # 会把另一条视频误当成本次下载结果返回给客户端。
+                progress_queue.put(("error", "下载完成但找不到本次任务生成的文件，请重试"))
 
         except subprocess.TimeoutExpired:
             progress_queue.put(("error", "获取视频信息超时"))

@@ -1783,7 +1783,7 @@ function captureVideoThumb() {
 async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
     if (!isMobile() || !currentVideoName || segments.length === 0) return;
     try {
-        // 已存在则复用大文件，只更新字幕
+        // 已存在的记录可复用封面；视频则优先获取本次服务器文件。
         const existingMeta = await metaGet(currentVideoName);
 
         let videoBlob = localVideoBlob;
@@ -1791,14 +1791,21 @@ async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
         if (existingMeta) {
             const existingMedia = await mediaGet(currentVideoName);
             if (existingMedia) {
-                videoBlob = videoBlob || existingMedia.videoBlob;
                 coverBlob = coverBlob || existingMedia.coverBlob;
             }
         }
         if (!videoBlob) {
-            const res = await fetch(`/videos/${encodeURIComponent(currentVideoName)}`);
-            if (!res.ok) return;
-            videoBlob = await res.blob();
+            // 文件名相同不代表内容相同（例如 Railway 重建临时盘后重新下载）。
+            // 强制拉取当前服务器内容，失败时才用本地旧媒体完成字幕更新。
+            try {
+                const res = await fetch(serverMediaUrl(currentVideoName), { cache: "no-store" });
+                if (res.ok) videoBlob = await res.blob();
+            } catch (e) { /* 服务器临时文件可能已经消失 */ }
+            if (!videoBlob && existingMeta) {
+                const existingMedia = await mediaGet(currentVideoName);
+                videoBlob = existingMedia && existingMedia.videoBlob;
+            }
+            if (!videoBlob) return;
         }
         // 视频 blob 已就绪：若当前仍是同一视频且尚未有本地文件引用，
         // 立即设置 localVideoFile，后续波形/收藏等操作即可使用本地音频，
@@ -2193,6 +2200,10 @@ async function openLocalFiles() {
 }
 
 // ========== 显示播放界面并加载视频首帧 ==========
+function serverMediaUrl(name) {
+    return `/videos/${encodeURIComponent(name)}?v=${Date.now()}`;
+}
+
 function showPlayerWithVideo(videoName) {
     currentVideoName = videoName;
     localVideoFile = null; // 切换到服务器视频时清除本地文件引用
@@ -2212,7 +2223,9 @@ function showPlayerWithVideo(videoName) {
     setLessonCover("");
 
     // 加载视频（显示首帧）
-    video.src = `/videos/${encodeURIComponent(videoName)}`;
+    // Railway 临时盘重建后文件名可能与手机里保存过的课程相同。
+    // 每次打开服务器视频都使用新 URL，避免浏览器/CDN 返回同名旧视频。
+    video.src = serverMediaUrl(videoName);
     video.load();
 
     // 显示加载遮罩
@@ -2261,7 +2274,7 @@ async function loadSaved(videoName) {
     phasePlay.style.display = "flex";
     tryMobileFullscreen();
 
-    video.src = `/videos/${encodeURIComponent(videoName)}`;
+    video.src = serverMediaUrl(videoName);
     video.load();
 
     // 并行加载视频和字幕
