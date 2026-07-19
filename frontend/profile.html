@@ -554,13 +554,15 @@
         .credits-history-link {
             display: inline-block;
             font-size: 12px;
-            color: var(--accent);
+            color: var(--text-2);
             text-decoration: none;
             margin-top: 6px;
-            opacity: 0.85;
-            transition: opacity 0.15s;
+            transition: color 0.15s, opacity 0.15s;
         }
-        .credits-history-link:hover { opacity: 1; }
+        .credits-history-link:hover {
+            color: var(--text-1);
+            text-decoration: underline;
+        }
 
         /* ── Referral Card ───────────────────────────────────── */
         .referral-card {
