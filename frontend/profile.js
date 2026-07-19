@@ -125,39 +125,6 @@ function renderCredits(wallet) {
     `;
 }
 
-// ── 渲染：今日使用 ───────────────────────────────────────────────
-function renderRateLimits(data) {
-    const limits = data.rate_limits || {};
-    const caps   = ["transcription", "tts_synthesis"];
-
-    const html = caps.map(cap => {
-        const info = limits[cap];
-        if (!info) return `<div class="rate-item"></div>`;
-        const { used, limit } = info;
-        // limit=null 表示该套餐无限制，只显示次数不显示进度条
-        const hasLimit  = limit !== null && limit !== undefined;
-        const pct       = hasLimit && limit > 0 ? Math.round((used / limit) * 100) : 0;
-        const full      = hasLimit && used >= limit;
-        const empty     = used === 0;
-        const fillClass = full ? "full" : empty ? "empty" : "";
-        const countStr  = hasLimit ? `${used} / ${limit}` : `${used}`;
-
-        return `
-        <div class="rate-item">
-            <div class="rate-cap" style="margin-bottom:12px;">
-                <div class="rate-cap-icon">${CAP_ICON[cap] || "•"}</div>
-                ${I18N.t(CAP_LABEL_KEY[cap] || cap)}
-            </div>
-            <div class="rate-count" style="margin-bottom:8px;">${countStr}</div>
-            ${hasLimit ? `<div class="rate-bar-bg">
-                <div class="rate-bar-fill ${fillClass}" style="width:${pct}%"></div>
-            </div>` : ""}
-        </div>`;
-    }).join("");
-
-    document.getElementById("rateList").innerHTML = html || `<div style='color:#636366;font-size:14px;padding:12px 0;'>${I18N.t("profile.noLimits")}</div>`;
-}
-
 // ── 渲染：使用记录 ───────────────────────────────────────────────
 const HISTORY_PREVIEW = 5;   // 默认显示条数
 
@@ -227,15 +194,14 @@ function renderHistory(history) {
 
 // ── 主流程 ───────────────────────────────────────────────────────
 async function loadProfile() {
-    // 并发拉三个接口
-    const [meRes, walletRes, rateRes] = await Promise.all([
+    // 并发拉两个接口
+    const [meRes, walletRes] = await Promise.all([
         fetch("/api/auth/me"),
         fetch("/api/user/wallet"),
-        fetch("/api/user/rate-limits"),
     ]);
 
-    const [me, wallet, rate] = await Promise.all([
-        meRes.json(), walletRes.json(), rateRes.json(),
+    const [me, wallet] = await Promise.all([
+        meRes.json(), walletRes.json(),
     ]);
 
     // 未登录 → 跳回主页
@@ -249,11 +215,10 @@ async function loadProfile() {
     wallet._gift_expires_at = wallet.gift_expires_at || null;
 
     // 缓存数据，供语言切换时重渲染
-    window._profileData = { me, wallet, rate };
+    window._profileData = { me, wallet };
 
     renderUserHero(me, wallet.plan || "free");
     renderCredits(wallet);
-    renderRateLimits(rate);
 
     // 邀请统计
     loadReferralCard().catch(err => console.warn("[referral]", err));
@@ -359,12 +324,11 @@ function initSettings() {
     uiLangSel.addEventListener("change", () => {
         I18N.setLang(uiLangSel.value);
         document.title = I18N.t("profile.navTitle") + " — ReelSpeak";
-        // 重渲染动态区块（Credits / RateLimits 用了 I18N.t()）
+        // 重渲染动态区块（Credits / 使用记录 用了 I18N.t()）
         if (window._profileData) {
-            const { me, wallet, rate } = window._profileData;
+            const { me, wallet } = window._profileData;
             renderUserHero(me, wallet.plan || "free");
             renderCredits(wallet);
-            renderRateLimits(rate);
         }
     });
 
