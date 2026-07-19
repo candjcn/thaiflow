@@ -262,6 +262,40 @@ async function loadProfile() {
 // ── 偏好设置 ────────────────────────────────────────────────────
 
 let _dirModalCurrentPath = "";
+let _profileRecognitionModeListenerBound = false;
+
+function getStoredRecognitionMode() {
+    return localStorage.getItem("recognition-mode") || "balanced";
+}
+
+function setStoredRecognitionMode(value) {
+    localStorage.setItem("recognition-mode", value);
+}
+
+function syncProfileRecognitionModeDescription(selectEl, descEl) {
+    if (!selectEl || !descEl) return;
+    const selected = selectEl.selectedOptions && selectEl.selectedOptions[0];
+    descEl.textContent = (selected && selected.dataset && selected.dataset.description) || "";
+}
+
+function renderProfileRecognitionModes(selectEl, modes) {
+    if (!selectEl) return;
+    const saved = getStoredRecognitionMode();
+    const nextValue = Array.isArray(modes) && modes.some(mode => mode.key === saved)
+        ? saved
+        : (modes && modes[0] && modes[0].key) || "balanced";
+
+    selectEl.innerHTML = "";
+    (modes || []).forEach(mode => {
+        const opt = document.createElement("option");
+        opt.value = mode.key;
+        opt.textContent = mode.label;
+        opt.dataset.description = mode.description || "";
+        selectEl.appendChild(opt);
+    });
+    selectEl.value = nextValue;
+    setStoredRecognitionMode(nextValue);
+}
 
 async function browseTo(path) {
     const res  = await fetch(`/api/browse-dir?path=${encodeURIComponent(path)}`);
@@ -317,6 +351,8 @@ function saveExportDir(path) {
 function initSettings() {
     const uiLangSel    = document.getElementById("settingUiLang");
     const translateSel = document.getElementById("settingTranslateLang");
+    const recognitionModeSel = document.getElementById("profileRecognitionMode");
+    const recognitionModeDesc = document.getElementById("profileRecognitionModeDesc");
 
     // ── 界面语言 ──
     uiLangSel.value = localStorage.getItem("ui-lang") || "zh-CN";
@@ -339,6 +375,30 @@ function initSettings() {
         val ? localStorage.setItem("translate-lang", val)
             : localStorage.removeItem("translate-lang");
     });
+
+    // ── 识别模式（高级设置） ──
+    if (recognitionModeSel) {
+        const savedMode = getStoredRecognitionMode();
+        recognitionModeSel.value = savedMode;
+        syncProfileRecognitionModeDescription(recognitionModeSel, recognitionModeDesc);
+
+        if (!_profileRecognitionModeListenerBound) {
+            recognitionModeSel.addEventListener("change", () => {
+                setStoredRecognitionMode(recognitionModeSel.value);
+                syncProfileRecognitionModeDescription(recognitionModeSel, recognitionModeDesc);
+            });
+            _profileRecognitionModeListenerBound = true;
+        }
+
+        fetch("/api/recognition-modes")
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data || !Array.isArray(data.modes) || !data.modes.length) return;
+                renderProfileRecognitionModes(recognitionModeSel, data.modes);
+                syncProfileRecognitionModeDescription(recognitionModeSel, recognitionModeDesc);
+            })
+            .catch(() => {});
+    }
 
     // ── 默认保存路径 ──
     const savedDir = localStorage.getItem("default-export-dir");
