@@ -424,6 +424,7 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
 async function loadReferralCard() {
     const input   = document.getElementById("referralLinkInput");
     const copyBtn = document.getElementById("referralCopyBtn");
+    const shareBtn = document.getElementById("referralShareBtn");
     const statInv = document.getElementById("refStatInvited");
     const statAct = document.getElementById("refStatActivated");
     const statCred= document.getElementById("refStatCredits");
@@ -444,6 +445,7 @@ async function loadReferralCard() {
 
         if (input)    { input.value = refUrl; input.removeAttribute("placeholder"); }
         if (copyBtn)  copyBtn.removeAttribute("disabled");
+        if (shareBtn) shareBtn.removeAttribute("disabled");
         if (statInv)  statInv.textContent  = stats.total_invited   ?? 0;
         if (statAct)  statAct.textContent  = stats.total_activated ?? 0;
         if (statCred) statCred.textContent = stats.credits_earned  ?? 0;
@@ -452,6 +454,13 @@ async function loadReferralCard() {
         if (statInv)  statInv.textContent  = "—";
         if (statAct)  statAct.textContent  = "—";
         if (statCred) statCred.textContent = "—";
+    }
+
+    function getSharePayload() {
+        const title = I18N.t("profile.referral.shareTitle");
+        const desc  = I18N.t("profile.referral.shareDesc");
+        const text  = `${desc}\n${refUrl}`;
+        return { title, text, url: refUrl };
     }
 
     if (copyBtn && refUrl) {
@@ -467,6 +476,28 @@ async function loadReferralCard() {
                 copyBtn.textContent = I18N.t("profile.referral.copy");
                 copyBtn.classList.remove("copied");
             }, 2000);
+        });
+    }
+
+    if (shareBtn && refUrl) {
+        shareBtn.addEventListener("click", async () => {
+            const payload = getSharePayload();
+            try {
+                if (navigator.share) {
+                    await navigator.share(payload);
+                    return;
+                }
+            } catch (_) {
+                // fall through to copy fallback
+            }
+
+            try {
+                await navigator.clipboard.writeText(`${payload.text}\n${payload.url}`);
+                alert(I18N.t("profile.referral.shareFallback"));
+            } catch (_) {
+                if (input) { input.select(); document.execCommand("copy"); }
+                alert(I18N.t("profile.referral.shareFallback"));
+            }
         });
     }
 }

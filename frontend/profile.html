@@ -583,6 +583,7 @@
             gap: 8px;
             align-items: center;
             margin-bottom: 16px;
+            flex-wrap: wrap;
         }
         .referral-link-input {
             flex: 1;
@@ -612,6 +613,23 @@
         }
         .referral-copy-btn:hover { background: #c73050; }
         .referral-copy-btn.copied { background: var(--paid); }
+        .referral-share-btn {
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.08);
+            color: var(--text-1);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 9px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .referral-share-btn:hover {
+            background: rgba(255,255,255,0.12);
+            border-color: var(--border-hi);
+        }
         .referral-stats {
             display: flex;
             gap: 0;
@@ -811,6 +829,7 @@
             <div class="referral-link-row">
                 <input class="referral-link-input" id="referralLinkInput" readonly placeholder="…">
                 <button class="referral-copy-btn" id="referralCopyBtn" data-i18n="profile.referral.copy" disabled>Copy Link</button>
+                <button class="referral-share-btn" id="referralShareBtn" data-i18n="profile.referral.share" disabled>Share</button>
             </div>
             <div class="referral-stats">
                 <div class="referral-stat">
