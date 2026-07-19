@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import threading
 import unicodedata
+from difflib import SequenceMatcher
 
 from config import providers, settings, get_logger
 from ai.provider import groq as groq_provider
@@ -23,9 +24,12 @@ logger = get_logger(__name__)
 
 # 超过此时长（秒）自动分段识别；每段时长
 _CHUNK_THRESHOLD = 300   # 5 分钟以上才切段
-_CHUNK_SIZE      = 180   # 每段 3 分钟
+_CHUNK_SIZE      = 120   # 统一每段 2 分钟
 # OpenAI transcription 的保守音频大小上限（留一点余量，避免贴边踩 25MB 限制）
 _OPENAI_MAX_AUDIO_BYTES = 24 * 1024 * 1024
+# Groq direct upload 的保守大小上限。官方 free tier 是 25MB，dev tier 是 100MB；
+# 这里优先选择稳定性，因此对超过 24MB 的原始文件直接走分片。
+_GROQ_MAX_DIRECT_BYTES = 24 * 1024 * 1024
 
 # Whisper-style 返回英文全名（"chinese"），Groq 返回 ISO 码（"zh"）
 # 所有读取 result_obj.language 的地方必须经过此表归一化
@@ -107,6 +111,17 @@ def _is_openai_too_large_error(exc) -> bool:
     )
 
 
+def _is_groq_too_large_error(exc) -> bool:
+    msg = str(exc).lower()
+    status_code = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    return bool(
+        status_code == 413
+        or "request_too_large" in msg
+        or "request entity too large" in msg
+        or "payload too large" in msg
+    )
+
+
 def _transcribe_openai_wav(wav_path):
     """调用 OpenAI 转写前先做大小检查，并把 413 包装成可执行提示。"""
     size = os.path.getsize(wav_path)
@@ -121,7 +136,11 @@ def _transcribe_openai_wav(wav_path):
 
             if providers.Groq.API_KEY:
                 groq_result = _transcribe_groq_wav(wav_path)
-                segments = _project_text_to_segments(groq_result["segments"], text)
+                segments = _project_text_to_segments(
+                    groq_result["segments"],
+                    text,
+                    language=groq_result.get("language", "unknown"),
+                )
                 out = {"segments": segments, "language": groq_result.get("language", "unknown")}
                 if groq_result.get("words"):
                     out["words"] = groq_result["words"]
@@ -157,9 +176,9 @@ def _transcribe_openai_wav(wav_path):
         raise
 
 
-def _transcribe_groq_wav(wav_path):
+def _transcribe_groq_wav(wav_path, language=None):
     result_obj = groq_provider.transcribe_file(
-        wav_path, timestamp_granularities=["segment", "word"]
+        wav_path, timestamp_granularities=["segment", "word"], language=language
     )
     segments, words, language = _parse_result_obj(result_obj)
     out = {"segments": segments, "language": language}
@@ -286,60 +305,210 @@ def _alignment_normalize(text):
     return "".join(norm_chars), raw_indices
 
 
-def _project_text_to_segments(source_segments, target_text):
-    """用 LCS 把目标文本投影到现有分段骨架上。"""
+def _text_quality_score(text, language=None):
+    """给候选文本打轻量分。
+
+    这个分数不追求绝对语义，只用于在相近候选之间做局部裁决：
+    更像泰语、不过度夹杂外文、长度不过短的文本会得到更高分。
+    """
+    text = text or ""
+    if not text.strip():
+        return float("-inf")
+
+    lang = (language or "").lower()[:2]
+    thai = latin = cjk = digits = spaces = other = repeated = 0
+    prev = ""
+    streak = 0
+
+    for ch in text:
+        if ch == prev and ch.strip():
+            streak += 1
+        else:
+            streak = 1
+        prev = ch
+        if streak >= 3:
+            repeated += 1
+        if ch.isspace():
+            spaces += 1
+            continue
+        if "\u0e00" <= ch <= "\u0e7f":
+            thai += 1
+        elif ch.isascii() and ch.isalpha():
+            latin += 1
+        elif "\u4e00" <= ch <= "\u9fff":
+            cjk += 1
+        elif ch.isdigit():
+            digits += 1
+        else:
+            other += 1
+
+    length = max(1, thai + latin + cjk + digits + other)
+
+    if lang == "th":
+        score = thai * 3.0
+        score -= latin * 2.4
+        score -= cjk * 2.0
+        score -= other * 0.8
+        score += min(spaces, 8) * 0.25
+        score -= repeated * 1.5
+    else:
+        score = (latin + cjk + digits) * 1.4
+        score -= other * 0.6
+        score += min(spaces, 8) * 0.2
+        score -= repeated * 1.2
+
+    if length < 4:
+        score -= 2.0
+    return score
+
+
+def _expand_raw_end_to_boundary(text, raw_start, raw_end, language=None, max_extra=8):
+    """把 raw_end 稍微扩到自然边界，避免切在单词/短语中间。"""
+    if raw_end <= raw_start:
+        return raw_end
+    lang = (language or "").lower()[:2]
+    limit = min(len(text), raw_end + max_extra)
+    if lang == "th":
+        return raw_end
+
+    while raw_end < limit:
+        if raw_end >= len(text):
+            break
+        prev = text[raw_end - 1]
+        cur = text[raw_end]
+        if prev.isspace() or cur.isspace() or not (prev.isalnum() and cur.isalnum()):
+            break
+        raw_end += 1
+    return raw_end
+
+
+def _project_text_to_segments(source_segments, target_text, language=None):
+    """按 segment 粒度局部对齐 GPT 文本，再逐段裁决是否采用候选文本。
+
+    这不是整条视频级投影。每一段只在自己的局部窗口里比较，
+    目标是保留 GPT 的文本收益，同时避免全局 LCS 把单段错误扩散到整条字幕。
+    """
     if not source_segments:
         return source_segments
 
-    source_norm = []
-    source_ranges = []
+    target_norm, target_raw_map = _alignment_normalize(target_text or "")
+    if not target_norm:
+        return [dict(seg) for seg in source_segments]
+
+    source_norms = []
+    total_source_norm = 0
     for seg in source_segments:
         seg_norm, _ = _alignment_normalize(seg.get("text", ""))
-        start = len(source_norm)
-        source_norm.extend(seg_norm)
-        source_ranges.append((start, len(source_norm)))
+        source_norms.append(seg_norm)
+        total_source_norm += max(1, len(seg_norm))
 
-    target_norm, target_raw_map = _alignment_normalize(target_text or "")
-    if not source_norm or not target_norm:
+    if total_source_norm <= 0:
         return [dict(seg) for seg in source_segments]
-
-    pairs = lcs_alignment("".join(source_norm), target_norm)
-    if not pairs:
-        return [dict(seg) for seg in source_segments]
-
-    src_to_tgt = {src_idx: tgt_idx for src_idx, tgt_idx in pairs}
-    seg_targets = []
-    for src_start, src_end in source_ranges:
-        mapped = [src_to_tgt[i] for i in range(src_start, src_end) if i in src_to_tgt]
-        seg_targets.append(mapped)
-
-    next_starts = [None] * len(seg_targets)
-    next_known = None
-    for idx in range(len(seg_targets) - 1, -1, -1):
-        next_starts[idx] = next_known
-        if seg_targets[idx]:
-            next_known = min(seg_targets[idx])
 
     projected = []
+    tgt_cursor = 0
+    total_target_len = len(target_norm)
 
-    for seg, mapped, next_start in zip(source_segments, seg_targets, next_starts):
+    for idx, seg in enumerate(source_segments):
         new_seg = dict(seg)
+        seg_text = seg.get("text", "")
+        seg_norm = source_norms[idx]
 
-        if mapped:
-            tgt_start = max(0, min(mapped))
-            if next_start is not None and next_start > tgt_start:
-                tgt_end = min(len(target_norm), next_start)
-            else:
-                tgt_end = min(len(target_norm), max(mapped) + 1)
-            if tgt_start < tgt_end:
-                raw_start = target_raw_map[tgt_start]
-                raw_end = target_raw_map[tgt_end - 1] + 1
-                if raw_start < raw_end:
-                    slice_text = target_text[raw_start:raw_end].strip()
-                    if slice_text:
-                        new_seg["text"] = slice_text
-                        projected.append(new_seg)
+        remaining_segs = max(1, len(source_segments) - idx)
+        remaining_target = max(0, total_target_len - tgt_cursor)
+        expected = max(1, round(total_target_len * max(1, len(seg_norm)) / total_source_norm))
+        window_len = max(expected * 3, expected + max(18, remaining_target // remaining_segs), 24)
+        window_start = max(0, tgt_cursor)
+        window_end = min(total_target_len, window_start + window_len)
+        if idx == len(source_segments) - 1:
+            window_end = total_target_len
+
+        candidate = ""
+        candidate_norm = ""
+        candidate_tgt_end = None
+
+        if seg_norm and window_start < window_end:
+            window_norm = target_norm[window_start:window_end]
+            pairs = lcs_alignment(seg_norm, window_norm)
+            if pairs:
+                tgt_positions = [window_start + tgt_idx for _src_idx, tgt_idx in pairs]
+                tgt_start = min(tgt_positions)
+
+                ideal_len = max(4, int(max(len(seg_norm) * 1.6, expected * 1.15, 6)))
+                max_len = max(
+                    6,
+                    int(max(len(seg_norm) * 1.35, expected * 1.4, 10)),
+                )
+                span_candidates = [
+                    ideal_len,
+                    ideal_len + 2,
+                    ideal_len + 4,
+                ]
+                best_candidate = ""
+                best_candidate_norm = ""
+                best_candidate_score = float("-inf")
+                best_tgt_end = None
+
+                for span in span_candidates:
+                    tgt_end = min(total_target_len, tgt_start + max(1, span))
+                    raw_start = target_raw_map[tgt_start]
+                    raw_end = target_raw_map[tgt_end - 1] + 1
+                    raw_end = _expand_raw_end_to_boundary(
+                        target_text, raw_start, raw_end, language=language
+                    )
+                    raw_cap_end = min(
+                        len(target_text),
+                        raw_start + max(
+                            12,
+                            int(max(len(seg_text) * 1.45, ideal_len * 1.35, 14)),
+                        ),
+                    )
+                    raw_end = min(raw_end, raw_cap_end)
+                    if raw_start >= raw_end:
                         continue
+                    cand = target_text[raw_start:raw_end].strip()
+                    cand_norm, _ = _alignment_normalize(cand)
+                    if len(cand_norm) > max_len:
+                        continue
+                    cand_score = _text_quality_score(cand, language)
+                    cand_score -= abs(len(cand_norm) - ideal_len) * 2.2
+                    # 候选必须既不像过短碎片，也不像一路拖到别的 segment
+                    if not cand_norm:
+                        continue
+                    if cand_score > best_candidate_score:
+                        best_candidate = cand
+                        best_candidate_norm = cand_norm
+                        best_candidate_score = cand_score
+                        best_tgt_end = tgt_end
+
+                candidate = best_candidate
+                candidate_norm = best_candidate_norm
+                candidate_tgt_end = best_tgt_end
+
+        source_score = _text_quality_score(seg_text, language)
+        candidate_score = _text_quality_score(candidate, language)
+
+        accept_candidate = False
+        if candidate and candidate_norm:
+            similarity_to_source = SequenceMatcher(None, seg_norm, candidate_norm).ratio() if seg_norm else 0.0
+            length_floor = max(2, int(max(1, len(seg_norm)) * 0.55))
+            if (
+                len(candidate_norm) >= length_floor
+                and len(candidate_norm) <= max_len
+                and similarity_to_source >= 0.35
+                and candidate_score >= source_score - 0.25
+            ):
+                accept_candidate = True
+
+        if accept_candidate:
+            new_seg["text"] = candidate
+            tgt_cursor = min(
+                total_target_len,
+                max(tgt_cursor + max(1, expected), candidate_tgt_end or window_end),
+            )
+        else:
+            new_seg["text"] = seg_text
+            tgt_cursor = min(total_target_len, tgt_cursor + max(1, expected))
 
         projected.append(new_seg)
 
@@ -470,28 +639,36 @@ def transcribe_gemini_slice(wav_path, language=None):
 
 def transcribe_chunked(video_path, provider, duration, progress_callback=None):
     """将长视频分成 _CHUNK_SIZE 秒一段，逐段识别后合并。"""
-    chunk_starts = list(range(0, int(duration), _CHUNK_SIZE))
-    total        = len(chunk_starts)
     all_segments = []
     all_words    = []
     language     = "unknown"
+    language_hint = None
+    chunk_size    = _CHUNK_SIZE
+    total_est     = max(1, int(duration // chunk_size) + (1 if duration % chunk_size else 0))
+    idx           = 0
+    start         = 0.0
 
-    for idx, start in enumerate(chunk_starts):
-        chunk_dur = min(_CHUNK_SIZE, duration - start)
+    while start < duration - 1e-6:
+        chunk_dur = min(chunk_size, duration - start)
         if progress_callback:
             m, s = divmod(int(start), 60)
-            progress_callback(f"正在识别第 {idx+1}/{total} 段（{m}:{s:02d} 起）...")
+            progress_callback(f"正在识别第 {idx+1}/{total_est} 段（{m}:{s:02d} 起）...")
 
         wav_path = _extract_chunk_wav(video_path, start, chunk_dur)
         try:
             if provider == "openai":
                 result_obj = _transcribe_openai_wav(wav_path)
-                segs_raw  = result_obj["segments"] or []
-                words_raw = result_obj.get("words") or []
-                lang      = result_obj.get("language", "unknown")
+                if isinstance(result_obj, dict):
+                    segs_raw  = result_obj.get("segments") or []
+                    words_raw = result_obj.get("words") or []
+                    lang      = result_obj.get("language", "unknown")
+                else:
+                    segs_raw, words_raw, lang = _parse_result_obj(result_obj)
             else:  # groq
                 result_obj = groq_provider.transcribe_file(
-                    wav_path, timestamp_granularities=["segment", "word"]
+                    wav_path,
+                    timestamp_granularities=["segment", "word"],
+                    language=language_hint,
                 )
                 segs_raw  = result_obj.segments or []
                 words_raw = result_obj.words or []
@@ -505,10 +682,14 @@ def transcribe_chunked(video_path, provider, duration, progress_callback=None):
 
         if lang and lang != "unknown" and language == "unknown":
             language = lang
+            if provider == "groq":
+                language_hint = lang
 
         segs, words = _apply_offset(segs_raw, words_raw, start)
         all_segments.extend(segs)
         all_words.extend(words)
+        idx += 1
+        start += chunk_dur
 
     out = {"segments": all_segments, "language": language}
     if all_words:
@@ -573,6 +754,8 @@ def transcribe_combined(video_path):
 
 _LOGPROB_THRESHOLD   = -0.5
 _NO_SPEECH_THRESHOLD =  0.3
+_GROQ_RETRY_MAX_SEGMENTS = 4
+_GROQ_RETRY_MAX_DURATION = 8.0
 
 
 def _is_low_confidence(seg):
@@ -594,6 +777,16 @@ def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
     low_conf = [s for s in segments if _is_low_confidence(s)]
     if not low_conf:
         return
+
+    low_conf.sort(
+        key=lambda s: (
+            -(abs(s.get("_logprob") or 0.0) if s.get("_logprob") is not None else 0.0),
+            -(s.get("_no_speech") or 0.0),
+            -(s.get("end", 0.0) - s.get("start", 0.0)),
+        ),
+    )
+    low_conf = [s for s in low_conf if (s.get("end", 0.0) - s.get("start", 0.0)) <= _GROQ_RETRY_MAX_DURATION]
+    low_conf = low_conf[:_GROQ_RETRY_MAX_SEGMENTS]
 
     if progress_callback:
         progress_callback(f"发现 {len(low_conf)} 句置信度偏低，用 Groq 补充识别...")
@@ -640,12 +833,30 @@ def _retry_low_confidence_with_groq(video_path, segments, language="unknown",
 
 # ── 主入口 ──────────────────────────────────────────────────────────────────────
 
-def transcribe_video(video_path, provider="groq", segment_target=None, progress_callback=None):
+def transcribe_video(
+    video_path,
+    provider="groq",
+    segment_target=None,
+    progress_callback=None,
+    enable_groq_retry=True,
+):
     """对视频进行语音识别和断句。
     provider: "groq" | "azure" | "combined" | "openai" | "qwen"
     """
     duration    = get_video_duration(video_path)
-    use_chunked = duration > _CHUNK_THRESHOLD and provider in ("openai", "groq")
+    file_size   = 0
+    try:
+        file_size = os.path.getsize(video_path)
+    except OSError:
+        file_size = 0
+    use_chunked = (
+        provider in ("openai", "groq")
+        and (
+            duration > _CHUNK_THRESHOLD
+            or (provider == "openai" and file_size > _OPENAI_MAX_AUDIO_BYTES)
+            or (provider == "groq" and file_size > _GROQ_MAX_DIRECT_BYTES)
+        )
+    )
 
     try:
         if use_chunked:
@@ -665,8 +876,19 @@ def transcribe_video(video_path, provider="groq", segment_target=None, progress_
             if progress_callback:
                 progress_callback("OpenAI 单次上传超限，自动切换 Groq 分段识别...")
             result = transcribe_chunked(video_path, "groq", duration, progress_callback)
+        elif provider == "groq" and _is_groq_too_large_error(exc):
+            if progress_callback:
+                progress_callback("Groq 单次上传超限，自动切换分段识别...")
+            result = transcribe_chunked(video_path, "groq", duration, progress_callback)
         else:
             raise
+
+    if provider == "groq" and duration <= _CHUNK_THRESHOLD and enable_groq_retry:
+        _retry_low_confidence_with_groq(
+            video_path, result["segments"],
+            language=result.get("language", "unknown"),
+            progress_callback=progress_callback,
+        )
 
     if provider == "openai" and not _openai_uses_gpt4o_transcribe():
         _retry_low_confidence_with_groq(

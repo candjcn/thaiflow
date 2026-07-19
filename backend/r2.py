@@ -1,4 +1,5 @@
 import boto3
+import mimetypes
 from botocore.config import Config
 from config import providers
 
@@ -17,13 +18,15 @@ def _client():
     )
 
 
-def upload_audio(local_path: str, key: str) -> str:
+def upload_audio(local_path: str, key: str, content_type: str | None = None) -> str:
     """上传本地音频文件到 R2，返回公开访问 URL"""
     r2 = providers.R2
+    if not content_type:
+        content_type = mimetypes.guess_type(local_path)[0] or "application/octet-stream"
     _client().upload_file(
         local_path,
         r2.BUCKET_NAME,
         key,
-        ExtraArgs={"ContentType": "audio/mpeg"},
+        ExtraArgs={"ContentType": content_type},
     )
     return f"{r2.PUBLIC_URL.rstrip('/')}/{key}"

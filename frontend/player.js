@@ -1,4 +1,4 @@
-const APP_REV = "20260718a"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260719a"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 设备 UUID（匿名用户限流指纹） ==========
 function getDeviceId() {
@@ -55,6 +55,113 @@ function getTargetLang() {
     return map[shortLang] || "English";
 }
 
+const RECOGNITION_MODE_STORAGE_KEY = "recognition-mode";
+const DEFAULT_RECOGNITION_MODE = "balanced";
+let recognitionModeCatalog = [];
+let recognitionModeListenerBound = false;
+
+function normalizeRecognitionMode(value) {
+    const key = (value || "").trim().toLowerCase();
+    if (!key) return DEFAULT_RECOGNITION_MODE;
+    if (["speed", "balanced", "accuracy"].includes(key)) return key;
+    if (recognitionModeCatalog.some(item => item.key === key)) return key;
+    return DEFAULT_RECOGNITION_MODE;
+}
+
+function getStoredRecognitionMode() {
+    return normalizeRecognitionMode(localStorage.getItem(RECOGNITION_MODE_STORAGE_KEY));
+}
+
+function setStoredRecognitionMode(value) {
+    localStorage.setItem(RECOGNITION_MODE_STORAGE_KEY, normalizeRecognitionMode(value));
+}
+
+function getRecognitionModeInfo(value) {
+    const key = normalizeRecognitionMode(value);
+    const fallback = {
+        key,
+        label: {
+            speed: t("app.add.recognition.speed"),
+            balanced: t("app.add.recognition.balanced"),
+            accuracy: t("app.add.recognition.accuracy"),
+        }[key] || key,
+        description: {
+            speed: t("app.add.recognition.desc.speed"),
+            balanced: t("app.add.recognition.desc.balanced"),
+            accuracy: t("app.add.recognition.desc.accuracy"),
+        }[key] || "",
+    };
+    const matched = recognitionModeCatalog.find(item => item.key === key);
+    if (!matched) return fallback;
+    return {
+        ...matched,
+        label: fallback.label || matched.label,
+        description: fallback.description || matched.description,
+    };
+}
+
+function syncRecognitionModeDescription() {
+    if (!recognitionModeSelect) return;
+    const info = getRecognitionModeInfo(recognitionModeSelect.value);
+    if (recognitionModeDesc) recognitionModeDesc.textContent = info.description || "";
+    if (weModeHint) weModeHint.textContent = `${t("we.modeHint")}（${info.label}）`;
+}
+
+function renderRecognitionModes(modes) {
+    if (!recognitionModeSelect || !Array.isArray(modes) || !modes.length) return;
+    recognitionModeCatalog = modes.map(m => ({
+        key: (m.key || "").trim().toLowerCase(),
+        label: m.label || m.key,
+        description: m.description || "",
+        preferred_provider: m.preferred_provider,
+        provider_candidates: m.provider_candidates || [],
+        enable_groq_retry: !!m.enable_groq_retry,
+    }));
+    const saved = getStoredRecognitionMode();
+    const nextValue = recognitionModeCatalog.some(mode => mode.key === saved)
+        ? saved
+        : (recognitionModeCatalog[0] && recognitionModeCatalog[0].key) || DEFAULT_RECOGNITION_MODE;
+    recognitionModeSelect.innerHTML = "";
+    for (const mode of recognitionModeCatalog) {
+        const opt = document.createElement("option");
+        opt.value = mode.key;
+        opt.textContent = mode.label;
+        recognitionModeSelect.appendChild(opt);
+    }
+    recognitionModeSelect.value = nextValue;
+    setStoredRecognitionMode(nextValue);
+    syncRecognitionModeDescription();
+}
+
+async function initRecognitionModes() {
+    if (!recognitionModeSelect) return;
+    const saved = getStoredRecognitionMode();
+    recognitionModeSelect.value = saved;
+    syncRecognitionModeDescription();
+
+    if (!recognitionModeListenerBound) {
+        recognitionModeSelect.addEventListener("change", () => {
+            setStoredRecognitionMode(recognitionModeSelect.value);
+            syncRecognitionModeDescription();
+        });
+        recognitionModeListenerBound = true;
+    }
+
+    try {
+        const res = await fetch("/api/recognition-modes");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && Array.isArray(data.modes) && data.modes.length) {
+            renderRecognitionModes(data.modes);
+            if (data.default) {
+                setStoredRecognitionMode(saved || data.default);
+            }
+        }
+    } catch (_err) {
+        syncRecognitionModeDescription();
+    }
+}
+
 // ========== 状态 ==========
 let segments = [];
 let currentIndex = -1;
@@ -100,7 +207,8 @@ const btnRomanClose = document.getElementById("btnRomanClose");
 const subtitleTranslation = document.getElementById("subtitleTranslation");
 const repeatInfo = document.getElementById("repeatInfo");
 const subtitleOverlay = document.getElementById("subtitleOverlay");
-const transcribeProvider = document.getElementById("transcribeProvider");
+const recognitionModeSelect = document.getElementById("recognitionMode");
+const recognitionModeDesc = document.getElementById("recognitionModeDesc");
 const segmentTarget = document.getElementById("segmentTarget");
 const exportOverlay = document.getElementById("exportOverlay");
 const exportProgressBar = document.getElementById("exportProgressBar");
@@ -2199,21 +2307,20 @@ async function startLoading(videoName, subtitleOnly) {
     setStep("step1", "done");
 
     // 步骤 2：语音识别（SSE 流式，防超时）
-    const provider = transcribeProvider.value;
-    const providerLabels = {
-        groq: t("status.providerGroq"),
-        azure: t("status.providerAzure"),
-        combined: t("status.providerCombined"),
-    };
-    const providerLabel = providerLabels[provider] || provider;
+    const recognitionMode = getStoredRecognitionMode();
+    const modeInfo = getRecognitionModeInfo(recognitionMode);
     setStep("step2", "active");
-    setTip(t("status.callingProvider", { provider: providerLabel }));
+    setTip(t("status.callingProvider", { provider: modeInfo.label }));
     try {
         const segTarget = segmentTarget.value || null;
         const res = await fetch("/api/transcribe", {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Device-ID": getDeviceId() },
-            body: JSON.stringify({ video: videoName, provider, segment_target: segTarget }),
+            body: JSON.stringify({
+                video: videoName,
+                recognition_mode: recognitionMode,
+                segment_target: segTarget,
+            }),
         });
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -4381,7 +4488,7 @@ const weBtnClose = document.getElementById("weBtnClose");
 const weBtnPlay = document.getElementById("weBtnPlay");
 const weBtnSave = document.getElementById("weBtnSave");
 const weBtnRetrans = document.getElementById("weBtnRetrans");
-const weEngine = document.getElementById("weEngine");
+const weModeHint = document.getElementById("weModeHint");
 const weStatus = document.getElementById("weStatus");
 
 const WE_PPS = 50; // 每秒峰值数
@@ -4802,7 +4909,9 @@ weBtnSave.addEventListener("click", async () => {
 weBtnRetrans.addEventListener("click", async () => {
     if (we.idx < 0 || weBtnRetrans.disabled) return;
     weBtnRetrans.disabled = true;
-    weStatus.textContent = t("we.recognizing");
+    const recognitionMode = getStoredRecognitionMode();
+    const modeInfo = getRecognitionModeInfo(recognitionMode);
+    weStatus.textContent = `${modeInfo.label} · ${t("we.recognizing")}`;
 
     const langNameMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };
     const shortLang = (language || "").slice(0, 2).toLowerCase();
@@ -4816,7 +4925,7 @@ weBtnRetrans.addEventListener("click", async () => {
             const wavBlob = await getLocalAudioSliceWav(we.start, we.end);
             const formData = new FormData();
             formData.append("audio", wavBlob, "slice.wav");
-            formData.append("provider", weEngine.value);
+            formData.append("recognition_mode", recognitionMode);
             formData.append("translate", "true");
             formData.append("language", shortLang);
             formData.append("source_lang", langNameMap[shortLang] || "外语");
@@ -4834,7 +4943,7 @@ weBtnRetrans.addEventListener("click", async () => {
                     video: currentVideoName,
                     start: we.start,
                     end: we.end,
-                    provider: weEngine.value,
+                    recognition_mode: recognitionMode,
                     translate: true,
                     language: shortLang,
                     source_lang: langNameMap[shortLang] || "外语",
@@ -4853,7 +4962,7 @@ weBtnRetrans.addEventListener("click", async () => {
         delete seg.wordTimings; // 单句重识别没有词级时间戳，清除旧数据
         renderSentenceList();
         if (we.idx === currentIndex) updateSubtitle(seg);
-        weStatus.textContent = "✓ " + (data.text || "");
+        weStatus.textContent = `✓ ${modeInfo.label} · ${data.text || ""}`;
         await saveSubtitle();
     } catch (e) {
         weStatus.textContent = "❌ " + e.message;
@@ -4994,6 +5103,7 @@ async function initAuth() {
 })();
 
 I18N.init();
+initRecognitionModes();
 renderFavorites();
 loadLocalVideoList();
 
@@ -5004,6 +5114,7 @@ loadLocalVideoList();
 window.addEventListener("pageshow", () => {
     initAuth();
     I18N.init();
+    initRecognitionModes();
 });
 // 页面版本标识（排查缓存用）
 (() => {

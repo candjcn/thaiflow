@@ -12,7 +12,7 @@ Qwen3-ASR provider — 阿里云 DashScope 语音识别
 
 限制：
 - 异步 API（提交 → 轮询 → 取结果），延迟约 1–20 秒
-- 需要先将本地文件上传到 DashScope（file:// URI）
+- 需要先将本地文件放到公网可访问 URL
 - 词级时间戳仅 qwen3-asr-flash-filetrans 支持
 - 国际节点：dashscope-intl.aliyuncs.com
 """
@@ -44,49 +44,40 @@ def _auth_headers() -> dict:
     return {"Authorization": f"Bearer {providers.Qwen.ASR_API_KEY}"}
 
 
-# ── 文件上传 ─────────────────────────────────────────────────────────────────
-
-def _upload_file(audio_path: str) -> str:
-    """
-    将本地音频文件上传到 DashScope，返回 dashscope://{file_id} 格式 URL。
-    DashScope 异步转写 API 只接受 URL，不接受本地路径。
-    """
-    url = providers.Qwen.UPLOAD_URL
+def _upload_public_audio(audio_path: str) -> str:
+    """上传到 Model Studio 临时 OSS 空间，返回 oss:// URL。"""
+    upload_url = providers.Qwen.BASE_URL.rstrip("/") + "/uploads"
     headers = _auth_headers()
+    params = {"action": "getPolicy", "model": providers.Qwen.ASR_MODEL}
+    policy_resp = requests.get(upload_url, headers=headers, params=params, timeout=60)
+    if not policy_resp.ok:
+        raise RuntimeError(f"获取临时上传策略失败 ({policy_resp.status_code}): {policy_resp.text[:300]}")
+    policy_data = (policy_resp.json().get("data") or {})
+    if not policy_data:
+        raise RuntimeError(f"获取临时上传策略失败：响应为空 {policy_resp.text[:300]}")
+
+    file_name = os.path.basename(audio_path)
+    key = f"{policy_data['upload_dir']}/{file_name}"
     with open(audio_path, "rb") as f:
         resp = requests.post(
-            url,
-            headers=headers,
+            policy_data["upload_host"],
             files={
-                "file":    (os.path.basename(audio_path), f, "audio/wav"),
-                "purpose": (None, "file-extract"),
+                "OSSAccessKeyId": (None, policy_data["oss_access_key_id"]),
+                "Signature": (None, policy_data["signature"]),
+                "policy": (None, policy_data["policy"]),
+                "x-oss-object-acl": (None, policy_data["x_oss_object_acl"]),
+                "x-oss-forbid-overwrite": (None, policy_data["x_oss_forbid_overwrite"]),
+                "key": (None, key),
+                "success_action_status": (None, "200"),
+                "file": (file_name, f),
             },
             timeout=120,
         )
     if not resp.ok:
-        # 如果 compatible-mode 上传不可用，尝试 file:// 路径（dashscope SDK >= 1.20 支持）
-        logger.warning(f"[qwen_asr] upload HTTP {resp.status_code}: {resp.text[:200]}")
-        raise RuntimeError(
-            f"DashScope 文件上传失败（{resp.status_code}）: {resp.text[:300]}\n"
-            "请确认已安装 dashscope >= 1.20，或者使用环境变量 DASHSCOPE_API_KEY 配置 API Key。"
-        )
-    data = resp.json()
-    file_id = data.get("id") or data.get("file_id") or data.get("output", {}).get("file_id")
-    if not file_id:
-        raise RuntimeError(f"DashScope upload 响应中没有 file_id: {data}")
-    logger.info(f"[qwen_asr] 上传成功 → dashscope://{file_id}")
-    return f"dashscope://{file_id}"
-
-
-def _upload_with_sdk_fallback(audio_path: str) -> str:
-    """先尝试 HTTP 上传；若失败则回退到 dashscope SDK 的 file:// 方式。"""
-    try:
-        return _upload_file(audio_path)
-    except Exception as e:
-        logger.warning(f"[qwen_asr] HTTP upload 失败，尝试 SDK file:// 方式: {e}")
-        # dashscope SDK >= 1.20 支持 file:// URI 自动上传
-        abs_path = os.path.abspath(audio_path)
-        return f"file://{abs_path}"
+        raise RuntimeError(f"临时 OSS 上传失败 ({resp.status_code}): {resp.text[:300]}")
+    public_url = f"oss://{key}"
+    logger.info(f"[qwen_asr] 上传到临时 OSS → {public_url}")
+    return public_url
 
 
 # ── 转写请求 ─────────────────────────────────────────────────────────────────
@@ -97,16 +88,17 @@ def _submit_task(file_url: str) -> str:
     payload = {
         "model": providers.Qwen.ASR_MODEL,
         "input": {
-            "file_urls": [file_url],
+            "file_url": file_url,
         },
         "parameters": {
             "enable_words": True,        # 词级时间戳
-            "disfluency_removal_enabled": False,  # 保留原始发音
+            "enable_itn": False,
+            "channel_id": [0],
         },
     }
     resp = requests.post(
         url,
-        headers={**_auth_headers(), "Content-Type": "application/json"},
+        headers={**_auth_headers(), "Content-Type": "application/json", "X-DashScope-Async": "enable", "X-DashScope-OssResourceResolve": "enable"},
         json=payload,
         timeout=60,
     )
@@ -162,14 +154,17 @@ def _parse_task_result(task_data: dict) -> dict:
         "words":    [{"word", "start", "end"}, ...],   # 秒，3 位小数
     }
     """
-    results = (task_data.get("output") or {}).get("results", [])
-    if not results:
+    output = task_data.get("output") or {}
+    tr_url = ""
+    if isinstance(output.get("result"), dict):
+        tr_url = output["result"].get("transcription_url", "") or ""
+    if not tr_url:
+        results = output.get("results", [])
+        if results:
+            tr_url = results[0].get("transcription_url", "") or ""
+    if not tr_url:
         logger.warning("[qwen_asr] 结果为空")
         return {"segments": [], "language": "unknown", "words": []}
-
-    tr_url = results[0].get("transcription_url", "")
-    if not tr_url:
-        raise RuntimeError("Qwen ASR 结果中无 transcription_url")
 
     tr = _fetch_transcript_json(tr_url)
     transcripts = tr.get("transcripts", [])
@@ -268,7 +263,7 @@ def transcribe_file(audio_path: str) -> dict:
 
     logger.info(f"[qwen_asr] 开始转写: {os.path.basename(audio_path)}")
 
-    file_url = _upload_with_sdk_fallback(audio_path)
+    file_url = _upload_public_audio(audio_path)
     task_id  = _submit_task(file_url)
     task_data = _poll_task(task_id)
     result    = _parse_task_result(task_data)

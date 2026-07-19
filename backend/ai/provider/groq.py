@@ -8,7 +8,7 @@ from config import providers, settings, get_logger
 logger = get_logger(__name__)
 
 
-def transcribe_file(path, timestamp_granularities=None):
+def transcribe_file(path, timestamp_granularities=None, language=None):
     """识别音频 / 视频文件，返回 SDK 原始响应对象（含 .segments, .words, .language）。
 
     Args:
@@ -32,6 +32,8 @@ def transcribe_file(path, timestamp_granularities=None):
     }
     if timestamp_granularities:
         kw["timestamp_granularities"] = timestamp_granularities
+    if language:
+        kw["language"] = language
 
     with open(path, "rb") as f:
         return client.audio.transcriptions.create(file=f, **kw)

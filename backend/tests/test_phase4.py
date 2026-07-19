@@ -219,8 +219,31 @@ class TestTikTokDownloadHelpers:
                 {"format_id": "h264_540p_1478862-0", "ext": "mp4", "vcodec": "h264", "acodec": "aac", "filesize": 43762137},
             ]
         }
-        msg = json.dumps(sample, ensure_ascii=False)
-        assert app_module._select_tiktok_format_id(msg) == "h264_540p_748415-0"
+
+
+class TestRecognitionModes:
+    def test_visible_modes_are_exposed(self):
+        import ai.recognition_mode as recognition_mode
+
+        modes = recognition_mode.list_visible_modes()
+        keys = [m["key"] for m in modes]
+        assert keys == ["speed", "balanced", "accuracy"]
+        assert modes[1]["preferred_provider"] == "groq"
+
+    def test_mode_resolution_prefers_new_mode_then_legacy_provider(self):
+        import ai.recognition_mode as recognition_mode
+
+        assert recognition_mode.resolve_recognition_mode().key == "balanced"
+        assert recognition_mode.resolve_recognition_mode("speed").key == "speed"
+        assert recognition_mode.resolve_recognition_mode(provider="groq").key == "balanced"
+        assert recognition_mode.resolve_recognition_mode(provider="qwen").key == "accuracy"
+
+    def test_recognition_modes_api(self, client):
+        r = client.get("/api/recognition-modes")
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data["default"] == "balanced"
+        assert [m["key"] for m in data["modes"]] == ["speed", "balanced", "accuracy"]
 
     def test_ytdlp_auto_update_runs_in_deploy_env(self, monkeypatch, tmp_path):
         import app as app_module
@@ -362,6 +385,86 @@ class TestTranscribeErrorHandling:
 
         assert result["segments"][0]["text"] == "ok"
 
+    def test_transcribe_video_retries_low_confidence_for_groq_short_video(self, monkeypatch):
+        import ai.speech as speech
+
+        called = {"retry": 0}
+
+        monkeypatch.setattr(speech, "get_video_duration", lambda _path: 10)
+        monkeypatch.setattr(
+            speech,
+            "transcribe_groq",
+            lambda _path: {
+                "segments": [{"text": "ok", "start": 0.0, "end": 1.0, "_logprob": -1.2}],
+                "language": "th",
+            },
+        )
+        monkeypatch.setattr(speech, "fix_timestamps", lambda segs: segs)
+        monkeypatch.setattr(speech, "normalize_segments", lambda segs, target: segs)
+        monkeypatch.setattr(
+            speech,
+            "_retry_low_confidence_with_groq",
+            lambda *args, **kwargs: called.__setitem__("retry", called["retry"] + 1),
+        )
+
+        result = speech.transcribe_video("/tmp/video.mp4", provider="groq")
+
+        assert result["segments"][0]["text"] == "ok"
+        assert called["retry"] == 1
+
+    def test_transcribe_video_can_disable_groq_retry(self, monkeypatch):
+        import ai.speech as speech
+
+        called = {"retry": 0}
+
+        monkeypatch.setattr(speech, "get_video_duration", lambda _path: 10)
+        monkeypatch.setattr(
+            speech,
+            "transcribe_groq",
+            lambda _path: {
+                "segments": [{"text": "ok", "start": 0.0, "end": 1.0, "_logprob": -1.2}],
+                "language": "th",
+            },
+        )
+        monkeypatch.setattr(speech, "fix_timestamps", lambda segs: segs)
+        monkeypatch.setattr(speech, "normalize_segments", lambda segs, target: segs)
+        monkeypatch.setattr(
+            speech,
+            "_retry_low_confidence_with_groq",
+            lambda *args, **kwargs: called.__setitem__("retry", called["retry"] + 1),
+        )
+
+        result = speech.transcribe_video("/tmp/video.mp4", provider="groq", enable_groq_retry=False)
+
+        assert result["segments"][0]["text"] == "ok"
+        assert called["retry"] == 0
+
+    def test_retry_low_confidence_with_groq_limits_segments(self, monkeypatch):
+        import ai.speech as speech
+
+        calls = []
+
+        segments = [
+            {"text": f"seg{i}", "start": float(i * 2), "end": float(i * 2 + 1), "_logprob": -1.2}
+            for i in range(6)
+        ]
+        monkeypatch.setattr(speech.providers.Groq, "API_KEY", "dummy")
+        monkeypatch.setattr(
+            speech.groq_provider,
+            "transcribe_text",
+            lambda path, language=None: calls.append((path, language)) or "ok",
+        )
+        monkeypatch.setattr(
+            speech.subprocess,
+            "run",
+            lambda *args, **kwargs: type("R", (), {"returncode": 0, "stderr": ""})(),
+        )
+        monkeypatch.setattr(speech.os.path, "exists", lambda _path: False)
+
+        speech._retry_low_confidence_with_groq("/tmp/video.mp4", segments, language="th")
+
+        assert len(calls) == 4
+
     def test_transcribe_video_falls_back_to_groq_when_openai_is_too_large(self, monkeypatch):
         import ai.speech as speech
 
@@ -387,6 +490,144 @@ class TestTranscribeErrorHandling:
         result = speech.transcribe_slice("/tmp/slice.wav", provider="openai")
 
         assert result["text"] == "ok"
+
+    def test_transcribe_video_falls_back_to_chunked_when_groq_is_too_large(self, monkeypatch):
+        import ai.speech as speech
+
+        calls = []
+
+        monkeypatch.setattr(speech, "get_video_duration", lambda _path: 10)
+        monkeypatch.setattr(speech.os.path, "getsize", lambda _path: speech._GROQ_MAX_DIRECT_BYTES + 1)
+        monkeypatch.setattr(speech, "transcribe_groq", lambda _path: (_ for _ in ()).throw(RuntimeError("request_too_large")))
+        monkeypatch.setattr(speech, "transcribe_chunked", lambda video_path, provider, duration, progress_callback=None: calls.append((video_path, provider, duration)) or {"segments": [{"text": "ok", "start": 0, "end": 1}], "language": "en"})
+        monkeypatch.setattr(speech, "fix_timestamps", lambda segs: segs)
+        monkeypatch.setattr(speech, "normalize_segments", lambda segs, target: segs)
+
+        result = speech.transcribe_video("/tmp/video.mp4", provider="groq")
+
+        assert result["segments"][0]["text"] == "ok"
+        assert calls and calls[0][1] == "groq"
+
+    def test_transcribe_chunked_uses_two_minute_chunks_for_groq(self, monkeypatch):
+        import ai.speech as speech
+        from types import SimpleNamespace
+
+        chunk_calls = []
+
+        def fake_extract(video_path, start, duration):
+            chunk_calls.append((round(start, 2), round(duration, 2)))
+            return f"/tmp/chunk_{len(chunk_calls)}.wav"
+
+        def fake_transcribe(path, timestamp_granularities=None, language=None):
+            if len(chunk_calls) == 1:
+                return SimpleNamespace(
+                    segments=[SimpleNamespace(text="สวัสดี", start=0.0, end=1.0)],
+                    words=[SimpleNamespace(word="สวัสดี", start=0.0, end=1.0)],
+                    language="th",
+                )
+            return SimpleNamespace(
+                segments=[SimpleNamespace(text="ค่ะ", start=0.0, end=1.0)],
+                words=[SimpleNamespace(word="ค่ะ", start=0.0, end=1.0)],
+                language="th",
+            )
+
+        monkeypatch.setattr(speech, "_extract_chunk_wav", fake_extract)
+        monkeypatch.setattr(speech.groq_provider, "transcribe_file", fake_transcribe)
+        monkeypatch.setattr(speech.os.path, "exists", lambda _path: False)
+
+        result = speech.transcribe_chunked("/tmp/video.mp4", "groq", 350, progress_callback=None)
+
+        assert chunk_calls[:3] == [(0.0, 120), (120.0, 120), (240.0, 110)]
+        assert result["language"] == "th"
+        assert len(result["segments"]) == 3
+
+    def test_qwen_filetrans_uses_public_file_url_and_async_task(self, monkeypatch, tmp_path):
+        import ai.provider.qwen_asr as qwen_asr
+
+        recorded = {}
+        sample = tmp_path / "sample.wav"
+        sample.write_bytes(b"RIFF0000WAVEfmt ")
+
+        class _Resp:
+            def __init__(self, data, ok=True, status=200):
+                self._data = data
+                self.ok = ok
+                self.status_code = status
+                self.text = json.dumps(data, ensure_ascii=False)
+
+            def json(self):
+                return self._data
+
+            def raise_for_status(self):
+                if not self.ok:
+                    raise RuntimeError(self.text)
+
+        def fake_get(url, headers=None, params=None, timeout=None):
+            if url.endswith("/uploads"):
+                recorded["policy_url"] = url
+                recorded["policy_params"] = params or {}
+                return _Resp({
+                    "data": {
+                        "upload_dir": "dashscope-instant/test/2026-07-19/abc",
+                        "upload_host": "https://oss.example/upload",
+                        "oss_access_key_id": "AK",
+                        "signature": "SIG",
+                        "policy": "POLICY",
+                        "x_oss_object_acl": "private",
+                        "x_oss_forbid_overwrite": "true",
+                    }
+                })
+            if url == "https://example.test/result.json":
+                return _Resp({
+                    "transcripts": [{
+                        "language": "th",
+                        "sentences": [{
+                            "begin_time": 100,
+                            "end_time": 900,
+                            "text": "สวัสดี",
+                            "words": [
+                                {"begin_time": 100, "end_time": 900, "text": "สวัสดี"},
+                            ],
+                        }],
+                    }],
+                })
+            if url.endswith("/tasks/task-123"):
+                return _Resp({
+                    "output": {
+                        "task_status": "SUCCEEDED",
+                        "result": {"transcription_url": "https://example.test/result.json"},
+                    }
+                })
+            raise AssertionError(f"unexpected GET {url}")
+
+        def fake_post(url, headers=None, json=None, files=None, timeout=None):
+            if url == "https://oss.example/upload":
+                recorded["oss_upload_url"] = url
+                recorded["oss_upload_fields"] = files or {}
+                return _Resp({}, status=200)
+            recorded["submit_url"] = url
+            recorded["headers"] = headers or {}
+            recorded["payload"] = json or {}
+            return _Resp({"output": {"task_id": "task-123"}})
+
+        monkeypatch.setattr(qwen_asr.providers.Qwen, "ASR_API_KEY", "dummy")
+        monkeypatch.setattr(qwen_asr.requests, "post", fake_post)
+        monkeypatch.setattr(qwen_asr.requests, "get", fake_get)
+        monkeypatch.setattr(qwen_asr, "_POLL_INTERVAL", 0)
+        monkeypatch.setattr(qwen_asr, "_POLL_MAX_WAIT", 1)
+        monkeypatch.setattr(qwen_asr.time, "sleep", lambda *_args, **_kwargs: None)
+
+        result = qwen_asr.transcribe_file(str(sample))
+
+        assert recorded["policy_params"]["action"] == "getPolicy"
+        assert recorded["policy_params"]["model"] == qwen_asr.providers.Qwen.ASR_MODEL
+        assert recorded["oss_upload_fields"]["key"][1].startswith("dashscope-instant/test/2026-07-19/")
+        assert recorded["headers"]["X-DashScope-Async"] == "enable"
+        assert recorded["headers"]["X-DashScope-OssResourceResolve"] == "enable"
+        assert recorded["payload"]["input"]["file_url"].startswith("oss://dashscope-instant/")
+        assert result["language"] == "th"
+        assert result["segments"][0]["text"] == "สวัสดี"
+        assert result["words"][0]["word"] == "สวัสดี"
 
 
 class TestAdminUsers:

@@ -13,6 +13,7 @@ from flask import Flask, request, jsonify, send_from_directory, Response, make_r
 from flask_cors import CORS
 from config import settings, providers, get_logger
 from ai.speech import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps, get_video_duration
+from ai.recognition_mode import resolve_recognition_mode, list_visible_modes
 from ai.translation import translate_segments, word_define as _word_define
 from ai.tts import generate_audio_lesson, generate_cover_image, ocr_image, detect_input_mode, generate_tts_content
 from ai.pronunciation import assess_pronunciation
@@ -71,6 +72,53 @@ def _commerce_context(db, user_id: str, capability: str, extra: dict = None) -> 
     return CommerceContext(
         db, user_id, capability, get_default_quality(plan), plan, extra=extra,
     )
+
+
+def _attempt_transcription_with_mode(
+    ctx: CommerceContext,
+    mode,
+    *,
+    video_path: str | None = None,
+    audio_path: str | None = None,
+    segment_target=None,
+    progress_callback=None,
+    language=None,
+):
+    """
+    按识别模式尝试 provider，必要时自动回退。
+
+    返回:
+        result, handle, fallback_used, fallback_from
+    """
+    first_provider = None
+    last_error = None
+    candidates = list(mode.provider_candidates or ("groq",))
+
+    for idx, candidate in enumerate(candidates):
+        handle = ctx.get_handle(preferred_provider=candidate)
+        if first_provider is None:
+            first_provider = handle.provider_id
+
+        try:
+            if audio_path is not None:
+                result = transcribe_slice(audio_path, handle.provider_id, language=language)
+            else:
+                result = transcribe_video(
+                    video_path,
+                    provider=handle.provider_id,
+                    segment_target=segment_target,
+                    progress_callback=progress_callback,
+                    enable_groq_retry=mode.enable_groq_retry,
+                )
+            return result, handle, idx > 0, first_provider
+        except Exception as exc:
+            last_error = exc
+            if idx + 1 >= len(candidates):
+                raise
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("识别失败")
 
 logger = get_logger(__name__)
 _MAX_DOWNLOAD_DURATION_SECONDS = 300  # 5 分钟；当前仅保证短视频稳定下载
@@ -914,7 +962,9 @@ def api_transcribe():
     if not os.path.exists(video_path):
         return jsonify({"error": "视频文件不存在"}), 404
 
+    requested_mode = data.get("recognition_mode")
     requested_provider = data.get("provider", "groq")
+    mode = resolve_recognition_mode(requested_mode, requested_provider)
     segment_target = data.get("segment_target")
     if segment_target:
         segment_target = int(segment_target)
@@ -936,14 +986,16 @@ def api_transcribe():
         is_anon = (_uid == ANONYMOUS_USER_ID)
         ctx = _commerce_context(
             db, _uid, "transcription",
-            extra={"video": video_name, "provider": requested_provider},
+            extra={
+                "video": video_name,
+                "recognition_mode": mode.key,
+                "provider": requested_provider,
+            },
         )
         if not ctx.check_permission("CanTranscribe"):
             progress_queue.put(("error", "权限不足，请升级套餐"))
             return
         plan = "device" if is_anon else get_user_plan(db, _uid)
-        handle = ctx.get_handle()
-        provider = handle.provider_id
 
         if not _check_rate_limit(_rl_key, "transcription", plan):
             used  = _rl_get_usage(_rl_key, "transcription")
@@ -966,14 +1018,17 @@ def api_transcribe():
         t0 = _time.time()
         try:
             # 超过 5 分钟时 transcribe_video 内部自动分段，progress_callback 推送各段进度
-            if duration > 300 and provider in ("openai", "groq"):
+            if duration > 300 and mode.preferred_provider in ("openai", "groq"):
                 total_chunks = -(-int(duration) // 180)  # ceil(duration/180)
                 progress_queue.put(("progress", f"视频较长，将分 {total_chunks} 段识别..."))
             else:
-                progress_queue.put(("progress", f"正在识别（{provider.upper()}）..."))
+                progress_queue.put(("progress", f"正在识别（{mode.label}）..."))
 
-            result = transcribe_video(
-                video_path, provider=provider, segment_target=segment_target,
+            result, handle, fallback_used, fallback_from = _attempt_transcription_with_mode(
+                ctx,
+                mode,
+                video_path=video_path,
+                segment_target=segment_target,
                 progress_callback=lambda msg: progress_queue.put(("progress", msg)),
             )
 
@@ -1008,11 +1063,15 @@ def api_transcribe():
             latency_ms = int((_time.time() - t0) * 1000)
             if not is_anon:
                 ctx.settle(
-                    {"duration_seconds": duration}, provider,
+                    {"duration_seconds": duration},
+                    handle.provider_id,
                     handle.model_id,
                     latency_ms,
+                    fallback_used=fallback_used,
+                    fallback_from=fallback_from if fallback_used else None,
                 )
-            log_event("transcribe", video=video_name, provider=provider,
+            log_event("transcribe", video=video_name, provider=handle.provider_id,
+                      recognition_mode=mode.key,
                       language=language_code, segments=len(segments))
             if not is_anon:
                 _referral.try_activate_referral(db, _uid)
@@ -1020,7 +1079,7 @@ def api_transcribe():
         except Exception as e:
             if not is_anon:
                 ctx.release_on_error(e)
-            log_event("transcribe_fail", video=video_name, provider=provider, error=str(e)[:200])
+            log_event("transcribe_fail", video=video_name, provider=mode.key, error=str(e)[:200])
             progress_queue.put(("error", _classify_transcribe_error(e)))
 
     threading.Thread(target=do_transcribe, daemon=True).start()
@@ -1043,12 +1102,23 @@ def api_transcribe():
     return Response(generate(), mimetype="text/event-stream")
 
 
+@app.route("/api/recognition-modes", methods=["GET"])
+def api_recognition_modes():
+    """返回前端可展示的识别模式列表。"""
+    return jsonify({
+        "default": "balanced",
+        "modes": list_visible_modes(),
+    })
+
+
 @app.route("/api/retranscribe", methods=["POST"])
 def api_retranscribe():
     """对视频的一个时间片段进行二次识别（用户微调时间戳后重新识别单句）"""
     data = request.get_json()
     video_name = data.get("video", "")
+    requested_mode = data.get("recognition_mode")
     requested_provider = data.get("provider", "groq")
+    mode = resolve_recognition_mode(requested_mode, requested_provider)
     do_translate = bool(data.get("translate", True))
     source_lang = data.get("source_lang", "泰语")
     target_lang = data.get("target_lang", "中文")
@@ -1092,7 +1162,12 @@ def api_retranscribe():
         _uid = _get_user_id(db)
         ctx = _commerce_context(
             db, _uid, "transcription",
-            extra={"video": video_name, "provider": requested_provider, "mode": "retranscribe"},
+            extra={
+                "video": video_name,
+                "provider": requested_provider,
+                "recognition_mode": mode.key,
+                "mode": "retranscribe",
+            },
         )
         if not ctx.check_permission("CanTranscribe"):
             return jsonify({"error": "权限不足，请升级套餐"}), 403
@@ -1103,9 +1178,12 @@ def api_retranscribe():
 
         t0 = _time.time()
         try:
-            handle = ctx.get_handle()
-            provider = handle.provider_id
-            result = transcribe_slice(wav_path, provider, language=language)
+            result, handle, fallback_used, fallback_from = _attempt_transcription_with_mode(
+                ctx,
+                mode,
+                audio_path=wav_path,
+                language=language,
+            )
             text = result["text"]
 
             # 泰语：按词加空格
@@ -1122,8 +1200,16 @@ def api_retranscribe():
                     logger.warning(f"[Retranscribe] 翻译失败: {te}")
 
             latency_ms = int((_time.time() - t0) * 1000)
-            ctx.settle({"duration_seconds": duration_sec}, handle.provider_id, handle.model_id, latency_ms)
-            log_event("retranscribe", video=video_name, provider=provider,
+            ctx.settle(
+                {"duration_seconds": duration_sec},
+                handle.provider_id,
+                handle.model_id,
+                latency_ms,
+                fallback_used=fallback_used,
+                fallback_from=fallback_from if fallback_used else None,
+            )
+            log_event("retranscribe", video=video_name, provider=handle.provider_id,
+                      recognition_mode=mode.key,
                       range=f"{start:.1f}-{end:.1f}", language=language)
             return jsonify({"text": text, "translation": translation})
         except Exception as e:
@@ -1140,7 +1226,9 @@ def api_retranscribe_audio():
     if "audio" not in request.files:
         return jsonify({"error": "缺少音频文件"}), 400
 
+    requested_mode = request.form.get("recognition_mode")
     requested_provider = request.form.get("provider", "groq")
+    mode = resolve_recognition_mode(requested_mode, requested_provider)
     do_translate = request.form.get("translate", "true") == "true"
     source_lang = request.form.get("source_lang", "泰语")
     target_lang = request.form.get("target_lang", "中文")
@@ -1169,7 +1257,11 @@ def api_retranscribe_audio():
         _uid = _get_user_id(db)
         ctx = _commerce_context(
             db, _uid, "transcription",
-            extra={"provider": requested_provider, "mode": "retranscribe_audio"},
+            extra={
+                "provider": requested_provider,
+                "recognition_mode": mode.key,
+                "mode": "retranscribe_audio",
+            },
         )
         if not ctx.check_permission("CanTranscribe"):
             return jsonify({"error": "权限不足，请升级套餐"}), 403
@@ -1180,9 +1272,12 @@ def api_retranscribe_audio():
 
         import time as _time
         t0 = _time.time()
-        handle = ctx.get_handle()
-        provider = handle.provider_id
-        result = transcribe_slice(wav_path, provider, language=language)
+        result, handle, fallback_used, fallback_from = _attempt_transcription_with_mode(
+            ctx,
+            mode,
+            audio_path=wav_path,
+            language=language,
+        )
         text = result["text"]
 
         # 泰语：按词加空格 + 发音时长权重
@@ -1199,8 +1294,16 @@ def api_retranscribe_audio():
                 logger.warning(f"[RetranscribeAudio] 翻译失败: {te}")
 
         latency_ms = int((_time.time() - t0) * 1000)
-        ctx.settle({"duration_seconds": duration_sec}, handle.provider_id, handle.model_id, latency_ms)
-        log_event("retranscribe_audio", provider=provider, language=language)
+        ctx.settle(
+            {"duration_seconds": duration_sec},
+            handle.provider_id,
+            handle.model_id,
+            latency_ms,
+            fallback_used=fallback_used,
+            fallback_from=fallback_from if fallback_used else None,
+        )
+        log_event("retranscribe_audio", provider=handle.provider_id,
+                  recognition_mode=mode.key, language=language)
         return jsonify({"text": text, "translation": translation})
     except Exception as e:
         try:
