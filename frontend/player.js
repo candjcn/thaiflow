@@ -4907,7 +4907,7 @@ weBtnSave.addEventListener("click", async () => {
 weBtnRetrans.addEventListener("click", async () => {
     if (we.idx < 0 || weBtnRetrans.disabled) return;
     weBtnRetrans.disabled = true;
-    const recognitionMode = getStoredRecognitionMode();
+    const recognitionMode = "accuracy";
     const modeInfo = getRecognitionModeInfo(recognitionMode);
     weStatus.textContent = `${modeInfo.label} · ${t("we.recognizing")}`;
 

@@ -1121,7 +1121,7 @@ def api_retranscribe():
     """对视频的一个时间片段进行二次识别（用户微调时间戳后重新识别单句）"""
     data = request.get_json()
     video_name = data.get("video", "")
-    requested_mode = data.get("recognition_mode")
+    requested_mode = data.get("recognition_mode") or "accuracy"
     requested_provider = data.get("provider", "groq")
     mode = resolve_recognition_mode(requested_mode, requested_provider)
     do_translate = bool(data.get("translate", True))
@@ -1231,7 +1231,7 @@ def api_retranscribe_audio():
     if "audio" not in request.files:
         return jsonify({"error": "缺少音频文件"}), 400
 
-    requested_mode = request.form.get("recognition_mode")
+    requested_mode = request.form.get("recognition_mode") or "accuracy"
     requested_provider = request.form.get("provider", "groq")
     mode = resolve_recognition_mode(requested_mode, requested_provider)
     do_translate = request.form.get("translate", "true") == "true"
