@@ -228,6 +228,7 @@ async function loadProfile() {
 
 let _dirModalCurrentPath = "";
 let _profileRecognitionModeListenerBound = false;
+let _advancedSettingsOpen = false;
 
 function getStoredRecognitionMode() {
     return localStorage.getItem("recognition-mode") || "balanced";
@@ -316,6 +317,9 @@ function saveExportDir(path) {
 function initSettings() {
     const uiLangSel    = document.getElementById("settingUiLang");
     const translateSel = document.getElementById("settingTranslateLang");
+    const advancedToggle = document.getElementById("advancedSettingsToggle");
+    const advancedPanel   = document.getElementById("advancedSettingsPanel");
+    const advancedChevron = document.getElementById("advancedSettingsChevron");
     const recognitionModeSel = document.getElementById("profileRecognitionMode");
     const recognitionModeDesc = document.getElementById("profileRecognitionModeDesc");
 
@@ -339,6 +343,31 @@ function initSettings() {
         val ? localStorage.setItem("translate-lang", val)
             : localStorage.removeItem("translate-lang");
     });
+
+    // ── 高级设置展开 / 收起 ──
+    function setAdvancedOpen(open) {
+        _advancedSettingsOpen = !!open;
+        if (advancedToggle) {
+            advancedToggle.classList.toggle("open", _advancedSettingsOpen);
+            advancedToggle.setAttribute("aria-expanded", String(_advancedSettingsOpen));
+        }
+        if (advancedPanel) {
+            advancedPanel.hidden = !_advancedSettingsOpen;
+        }
+        if (advancedChevron) {
+            advancedChevron.textContent = _advancedSettingsOpen ? "▴" : "▾";
+        }
+    }
+    if (advancedToggle && advancedPanel) {
+        advancedToggle.addEventListener("click", () => setAdvancedOpen(!_advancedSettingsOpen));
+        advancedToggle.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setAdvancedOpen(!_advancedSettingsOpen);
+            }
+        });
+        setAdvancedOpen(false);
+    }
 
     // ── 识别模式（高级设置） ──
     if (recognitionModeSel) {

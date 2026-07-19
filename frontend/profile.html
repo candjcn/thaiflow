@@ -367,6 +367,32 @@
         .setting-control {
             flex-shrink: 0;
         }
+        .advanced-settings-toggle {
+            cursor: pointer;
+            user-select: none;
+        }
+        .advanced-settings-toggle .setting-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .advanced-settings-chevron {
+            font-size: 12px;
+            color: var(--text-2);
+            transition: transform 0.15s ease, color 0.15s ease;
+        }
+        .advanced-settings-toggle.open .advanced-settings-chevron {
+            transform: rotate(180deg);
+            color: var(--text-1);
+        }
+        .advanced-settings-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .advanced-settings-row {
+            border-radius: var(--radius-md);
+        }
         .setting-select {
             background: rgba(255,255,255,0.08);
             color: var(--text-1);
@@ -802,17 +828,21 @@
             </div>
 
             <!-- Advanced Settings -->
-            <details class="advanced-settings">
-                <summary data-i18n="app.add.advanced.title">高级设置</summary>
-                <div class="advanced-settings-body">
-                    <div class="advanced-settings-desc" data-i18n="app.add.advanced.desc">普通用户保持默认；只有需要调整识别模式时再打开这里。</div>
-                    <div class="provider-row recognition-row">
-                        <label data-i18n="app.add.recognition.label">识别模式：</label>
-                        <select id="profileRecognitionMode"></select>
+            <div class="setting-row advanced-settings-toggle" id="advancedSettingsToggle" role="button" tabindex="0" aria-expanded="false">
+                <div class="setting-label" data-i18n="app.add.advanced.title">高级设置</div>
+                <div class="setting-control advanced-settings-chevron" id="advancedSettingsChevron">▾</div>
+            </div>
+            <div class="advanced-settings-panel" id="advancedSettingsPanel" hidden>
+                <div class="setting-row advanced-settings-row">
+                    <div class="setting-label">
+                        <span data-i18n="app.add.recognition.label">识别模式：</span>
+                        <small data-i18n="app.add.recognition.note">默认模式适合大多数短视频。</small>
                     </div>
-                    <div class="advanced-settings-note" id="profileRecognitionModeDesc" data-i18n="app.add.recognition.note">默认模式适合大多数短视频。</div>
+                    <div class="setting-control">
+                        <select class="setting-select" id="profileRecognitionMode"></select>
+                    </div>
                 </div>
-            </details>
+            </div>
 
         </div>
     </div>
