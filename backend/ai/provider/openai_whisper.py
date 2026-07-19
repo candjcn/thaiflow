@@ -8,7 +8,7 @@ from config import providers, settings, get_logger
 logger = get_logger(__name__)
 
 
-def transcribe_file(path, timestamp_granularities=None):
+def transcribe_file(path, timestamp_granularities=None, language=None):
     """识别音频文件，返回 SDK 原始响应对象（含 .segments, .words, .language）。
 
     Args:
@@ -32,12 +32,14 @@ def transcribe_file(path, timestamp_granularities=None):
     }
     if timestamp_granularities:
         kw["timestamp_granularities"] = timestamp_granularities
+    if language:
+        kw["language"] = language
 
     with open(path, "rb") as f:
         return client.audio.transcriptions.create(file=f, **kw)
 
 
-def transcribe_text(path):
+def transcribe_text(path, language=None):
     """识别音频文件，返回纯文本字符串。
 
     适用于 gpt-4o-transcribe 这类不返回 word 级时间戳的模型。
@@ -53,6 +55,8 @@ def transcribe_text(path):
         "model": providers.OpenAI.TRANSCRIBE_MODEL,
         "response_format": "text",
     }
+    if language:
+        kw["language"] = language
 
     with open(path, "rb") as f:
         return client.audio.transcriptions.create(file=f, **kw)

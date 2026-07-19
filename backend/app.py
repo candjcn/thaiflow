@@ -13,7 +13,11 @@ from flask import Flask, request, jsonify, send_from_directory, Response, make_r
 from flask_cors import CORS
 from config import settings, providers, get_logger
 from ai.speech import transcribe_video, transcribe_slice, add_word_spacing, align_word_timestamps, get_video_duration
-from ai.recognition_mode import resolve_recognition_mode, list_visible_modes
+from ai.recognition_mode import (
+    resolve_recognition_mode,
+    list_visible_modes,
+    get_accuracy_provider_candidates,
+)
 from ai.translation import translate_segments, word_define as _word_define
 from ai.tts import generate_audio_lesson, generate_cover_image, ocr_image, detect_input_mode, generate_tts_content
 from ai.pronunciation import assess_pronunciation
@@ -90,9 +94,29 @@ def _attempt_transcription_with_mode(
     返回:
         result, handle, fallback_used, fallback_from
     """
+    def _lang_prefix(value):
+        if not value:
+            return "unknown"
+        value = str(value).strip().lower()
+        if not value or value == "unknown":
+            return "unknown"
+        return value[:2]
+
     first_provider = None
     last_error = None
     candidates = list(mode.provider_candidates or ("groq",))
+    expected_lang = _lang_prefix(language)
+    if audio_path is not None and expected_lang != "unknown":
+        if getattr(mode, "key", "") == "accuracy":
+            candidates = list(get_accuracy_provider_candidates(expected_lang))
+        language_aware = []
+        language_unaware = []
+        for candidate in candidates:
+            if candidate in ("groq", "openai", "azure", "gemini"):
+                language_aware.append(candidate)
+            else:
+                language_unaware.append(candidate)
+        candidates = language_aware + language_unaware
 
     for idx, candidate in enumerate(candidates):
         handle = ctx.get_handle(preferred_provider=candidate)
@@ -110,6 +134,17 @@ def _attempt_transcription_with_mode(
                     progress_callback=progress_callback,
                     enable_groq_retry=mode.enable_groq_retry,
                 )
+            result_lang = _lang_prefix(result.get("language"))
+            if expected_lang != "unknown" and result_lang not in ("unknown", expected_lang):
+                logger.warning(
+                    f"[retranscribe] provider={handle.provider_id} returned lang={result_lang}, "
+                    f"expected={expected_lang}; trying next candidate"
+                )
+                last_error = RuntimeError(
+                    f"识别语言不匹配：期望 {expected_lang}，实际 {result_lang}"
+                )
+                if idx + 1 < len(candidates):
+                    continue
             return result, handle, idx > 0, first_provider
         except Exception as exc:
             last_error = exc
@@ -1210,7 +1245,12 @@ def api_retranscribe():
             log_event("retranscribe", video=video_name, provider=handle.provider_id,
                       recognition_mode=mode.key,
                       range=f"{start:.1f}-{end:.1f}", language=language)
-            return jsonify({"text": text, "translation": translation})
+            return jsonify({
+                "text": text,
+                "translation": translation,
+                "language": result.get("language", "unknown"),
+                "provider": handle.provider_id,
+            })
         except Exception as e:
             ctx.release_on_error(e)
             return jsonify({"error": _classify_transcribe_error(e)}), 502
@@ -1303,7 +1343,12 @@ def api_retranscribe_audio():
         )
         log_event("retranscribe_audio", provider=handle.provider_id,
                   recognition_mode=mode.key, language=language)
-        return jsonify({"text": text, "translation": translation})
+        return jsonify({
+            "text": text,
+            "translation": translation,
+            "language": result.get("language", "unknown"),
+            "provider": handle.provider_id,
+        })
     except Exception as e:
         try:
             ctx.release_on_error(e)  # type: ignore[name-defined]

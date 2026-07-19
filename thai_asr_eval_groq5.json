@@ -1,0 +1,274 @@
+{
+  "data_dir": "/Users/apple/Movies/泰语吐槽系列视频",
+  "pairs": [
+    {
+      "video": "/Users/apple/Movies/泰语吐槽系列视频/博文省的中国男人.mp4",
+      "subtitle": "/Users/apple/Movies/泰语吐槽系列视频/博文省的中国男人.srt",
+      "duration": 224.002,
+      "gt": {
+        "cues": 85,
+        "chars": 3878
+      },
+      "groq": {
+        "ok": true,
+        "time": 38.01,
+        "segments": 111,
+        "chars": 3597,
+        "sim": 0.3197,
+        "cer": 0.3351,
+        "error": "",
+        "first": [
+          {
+            "index": 0,
+            "text": "ผู้ชายจีนมณฐลบ่อวิ้นแม้มันร้าย",
+            "start": 0.56,
+            "end": 2.56,
+            "_logprob": -0.4578,
+            "_no_speech": 0.0485
+          },
+          {
+            "index": 1,
+            "text": "คือเราเห็นหลายคนเนอะพูดไปเสียงเดียวกันเลยว่า",
+            "start": 2.56,
+            "end": 4.98,
+            "_logprob": -0.4578,
+            "_no_speech": 0.0485
+          },
+          {
+            "index": 2,
+            "text": "ผู้ชายจีนมณฐลบ่อวิ้นแม้มันร้ายติดอันดับ ต้นๆเลย",
+            "start": 4.98,
+            "end": 7.7,
+            "_logprob": -0.4578,
+            "_no_speech": 0.0485
+          },
+          {
+            "index": 3,
+            "text": "คือส่วนตัวเราไม่ได้มองว่าพวกเนี่ย มันร้ายเลยแม้แต่นิดเดียว",
+            "start": 8.3,
+            "end": 10.98,
+            "_logprob": -0.4578,
+            "_no_speech": 0.0485
+          }
+        ]
+      }
+    },
+    {
+      "video": "/Users/apple/Movies/泰语吐槽系列视频/泰语打鸡血-TH.mov",
+      "subtitle": "/Users/apple/Movies/泰语吐槽系列视频/泰语打鸡血-TH.srt",
+      "duration": 130.868,
+      "gt": {
+        "cues": 41,
+        "chars": 1554
+      },
+      "groq": {
+        "ok": true,
+        "time": 16.76,
+        "segments": 49,
+        "chars": 1496,
+        "sim": 0.3796,
+        "cer": 0.1879,
+        "error": "",
+        "first": [
+          {
+            "text": "ชีวิตเราเป็นคนกำนุดมันถูกป่ะ",
+            "start": 0.0,
+            "end": 2.44,
+            "_logprob": -0.435,
+            "_no_speech": 0.1174,
+            "index": 0
+          },
+          {
+            "text": "แล้วทำไมเราต้องกลัวการสะเหอะด้วยวะ",
+            "start": 2.84,
+            "end": 4.84,
+            "_logprob": -0.435,
+            "_no_speech": 0.1174,
+            "index": 1
+          },
+          {
+            "text": "อยากทำอะไรก็ทำล้ย",
+            "start": 5.34,
+            "end": 7.34,
+            "_logprob": -0.435,
+            "_no_speech": 0.1174,
+            "index": 2
+          },
+          {
+            "text": "อยากกินอยากเที่ยวอยากลงคิป",
+            "start": 7.68,
+            "end": 10.28,
+            "_logprob": -0.435,
+            "_no_speech": 0.1174,
+            "index": 3
+          }
+        ]
+      }
+    },
+    {
+      "video": "/Users/apple/Movies/泰语吐槽系列视频/忠诚善良妹的鸡汤虽好不如纹身_泰语.mp4",
+      "subtitle": "/Users/apple/Movies/泰语吐槽系列视频/忠诚善良妹的鸡汤虽好不如纹身_泰语.srt",
+      "duration": 15.2,
+      "gt": {
+        "cues": 5,
+        "chars": 191
+      },
+      "groq": {
+        "ok": true,
+        "time": 1.43,
+        "segments": 5,
+        "chars": 191,
+        "sim": 1.0,
+        "cer": 0.0,
+        "error": "",
+        "first": [
+          {
+            "index": 0,
+            "text": "จงตกลุ่มรักคนที่คุณคุยได้เป็นชั่วโมงๆ ต่อให้คุณเครียดอยากระบาย",
+            "start": 0.0,
+            "end": 4.88,
+            "_logprob": -0.1082,
+            "_no_speech": 0.0181
+          },
+          {
+            "index": 1,
+            "text": "ผู้เผลอเจอเขาก็ยังรับฟังคุณอยู่",
+            "start": 4.88,
+            "end": 7.2,
+            "_logprob": -0.1082,
+            "_no_speech": 0.0181
+          },
+          {
+            "index": 2,
+            "text": "เพราะความสวยความหล่อเปลี่ยนไปได้",
+            "start": 7.2,
+            "end": 9.6,
+            "_logprob": -0.1082,
+            "_no_speech": 0.0181
+          },
+          {
+            "index": 3,
+            "text": "ร่างกายก็แก่ลงตามการเวลา",
+            "start": 9.6,
+            "end": 11.76,
+            "_logprob": -0.1082,
+            "_no_speech": 0.0181
+          }
+        ]
+      }
+    },
+    {
+      "video": "/Users/apple/Movies/泰语吐槽系列视频/奶狗喜欢姐姐吗_泰语.mp4",
+      "subtitle": "/Users/apple/Movies/泰语吐槽系列视频/奶狗喜欢姐姐吗_泰语.srt",
+      "duration": 82.7,
+      "gt": {
+        "cues": 35,
+        "chars": 1287
+      },
+      "groq": {
+        "ok": true,
+        "time": 10.81,
+        "segments": 33,
+        "chars": 1007,
+        "sim": 0.4296,
+        "cer": 0.2837,
+        "error": "",
+        "first": [
+          {
+            "index": 0,
+            "text": "ท่านบอกว่าทำไมหมาเด็กสมัยชอบพี่สาวคนสวย",
+            "start": 0.0,
+            "end": 3.12,
+            "_logprob": -0.4597,
+            "_no_speech": 0.1119
+          },
+          {
+            "index": 1,
+            "text": "ถึงเห็นสมัยนี้ว่า หมาเด็กชอบครอบครับ",
+            "start": 3.12,
+            "end": 6.3,
+            "_logprob": -0.4597,
+            "_no_speech": 0.1119
+          },
+          {
+            "index": 2,
+            "text": "พี่สาวคนสวย แบบนี้",
+            "start": 6.3,
+            "end": 8.82,
+            "_logprob": -0.4597,
+            "_no_speech": 0.1119
+          },
+          {
+            "index": 3,
+            "text": "ก็อยากรู้เหมือนกันว่าเด็กเจ้งซีสมัยนี้",
+            "start": 8.82,
+            "end": 10.44,
+            "_logprob": -0.4597,
+            "_no_speech": 0.1119
+          }
+        ]
+      }
+    },
+    {
+      "video": "/Users/apple/Movies/泰语吐槽系列视频/在中国旅行确实比泰国人想象的要便宜多了.mp4",
+      "subtitle": "/Users/apple/Movies/泰语吐槽系列视频/已发小红书/在中国旅行确实比泰国人想象的要便宜多了.srt",
+      "duration": 389.933,
+      "gt": {
+        "cues": 137,
+        "chars": 5686
+      },
+      "groq": {
+        "ok": true,
+        "time": 48.6,
+        "segments": 174,
+        "chars": 5301,
+        "sim": 0.0363,
+        "cer": 0.2334,
+        "error": "",
+        "first": [
+          {
+            "text": "ปกติที่เธอเป็นอะไรอ่ะ เห็นปกติจะไปแต่ญี่ปุ่นกับเกาหลี",
+            "start": 0.0,
+            "end": 3.12,
+            "_logprob": -0.169,
+            "_no_speech": 0.2379,
+            "index": 0
+          },
+          {
+            "text": "อืม",
+            "start": 3.12,
+            "end": 3.42,
+            "_logprob": -0.169,
+            "_no_speech": 0.2379,
+            "index": 1
+          },
+          {
+            "text": "เห็นตอนเนี้ยไปแต่จีน 2 เดือนไปทีนึง ไปทีนึง",
+            "start": 3.42,
+            "end": 6.2,
+            "_logprob": -0.169,
+            "_no_speech": 0.2379,
+            "index": 2
+          },
+          {
+            "text": "เอ้า ก็มันถูกพี่ หนูไปจีนครั้งนึง",
+            "start": 6.2,
+            "end": 8.4,
+            "_logprob": -0.169,
+            "_no_speech": 0.2379,
+            "index": 3
+          }
+        ]
+      }
+    }
+  ],
+  "agg": {
+    "groq": {
+      "n": 5,
+      "avg_sim": 0.433,
+      "avg_cer": 0.208,
+      "avg_time": 23.12,
+      "avg_segments": 74.4
+    }
+  }
+}

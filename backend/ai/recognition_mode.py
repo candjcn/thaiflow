@@ -35,6 +35,25 @@ class RecognitionMode:
 
 _MODE_REGISTRY: Dict[str, RecognitionMode] = {}
 
+# accuracy mode 的语言优先级表。
+# 这里先放“可解释、可维护”的默认顺序，后续应基于泰语/其他语言回归结果持续调整。
+_ACCURACY_LANGUAGE_PROVIDER_ORDER = {
+    "th": ("groq", "openai", "gemini", "qwen"),
+    "en": ("gemini", "openai", "groq", "qwen"),
+    "zh": ("qwen", "groq", "openai", "gemini"),
+    "ja": ("openai", "qwen", "groq", "gemini"),
+    "ko": ("qwen", "groq", "openai", "gemini"),
+    "vi": ("groq", "openai", "gemini", "qwen"),
+    "fr": ("openai", "gemini", "groq", "qwen"),
+    "de": ("openai", "gemini", "groq", "qwen"),
+    "es": ("openai", "gemini", "groq", "qwen"),
+    "pt": ("openai", "gemini", "groq", "qwen"),
+    "ru": ("openai", "gemini", "groq", "qwen"),
+    "it": ("openai", "gemini", "groq", "qwen"),
+}
+
+_ACCURACY_DEFAULT_ORDER = ("groq", "gemini", "openai", "qwen")
+
 
 def register_mode(mode: RecognitionMode) -> RecognitionMode:
     _MODE_REGISTRY[mode.key] = mode
@@ -47,6 +66,19 @@ def get_mode(key: str) -> RecognitionMode | None:
 
 def list_visible_modes() -> list[dict]:
     return [m.to_public_dict() for m in _MODE_REGISTRY.values() if m.ui_visible]
+
+
+def get_accuracy_provider_candidates(language: str | None = None) -> tuple[str, ...]:
+    """返回 accuracy mode 在给定语言下的候选 provider 顺序。"""
+    lang = (language or "").strip().lower()[:2]
+    order = _ACCURACY_LANGUAGE_PROVIDER_ORDER.get(lang, _ACCURACY_DEFAULT_ORDER)
+    seen = set()
+    result = []
+    for provider in order:
+        if provider and provider not in seen:
+            seen.add(provider)
+            result.append(provider)
+    return tuple(result)
 
 
 def _legacy_provider_mode(provider: str) -> RecognitionMode:
@@ -115,8 +147,8 @@ register_mode(
         key="accuracy",
         label="准确率优先",
         description="优先尝试更强的识别引擎，适合泰语等更难的样本。",
-        preferred_provider="qwen",
-        provider_candidates=("qwen", "groq"),
+        preferred_provider="groq",
+        provider_candidates=("groq", "gemini", "openai", "qwen"),
         enable_groq_retry=True,
     )
 )

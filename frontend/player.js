@@ -100,6 +100,24 @@ function getRecognitionModeInfo(value) {
     };
 }
 
+function getLanguageLabel(code) {
+    const lang = (code || "").toString().trim().toLowerCase().slice(0, 2);
+    return {
+        th: "泰语",
+        en: "英语",
+        ja: "日语",
+        ko: "韩语",
+        fr: "法语",
+        de: "德语",
+        es: "西班牙语",
+        pt: "葡萄牙语",
+        ru: "俄语",
+        it: "意大利语",
+        zh: "中文",
+        vi: "越南语",
+    }[lang] || (code || "");
+}
+
 function syncRecognitionModeDescription() {
     if (!recognitionModeSelect) return;
     const info = getRecognitionModeInfo(recognitionModeSelect.value);
@@ -2479,6 +2497,40 @@ function finishLoading() {
 }
 
 // ========== 保存字幕 ==========
+async function syncCurrentSubtitleSnapshot() {
+    if (!currentVideoName || segments.length === 0) return;
+
+    const subtitleJson = JSON.stringify({ segments, language }, null, 2);
+
+    // 桌面端：如果用户已经选过保存目录，就把同名 JSON 一并覆盖掉。
+    // 这样“重新识别 → 保存”后，重新打开本地视频时读到的就是最新字幕，
+    // 不会再回到最初识别时生成的旧 JSON。
+    if (!isMobile() && window.showDirectoryPicker) {
+        try {
+            const dir = await getSaveDir(false);
+            if (dir) {
+                const jsonBlob = new Blob([subtitleJson], { type: "application/json" });
+                const jsonName = currentVideoName.replace(/\.[^.]+$/, "") + ".json";
+                await writeFileToDir(dir, jsonName, jsonBlob);
+                loadLocalVideoList();
+                return;
+            }
+        } catch (e) {
+            console.error("同步本地字幕失败:", e);
+        }
+    }
+
+    // 移动端本地库：把最新字幕回写到 IndexedDB 课程库。
+    // 这里复用现有课程入库逻辑，确保列表里重新点开时拿到的是最新字幕快照。
+    if (isMobile()) {
+        try {
+            await saveLessonToLibrary(localVideoFile || null, null);
+        } catch (e) {
+            console.error("同步本地课程库失败:", e);
+        }
+    }
+}
+
 async function saveSubtitle() {
     try {
         await fetch(`/api/subtitle/${encodeURIComponent(currentVideoName)}`, {
@@ -2489,6 +2541,7 @@ async function saveSubtitle() {
     } catch (e) {
         console.error("保存字幕失败:", e);
     }
+    await syncCurrentSubtitleSnapshot();
 }
 
 // ========== 系统返回键拦截（Android 返回键 / iOS 手势返回） ==========
@@ -4973,7 +5026,9 @@ weBtnRetrans.addEventListener("click", async () => {
         delete seg.wordTimings; // 单句重识别没有词级时间戳，清除旧数据
         renderSentenceList();
         if (we.idx === currentIndex) updateSubtitle(seg);
-        weStatus.textContent = `✓ ${modeInfo.label} · ${data.text || ""}`;
+        const detectedLang = getLanguageLabel(data.language || shortLang);
+        const providerLabel = data.provider ? ` · ${data.provider}` : "";
+        weStatus.textContent = `✓ ${modeInfo.label} · ${detectedLang}${providerLabel}${data.text ? " · " + data.text : ""}`;
         await saveSubtitle();
     } catch (e) {
         weStatus.textContent = "❌ " + e.message;

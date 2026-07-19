@@ -5,6 +5,7 @@ pytest backend/tests/test_phase4.py
 import json
 import sys
 from unittest.mock import MagicMock
+from types import SimpleNamespace
 
 # ── Mock external deps that may not be installed in test env ─────────────────
 # boto3/botocore are needed by r2.py which app.py imports at module level
@@ -262,6 +263,14 @@ class TestRecognitionModes:
         assert recognition_mode.resolve_recognition_mode(provider="groq").key == "balanced"
         assert recognition_mode.resolve_recognition_mode(provider="qwen").key == "accuracy"
 
+    def test_accuracy_provider_order_is_language_specific(self):
+        import ai.recognition_mode as recognition_mode
+
+        assert recognition_mode.get_accuracy_provider_candidates("th") == ("groq", "openai", "gemini", "qwen")
+        assert recognition_mode.get_accuracy_provider_candidates("en") == ("gemini", "openai", "groq", "qwen")
+        assert recognition_mode.get_accuracy_provider_candidates("zh") == ("qwen", "groq", "openai", "gemini")
+        assert recognition_mode.get_accuracy_provider_candidates("ja") == ("openai", "qwen", "groq", "gemini")
+
     def test_recognition_modes_api(self, client):
         r = client.get("/api/recognition-modes")
         assert r.status_code == 200
@@ -369,7 +378,11 @@ class TestTranscribeErrorHandling:
         monkeypatch.setattr(speech.providers.OpenAI, "TRANSCRIBE_MODEL", "gpt-4o-transcribe")
         monkeypatch.setattr(speech.providers.Groq, "API_KEY", "dummy")
         monkeypatch.setattr(speech.os.path, "getsize", lambda _path: 1024)
-        monkeypatch.setattr(speech.openai_provider, "transcribe_text", lambda _path: "hello there world")
+        monkeypatch.setattr(
+            speech.openai_provider,
+            "transcribe_text",
+            lambda _path, language=None: "hello there world",
+        )
         monkeypatch.setattr(
             speech,
             "_transcribe_groq_wav",
@@ -516,12 +529,41 @@ class TestTranscribeErrorHandling:
     def test_transcribe_slice_falls_back_to_groq_when_openai_is_too_large(self, monkeypatch):
         import ai.speech as speech
 
-        monkeypatch.setattr(speech, "transcribe_openai", lambda _path: (_ for _ in ()).throw(RuntimeError("request_too_large")))
+        monkeypatch.setattr(speech, "transcribe_openai", lambda _path, language=None: (_ for _ in ()).throw(RuntimeError("request_too_large")))
         monkeypatch.setattr(speech, "_transcribe_groq_wav", lambda _path: {"segments": [{"text": "ok", "start": 0, "end": 1}], "language": "en"})
 
         result = speech.transcribe_slice("/tmp/slice.wav", provider="openai")
 
         assert result["text"] == "ok"
+
+    def test_retranscribe_skips_language_mismatch_candidate(self, monkeypatch):
+        import app as app_module
+        from ai.recognition_mode import resolve_recognition_mode
+
+        calls = []
+
+        def fake_transcribe_slice(_path, provider="groq", language=None):
+            calls.append((provider, language))
+            return {"text": "สวัสดี", "language": "th"}
+
+        class DummyCtx:
+            def get_handle(self, preferred_provider=None):
+                return SimpleNamespace(provider_id=preferred_provider, model_id=f"{preferred_provider}-model")
+
+        monkeypatch.setattr(app_module, "transcribe_slice", fake_transcribe_slice)
+
+        result, handle, fallback_used, fallback_from = app_module._attempt_transcription_with_mode(
+            DummyCtx(),
+            resolve_recognition_mode("accuracy"),
+            audio_path="/tmp/slice.wav",
+            language="th",
+        )
+
+        assert result["text"] == "สวัสดี"
+        assert handle.provider_id == "groq"
+        assert fallback_used is False
+        assert fallback_from == "groq"
+        assert calls == [("groq", "th")]
 
     def test_transcribe_video_falls_back_to_chunked_when_groq_is_too_large(self, monkeypatch):
         import ai.speech as speech

@@ -122,7 +122,7 @@ def _is_groq_too_large_error(exc) -> bool:
     )
 
 
-def _transcribe_openai_wav(wav_path):
+def _transcribe_openai_wav(wav_path, language=None):
     """调用 OpenAI 转写前先做大小检查，并把 413 包装成可执行提示。"""
     size = os.path.getsize(wav_path)
     if size > _OPENAI_MAX_AUDIO_BYTES:
@@ -130,7 +130,7 @@ def _transcribe_openai_wav(wav_path):
 
     try:
         if _openai_uses_gpt4o_transcribe():
-            text = openai_provider.transcribe_text(wav_path)
+            text = openai_provider.transcribe_text(wav_path, language=language)
             text = text if isinstance(text, str) else str(text or "")
             text = text.strip()
 
@@ -160,7 +160,7 @@ def _transcribe_openai_wav(wav_path):
             return {"segments": [], "language": "unknown"}
 
         return openai_provider.transcribe_file(
-            wav_path, timestamp_granularities=["segment", "word"]
+            wav_path, timestamp_granularities=["segment", "word"], language=language
         )
     except Exception as exc:
         msg = str(exc)
@@ -263,7 +263,7 @@ def transcribe_groq(video_path):
 
 # ── OpenAI ──────────────────────────────────────────────────────────────────────
 
-def transcribe_openai(video_path):
+def transcribe_openai(video_path, language=None):
     """使用 OpenAI 转写。提取 WAV 音频（<25MB）避免超限。"""
     wav_path = _safe_wav_path(video_path, "openai")
     cmd = [
@@ -278,7 +278,7 @@ def transcribe_openai(video_path):
             raise RuntimeError("视频没有音频轨道，无法识别。请检查下载的视频文件是否包含音频。")
         raise RuntimeError(f"音频提取失败: {err[-300:]}")
     try:
-        result_obj = _transcribe_openai_wav(wav_path)
+        result_obj = _transcribe_openai_wav(wav_path, language=language)
         if isinstance(result_obj, dict):
             return result_obj
         segments, words, language = _parse_result_obj(result_obj)
@@ -913,7 +913,7 @@ def transcribe_slice(audio_path, provider="groq", language=None):
         elif provider == "gemini":
             result = transcribe_gemini_slice(audio_path, language)
         elif provider == "openai":
-            result = transcribe_openai(audio_path)
+            result = transcribe_openai(audio_path, language=language)
         elif provider == "qwen":
             result = qwen_provider.transcribe_file(audio_path)
         else:
@@ -924,7 +924,10 @@ def transcribe_slice(audio_path, provider="groq", language=None):
         else:
             raise
     text = " ".join(seg["text"] for seg in result["segments"]).strip()
-    return {"text": text, "language": result.get("language", "unknown")}
+    lang = result.get("language", "unknown")
+    if lang:
+        lang = _LANG_NAME_TO_ISO.get(str(lang).lower(), lang)
+    return {"text": text, "language": lang or "unknown"}
 
 
 # ── 时间戳修复 / 断句归一化 ─────────────────────────────────────────────────────
