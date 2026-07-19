@@ -70,22 +70,45 @@
             color: var(--text-1);
         }
 
-        /* ── Summary bar ── */
-        .summary-bar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+        .page-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-1);
         }
-        .summary-card {
-            flex: 1;
+        .page-subtitle {
+            font-size: 12px;
+            color: var(--text-3);
+            margin-top: 3px;
+        }
+
+        /* ── Summary ── */
+        .summary-panel {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            padding: 14px;
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            margin-bottom: 14px;
+        }
+        .summary-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-1);
+            margin-bottom: 12px;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .summary-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
             text-align: center;
         }
         .summary-value {
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 700;
             color: var(--text-1);
             font-variant-numeric: tabular-nums;
@@ -93,27 +116,70 @@
         .summary-label {
             font-size: 11px;
             color: var(--text-3);
-            margin-top: 3px;
+            margin-top: 4px;
+        }
+        .summary-foot {
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--text-2);
         }
 
-        /* ── History list ── */
-        .history-list { display: flex; flex-direction: column; gap: 2px; }
-        .history-item {
+        /* ── Filters ── */
+        .filter-bar {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .filter-select {
+            width: 100%;
+            padding: 11px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.04);
+            color: var(--text-1);
+            font-size: 13px;
+            outline: none;
+        }
+
+        /* ── History groups ── */
+        .history-groups {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .group-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px 14px;
+            justify-content: space-between;
+            color: var(--text-2);
+            font-size: 13px;
+            font-weight: 600;
+            padding: 2px 2px 0;
+        }
+        .group-stats {
+            color: var(--text-3);
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .history-card {
             background: var(--bg-card);
             border: 1px solid transparent;
-            border-radius: var(--radius-md);
-            transition: background 0.15s;
+            border-radius: var(--radius-lg);
+            padding: 14px;
+            transition: background 0.15s, border-color 0.15s;
         }
-        .history-item:hover { background: var(--bg-card-hover); border-color: var(--border); }
+        .history-card:hover { background: var(--bg-card-hover); border-color: var(--border); }
+        .history-main-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
         .history-cap-icon {
-            width: 34px;
-            height: 34px;
-            border-radius: 10px;
-            background: rgba(233,69,96,0.1);
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            background: rgba(233,69,96,0.12);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -121,31 +187,104 @@
             flex-shrink: 0;
         }
         .history-main { flex: 1; min-width: 0; }
+        .history-title-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: space-between;
+        }
         .history-cap-name {
-            font-size: 13px;
-            font-weight: 500;
+            font-size: 14px;
+            font-weight: 600;
             color: var(--text-1);
         }
-        .history-time {
+        .history-badge {
+            font-size: 10px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-weight: 600;
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.06);
+            color: var(--text-2);
+        }
+        .history-badge.success { color: #30d158; background: rgba(48,209,88,0.12); }
+        .history-badge.failed { color: #ff667a; background: rgba(255,102,122,0.12); }
+        .history-badge.refunded { color: #7aa2ff; background: rgba(122,162,255,0.12); }
+        .history-badge.timeout { color: #ffb84d; background: rgba(255,184,77,0.12); }
+        .history-subtitle {
+            margin-top: 3px;
+            font-size: 12px;
+            color: var(--text-2);
+            line-height: 1.45;
+            word-break: break-word;
+        }
+        .history-meta {
+            margin-top: 6px;
             font-size: 11px;
             color: var(--text-3);
-            margin-top: 2px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
-        .history-right { text-align: right; flex-shrink: 0; }
+        .history-right {
+            text-align: right;
+            flex-shrink: 0;
+            min-width: 64px;
+        }
         .history-credits {
-            font-size: 13px;
-            font-weight: 600;
+            font-size: 15px;
+            font-weight: 700;
             color: var(--text-2);
             font-variant-numeric: tabular-nums;
         }
         .history-credits.nonzero { color: var(--accent); }
-        .history-status {
-            font-size: 10px;
-            margin-top: 2px;
-            color: var(--text-3);
+        .history-credits.refund { color: #30d158; }
+        .history-expand-btn {
+            margin-top: 10px;
+            background: transparent;
+            border: 0;
+            color: var(--text-2);
+            font-size: 12px;
+            padding: 0;
+            cursor: pointer;
         }
-        .history-status.success { color: #30d158; }
-        .history-status.failed  { color: #ff4444; }
+        .history-expand-btn:hover { color: var(--text-1); }
+        .history-detail {
+            display: none;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            color: var(--text-2);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 12px;
+        }
+        .detail-item {
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+        }
+        .detail-label {
+            color: var(--text-3);
+            font-size: 11px;
+            margin-bottom: 2px;
+        }
+        .detail-value {
+            color: var(--text-1);
+            word-break: break-word;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 64px 0;
+            color: var(--text-3);
+            font-size: 15px;
+        }
+        .empty-state .empty-icon { font-size: 40px; margin-bottom: 12px; }
 
         .empty-state {
             text-align: center;
@@ -195,37 +334,75 @@
                 <path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
         </button>
-        <span class="nav-title" data-i18n="profile.history">Usage History</span>
+        <div>
+            <div class="page-title" data-i18n="profile.history">Usage History</div>
+            <div class="page-subtitle" id="pageSubtitle">本月 Credits 消耗与任务历史</div>
+        </div>
     </nav>
 
-    <!-- Summary bar (skeleton until data loads) -->
-    <div class="summary-bar" id="summaryBar">
-        <div class="summary-card">
-            <div class="skeleton" style="height:26px;width:60px;margin:0 auto 6px;"></div>
-            <div class="skeleton" style="height:12px;width:80px;margin:0 auto;"></div>
+    <!-- Summary -->
+    <div class="summary-panel" id="summaryPanel">
+        <div class="summary-title">本月摘要</div>
+        <div class="summary-grid" id="summaryGrid">
+            <div class="summary-item">
+                <div class="skeleton" style="height:26px;width:60px;margin:0 auto 6px;"></div>
+                <div class="skeleton" style="height:12px;width:80px;margin:0 auto;"></div>
+            </div>
+            <div class="summary-item">
+                <div class="skeleton" style="height:26px;width:60px;margin:0 auto 6px;"></div>
+                <div class="skeleton" style="height:12px;width:80px;margin:0 auto;"></div>
+            </div>
+            <div class="summary-item">
+                <div class="skeleton" style="height:26px;width:60px;margin:0 auto 6px;"></div>
+                <div class="skeleton" style="height:12px;width:80px;margin:0 auto;"></div>
+            </div>
         </div>
-        <div class="summary-card">
-            <div class="skeleton" style="height:26px;width:60px;margin:0 auto 6px;"></div>
-            <div class="skeleton" style="height:12px;width:80px;margin:0 auto;"></div>
-        </div>
-        <div class="summary-card">
-            <div class="skeleton" style="height:26px;width:60px;margin:0 auto 6px;"></div>
-            <div class="skeleton" style="height:12px;width:80px;margin:0 auto;"></div>
-        </div>
+        <div class="summary-foot" id="summaryFoot">—</div>
     </div>
 
-    <!-- History list -->
-    <div class="history-list" id="historyList">
-        <div class="history-item"><div class="skeleton" style="width:34px;height:34px;border-radius:10px;flex-shrink:0;"></div><div style="flex:1;"><div class="skeleton" style="height:13px;width:60%;margin-bottom:6px;"></div><div class="skeleton" style="height:11px;width:40%;"></div></div></div>
-        <div class="history-item"><div class="skeleton" style="width:34px;height:34px;border-radius:10px;flex-shrink:0;"></div><div style="flex:1;"><div class="skeleton" style="height:13px;width:55%;margin-bottom:6px;"></div><div class="skeleton" style="height:11px;width:35%;"></div></div></div>
-        <div class="history-item"><div class="skeleton" style="width:34px;height:34px;border-radius:10px;flex-shrink:0;"></div><div style="flex:1;"><div class="skeleton" style="height:13px;width:50%;margin-bottom:6px;"></div><div class="skeleton" style="height:11px;width:40%;"></div></div></div>
+    <!-- Filters -->
+    <div class="filter-bar">
+        <select class="filter-select" id="filterDays">
+            <option value="7">最近 7 天</option>
+            <option value="30" selected>最近 30 天</option>
+            <option value="90">最近 90 天</option>
+            <option value="365">最近 1 年</option>
+        </select>
+        <select class="filter-select" id="filterCap">
+            <option value="all">全部功能</option>
+            <option value="transcription">视频识别</option>
+            <option value="translation">字幕翻译</option>
+            <option value="tts_synthesis">朗读/TTS</option>
+            <option value="pronunciation">发音评分</option>
+            <option value="romanize">罗马拼音</option>
+            <option value="word_definition">查词</option>
+            <option value="ocr">OCR</option>
+            <option value="export">导出</option>
+        </select>
+        <select class="filter-select" id="filterStatus">
+            <option value="all">全部状态</option>
+            <option value="success">成功</option>
+            <option value="failed">失败</option>
+            <option value="refunded">已退款</option>
+            <option value="timeout">超时</option>
+        </select>
+        <select class="filter-select" id="filterSort">
+            <option value="recent" selected>最新优先</option>
+            <option value="oldest">最早优先</option>
+        </select>
+    </div>
+
+    <!-- History -->
+    <div class="history-groups" id="historyList">
+        <div class="history-card"><div class="skeleton" style="width:100%;height:74px;border-radius:14px;"></div></div>
+        <div class="history-card"><div class="skeleton" style="width:100%;height:74px;border-radius:14px;"></div></div>
+        <div class="history-card"><div class="skeleton" style="width:100%;height:74px;border-radius:14px;"></div></div>
     </div>
 
 </div>
 
-<script src="i18n.js?v=20260717d"></script>
+<script src="i18n.js?v=20260719a"></script>
 <script>
-// ── Constants ────────────────────────────────────────────────────
 const CAP_LABEL_KEY = {
     transcription:  "cap.transcription",
     tts_synthesis:  "cap.tts_synthesis",
@@ -248,154 +425,338 @@ const CAP_ICON = {
     ocr:            "🔍",
 };
 
-// ── Time helpers ─────────────────────────────────────────────────
-function relativeTime(dateStr) {
+const STATUS_LABEL = {
+    success:  "成功",
+    failed:   "失败",
+    refunded: "已退款",
+    timeout:  "超时",
+};
+
+const PAGE_SIZE = 80;
+let _offset = 0;
+let _total = 0;
+let _allItems = [];
+let _summary = {};
+let _loading = false;
+
+function pageText(zh, en) {
+    return (I18N.currentLang || "").startsWith("en") ? en : zh;
+}
+
+function fmtCap(cap) {
+    return I18N.t(CAP_LABEL_KEY[cap] || cap);
+}
+
+function fmtStatus(status) {
+    return STATUS_LABEL[status] || status;
+}
+
+function parseDate(dateStr) {
+    return new Date(dateStr + (dateStr.includes("T") ? "" : "Z"));
+}
+
+function timeLabel(dateStr) {
     if (!dateStr) return "";
-    const diff = Date.now() - new Date(dateStr + (dateStr.includes("T") ? "" : "Z")).getTime();
-    const min  = Math.floor(diff / 60000);
-    const hr   = Math.floor(diff / 3600000);
-    const day  = Math.floor(diff / 86400000);
+    const diff = Date.now() - parseDate(dateStr).getTime();
+    const min = Math.floor(diff / 60000);
+    const hr  = Math.floor(diff / 3600000);
+    const day = Math.floor(diff / 86400000);
     if (min < 1)  return I18N.t("time.justNow");
     if (min < 60) return I18N.t("time.minutesAgo", { n: min });
-    if (hr  < 24) return I18N.t("time.hoursAgo",   { n: hr  });
-    if (day < 7)  return I18N.t("time.daysAgo",    { n: day });
+    if (hr  < 24) return I18N.t("time.hoursAgo", { n: hr });
+    if (day < 7)  return I18N.t("time.daysAgo", { n: day });
     const locale = { "zh-CN": "zh-CN", "zh-TW": "zh-TW", "ja": "ja-JP", "ko": "ko-KR", "th": "th-TH", "en": "en-US" }[I18N.currentLang] || "en-US";
-    return new Date(dateStr + (dateStr.includes("T") ? "" : "Z")).toLocaleDateString(locale);
+    return parseDate(dateStr).toLocaleDateString(locale);
 }
 
-// ── Render one item ───────────────────────────────────────────────
-function renderItem(item) {
-    const cap     = item.capability || "";
-    const label   = I18N.t(CAP_LABEL_KEY[cap] || cap);
-    const icon    = CAP_ICON[cap] || "•";
-    const credits = item.credits_charged || 0;
-    const status  = item.status || "success";
-    const time    = relativeTime(item.requested_at);
-    const statusLabel = {
-        success:  I18N.t("profile.statusSuccess"),
-        failed:   I18N.t("profile.statusFailed"),
-        refunded: I18N.t("profile.statusRefunded"),
-        timeout:  I18N.t("profile.statusTimeout"),
-    }[status] || status;
-
-    const div = document.createElement("div");
-    div.className = "history-item";
-    div.innerHTML = `
-        <div class="history-cap-icon">${icon}</div>
-        <div class="history-main">
-            <div class="history-cap-name">${label}</div>
-            <div class="history-time">${time}</div>
-        </div>
-        <div class="history-right">
-            <div class="history-credits ${credits > 0 ? "nonzero" : ""}">
-                ${credits > 0 ? "−" + credits : "0"} C
-            </div>
-            <div class="history-status ${status}">${statusLabel}</div>
-        </div>
-    `;
-    return div;
-}
-
-// ── Load data ─────────────────────────────────────────────────────
-const PAGE_SIZE = 50;
-let _offset = 0;
-let _total  = 0;
-let _allItems = [];
-
-async function loadUsage(append = false) {
-    const res  = await fetch(`/api/user/usage?limit=${PAGE_SIZE}&offset=${_offset}`);
-    const data = await res.json();
-
-    const history = data.history || [];
-    _total        = data.total   || history.length;
-    _offset      += history.length;
-
-    if (!append) {
-        _allItems = history;
-        renderSummary(_allItems);
-        renderList(_allItems);
-    } else {
-        _allItems = _allItems.concat(history);
-        appendItems(history);
-    }
-
-    updateLoadMore();
-}
-
-function renderSummary(items) {
-    const totalCount   = _total;
-    const totalCredits = items.reduce((s, i) => s + (i.credits_charged || 0), 0);
-    const successCount = items.filter(i => i.status === "success").length;
-
-    document.getElementById("summaryBar").innerHTML = `
-        <div class="summary-card">
-            <div class="summary-value">${totalCount}</div>
-            <div class="summary-label" data-i18n="usage.totalCount">总次数</div>
-        </div>
-        <div class="summary-card">
-            <div class="summary-value">${totalCredits.toLocaleString()}</div>
-            <div class="summary-label" data-i18n="usage.totalCredits">消耗积分</div>
-        </div>
-        <div class="summary-card">
-            <div class="summary-value">${successCount}</div>
-            <div class="summary-label" data-i18n="usage.successCount">成功</div>
-        </div>
-    `;
-    // apply i18n to newly injected data-i18n elements
-    document.querySelectorAll("#summaryBar [data-i18n]").forEach(el => {
-        const key = el.getAttribute("data-i18n");
-        const t = I18N.t(key);
-        if (t !== key) el.textContent = t;
+function dayKey(dateStr) {
+    const d = parseDate(dateStr);
+    const now = new Date();
+    const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+    const ny = now.getFullYear(), nm = now.getMonth(), nd = now.getDate();
+    if (y === ny && m === nm && day === nd) return "today";
+    const yest = new Date(now);
+    yest.setDate(now.getDate() - 1);
+    if (y === yest.getFullYear() && m === yest.getMonth() && day === yest.getDate()) return "yesterday";
+    return d.toLocaleDateString((I18N.currentLang || "").startsWith("en") ? "en-US" : "zh-CN", {
+        month: "short",
+        day: "numeric",
     });
 }
 
-function renderList(items) {
-    const container = document.getElementById("historyList");
-    container.innerHTML = "";
+function groupLabel(key) {
+    if (key === "today") return pageText("今天", "Today");
+    if (key === "yesterday") return pageText("昨天", "Yesterday");
+    return key;
+}
 
-    if (!items || items.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-icon">📭</div>
-                <div>${I18N.t("profile.noHistory")}</div>
-            </div>`;
+function fmtCurrency(n) {
+    const v = Number(n || 0);
+    return `${v > 0 ? "+" : ""}${v.toLocaleString()} C`;
+}
+
+function normalizeItems(items) {
+    const status = document.getElementById("filterStatus").value;
+    const cap = document.getElementById("filterCap").value;
+    const sort = document.getElementById("filterSort").value;
+
+    return (items || [])
+        .filter(item => status === "all" || (item.status || "success") === status)
+        .filter(item => cap === "all" || (item.capability || "") === cap)
+        .sort((a, b) => {
+            const ta = parseDate(a.requested_at).getTime();
+            const tb = parseDate(b.requested_at).getTime();
+            return sort === "oldest" ? ta - tb : tb - ta;
+        });
+}
+
+function renderSummary() {
+    const s = _summary || {};
+    const totalCount = s.total_count || _total || _allItems.length;
+    const totalCredits = s.total_credits || 0;
+    const successCount = s.success_count || 0;
+    const failedCount = s.failed_count || 0;
+    const refundedCount = s.refunded_count || 0;
+    const timeoutCount = s.timeout_count || 0;
+    const successRate = totalCount > 0 ? `${Math.round((successCount / totalCount) * 100)}%` : "0%";
+
+    document.getElementById("summaryGrid").innerHTML = `
+        <div class="summary-item">
+            <div class="summary-value">${totalCredits.toLocaleString()} C</div>
+            <div class="summary-label">${pageText("本月消耗", "Credits used this month")}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-value">${successRate}</div>
+            <div class="summary-label">${pageText("成功率", "Success rate")}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-value">${failedCount + refundedCount + timeoutCount}</div>
+            <div class="summary-label">${pageText("失败 / 退款 / 超时", "Failed / refunded / timeout")}</div>
+        </div>
+    `;
+
+    document.getElementById("summaryFoot").textContent = pageText(
+        `本月剩余：${Math.max(0, (window._walletTotal || 0) - totalCredits).toLocaleString()} C`,
+        `Remaining this month: ${Math.max(0, (window._walletTotal || 0) - totalCredits).toLocaleString()} C`
+    );
+}
+
+function renderEmpty(container) {
+    container.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <div>${I18N.t("profile.noHistory")}</div>
+        </div>`;
+}
+
+function groupItems(items) {
+    const grouped = new Map();
+    for (const item of items) {
+        const key = dayKey(item.requested_at);
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push(item);
+    }
+    return grouped;
+}
+
+function buildDetailGrid(detail) {
+    const pairs = [
+        ["日志ID", detail.log_id],
+        ["能力", fmtCap(detail.capability)],
+        ["状态", fmtStatus(detail.status)],
+        ["套餐", detail.plan_id],
+        ["模型", detail.model_id || "—"],
+        ["Provider", detail.provider_id || "—"],
+        ["质量档位", detail.quality_tier || "—"],
+        ["耗时", detail.latency_ms != null ? `${detail.latency_ms} ms` : "—"],
+        ["预扣", detail.credits_reserved != null ? `${detail.credits_reserved} C` : "—"],
+        ["实际", detail.credits_charged != null ? `${detail.credits_charged} C` : "—"],
+        ["退款", detail.credits_refunded != null ? `${detail.credits_refunded} C` : "—"],
+        ["输入单位", detail.input_units != null ? `${detail.input_units} ${detail.input_unit_type || ""}`.trim() : "—"],
+        ["请求时间", detail.requested_at || "—"],
+        ["完成时间", detail.completed_at || "—"],
+        ["请求ID", detail.request_id || "—"],
+        ["错误码", detail.error_code || "—"],
+    ];
+
+    const extra = detail.extra || {};
+    const extraPairs = Object.entries(extra).slice(0, 6).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)]);
+
+    return `
+        <div class="detail-grid">
+            ${pairs.map(([k, v]) => `
+                <div class="detail-item">
+                    <div class="detail-label">${k}</div>
+                    <div class="detail-value">${String(v || "—")}</div>
+                </div>`).join("")}
+        </div>
+        ${extraPairs.length ? `
+            <div style="margin-top:10px;" class="detail-grid">
+                ${extraPairs.map(([k, v]) => `
+                    <div class="detail-item">
+                        <div class="detail-label">extra.${k}</div>
+                        <div class="detail-value">${String(v || "—")}</div>
+                    </div>`).join("")}
+            </div>` : ""}
+    `;
+}
+
+async function expandDetail(card, logId) {
+    const detail = card.querySelector(".history-detail");
+    const btn = card.querySelector(".history-expand-btn");
+    const open = card.dataset.open === "1";
+    if (open) {
+        card.dataset.open = "0";
+        detail.style.display = "none";
+        btn.textContent = pageText("展开详情", "Show details");
+        return;
+    }
+    card.dataset.open = "1";
+    detail.style.display = "block";
+    btn.textContent = pageText("收起详情", "Hide details");
+
+    if (card.dataset.loaded === "1") return;
+    detail.innerHTML = `<div style="color:#9ca3af;">${pageText("正在加载详情…", "Loading details...")}</div>`;
+    try {
+        const res = await fetch(`/api/user/usage/${encodeURIComponent(logId)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        detail.dataset.loaded = "1";
+        detail.innerHTML = buildDetailGrid(data);
+    } catch (err) {
+        detail.innerHTML = `<div style="color:#ff667a;">${pageText("详情加载失败", "Failed to load details")}: ${err.message}</div>`;
+    }
+}
+
+function renderItem(item) {
+    const cap = item.capability || "";
+    const label = fmtCap(cap);
+    const icon = CAP_ICON[cap] || "•";
+    const credits = Number(item.credits_charged || 0);
+    const status = item.status || "success";
+    const statusLabel = fmtStatus(status);
+    const time = timeLabel(item.requested_at);
+
+    const card = document.createElement("article");
+    card.className = "history-card";
+    card.dataset.logId = item.log_id || "";
+    card.innerHTML = `
+        <div class="history-main-row">
+            <div class="history-cap-icon">${icon}</div>
+            <div class="history-main">
+                <div class="history-title-row">
+                    <div class="history-cap-name">${label}</div>
+                    <div class="history-badge ${status}">${statusLabel}</div>
+                </div>
+                <div class="history-subtitle">${pageText("任务记录", "Task record")}</div>
+                <div class="history-meta">
+                    <span>${time}</span>
+                    <span>${item.provider_id || "—"}</span>
+                    <span>${item.latency_ms != null ? `${item.latency_ms} ms` : "—"}</span>
+                </div>
+            </div>
+            <div class="history-right">
+                <div class="history-credits ${credits > 0 ? "nonzero" : credits < 0 ? "refund" : ""}">
+                    ${fmtCurrency(credits)}
+                </div>
+            </div>
+        </div>
+        <button class="history-expand-btn">${pageText("展开详情", "Show details")}</button>
+        <div class="history-detail"></div>
+    `;
+    card.querySelector(".history-expand-btn").addEventListener("click", () => expandDetail(card, item.log_id));
+    return card;
+}
+
+function renderHistory() {
+    const container = document.getElementById("historyList");
+    const items = normalizeItems(_allItems);
+    if (!items.length) {
+        renderEmpty(container);
         return;
     }
 
-    items.forEach(item => container.appendChild(renderItem(item)));
+    const grouped = groupItems(items);
+    const keys = Array.from(grouped.keys());
+    container.innerHTML = "";
+
+    keys.forEach((key) => {
+        const groupItemsList = grouped.get(key);
+        const groupCredits = groupItemsList.reduce((s, i) => s + Number(i.credits_charged || 0), 0);
+        const groupCount = groupItemsList.length;
+        const section = document.createElement("section");
+        section.className = "history-group";
+        section.innerHTML = `
+            <div class="group-header">
+                <span>${groupLabel(key)}</span>
+                <span class="group-stats">${groupCount} 次 / ${groupCredits.toLocaleString()} C</span>
+            </div>
+        `;
+        groupItemsList.forEach(item => section.appendChild(renderItem(item)));
+        container.appendChild(section);
+    });
 }
 
-function appendItems(items) {
-    const container = document.getElementById("historyList");
-    // Remove existing load-more button before appending
-    const existing = document.getElementById("loadMoreBtn");
-    if (existing) existing.remove();
-    items.forEach(item => container.appendChild(renderItem(item)));
+async function loadUsage(append = false) {
+    if (_loading) return;
+    _loading = true;
+    const days = Number(document.getElementById("filterDays").value || 30);
+    const res = await fetch(`/api/user/usage?limit=${PAGE_SIZE}&offset=${_offset}&days=${days}`);
+    const data = await res.json();
+    const history = data.history || [];
+    _total = data.total || history.length;
+    _summary = data.summary || {};
+    _offset += history.length;
+
+    if (!append) {
+        _allItems = history;
+    } else {
+        _allItems = _allItems.concat(history);
+    }
+
+    renderSummary();
+    renderHistory();
+    updateLoadMore();
+    _loading = false;
 }
 
 function updateLoadMore() {
     const container = document.getElementById("historyList");
     let btn = document.getElementById("loadMoreBtn");
-    if (_offset < _total) {
+    const remaining = Math.max(0, _total - _offset);
+    if (remaining > 0) {
         if (!btn) {
             btn = document.createElement("button");
             btn.id = "loadMoreBtn";
             btn.className = "load-more-btn";
             btn.addEventListener("click", async () => {
                 btn.disabled = true;
-                btn.textContent = "…";
+                btn.textContent = pageText("加载中…", "Loading...");
                 await loadUsage(true);
             });
             container.appendChild(btn);
         }
         btn.disabled = false;
-        btn.textContent = `加载更多（还有 ${_total - _offset} 条）`;
+        btn.textContent = pageText(`加载更多（还有 ${remaining} 条）`, `Load more (${remaining} left)`);
     } else if (btn) {
         btn.remove();
     }
 }
 
-// ── Back button ───────────────────────────────────────────────────
+function bindFilters() {
+    ["filterDays", "filterCap", "filterStatus", "filterSort"].forEach(id => {
+        document.getElementById(id).addEventListener("change", async () => {
+            _offset = 0;
+            _allItems = [];
+            document.getElementById("historyList").innerHTML = `
+                <div class="history-card"><div class="skeleton" style="width:100%;height:74px;border-radius:14px;"></div></div>
+                <div class="history-card"><div class="skeleton" style="width:100%;height:74px;border-radius:14px;"></div></div>
+            `;
+            await loadUsage(false);
+        });
+    });
+}
+
 document.getElementById("backBtn").addEventListener("click", () => {
     if (history.length > 1 && document.referrer.includes(location.host)) {
         history.back();
@@ -404,16 +765,16 @@ document.getElementById("backBtn").addEventListener("click", () => {
     }
 });
 
-// ── Init ─────────────────────────────────────────────────────────
 I18N.init();
 document.title = I18N.t("profile.history") + " — ReelSpeak";
 
 (async () => {
-    // Check login
     const me = await fetch("/api/auth/me").then(r => r.json());
     if (!me.logged_in) { location.href = "/app"; return; }
-
-    await loadUsage();
+    const wallet = await fetch("/api/user/wallet").then(r => r.json());
+    window._walletTotal = Number(wallet.balance?.total || 0);
+    bindFilters();
+    await loadUsage(false);
 })().catch(err => console.error("usage page error:", err));
 </script>
 </body>

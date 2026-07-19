@@ -159,7 +159,8 @@ def get_summary(db, user_id: str, since_days: int = 30) -> dict:
 
     rows = db.execute(
         """
-        SELECT capability, provider_id, SUM(credits_charged) AS total
+        SELECT capability, provider_id,
+               SUM(credits_charged) AS total
         FROM usage_logs
         WHERE user_id = ? AND requested_at >= ? AND status = 'success'
         GROUP BY capability, provider_id
@@ -170,6 +171,14 @@ def get_summary(db, user_id: str, since_days: int = 30) -> dict:
     total = 0
     by_cap: dict = {}
     by_prov: dict = {}
+    total_count = db.execute(
+        """
+        SELECT COUNT(*) AS cnt
+        FROM usage_logs
+        WHERE user_id = ? AND requested_at >= ?
+        """,
+        (user_id, since),
+    ).fetchone()["cnt"] or 0
 
     for row in rows:
         cap   = row["capability"]
@@ -180,8 +189,24 @@ def get_summary(db, user_id: str, since_days: int = 30) -> dict:
         by_cap[cap]      = by_cap.get(cap, 0)  + amt
         by_prov[prov]    = by_prov.get(prov, 0) + amt
 
+    counts = db.execute(
+        """
+        SELECT status, COUNT(*) AS cnt
+        FROM usage_logs
+        WHERE user_id = ? AND requested_at >= ?
+        GROUP BY status
+        """,
+        (user_id, since),
+    ).fetchall()
+    by_status = {row["status"] or "unknown": row["cnt"] or 0 for row in counts}
+
     return {
         "total_credits": total,
+        "total_count": total_count,
+        "success_count": by_status.get("success", 0),
+        "failed_count": by_status.get("failed", 0),
+        "refunded_count": by_status.get("refunded", 0),
+        "timeout_count": by_status.get("timeout", 0),
         "by_capability": by_cap,
         "by_provider":   by_prov,
     }

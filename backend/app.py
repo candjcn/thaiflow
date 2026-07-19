@@ -2387,6 +2387,21 @@ def user_usage():
     })
 
 
+@app.route("/api/user/usage/<log_id>")
+def user_usage_detail(log_id: str):
+    """返回单条使用记录详情（仅当前用户可见）。"""
+    db   = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "not logged in"}), 401
+
+    log = _log_get(db, log_id)
+    if not log or log.get("user_id") != user["user_id"]:
+        return jsonify({"error": "not found"}), 404
+
+    return jsonify(log)
+
+
 # ── Google OAuth 登录 ─────────────────────────────────────────────────────────
 
 @app.route("/api/auth/google/login")

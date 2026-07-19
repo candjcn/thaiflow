@@ -1092,3 +1092,82 @@ class TestUserUsage:
     def test_no_auth_required(self, client):
         r = client.get("/api/user/usage")
         assert r.status_code == 200
+
+
+class TestUserUsageDetail:
+    def test_summary_includes_counts(self, client, db):
+        for _ in range(2):
+            _log.record(
+                db,
+                user_id=ANONYMOUS_USER_ID,
+                capability="translation",
+                quality_tier="standard",
+                provider_id="gemini",
+                model_id="gemini-3.1-flash-lite",
+                plan_id="free",
+                credits_reserved=2,
+                credits_charged=2,
+                latency_ms=120,
+                status="success",
+            )
+        _log.record(
+            db,
+            user_id=ANONYMOUS_USER_ID,
+            capability="translation",
+            quality_tier="standard",
+            provider_id="gemini",
+            model_id="gemini-3.1-flash-lite",
+            plan_id="free",
+            credits_reserved=2,
+            credits_charged=0,
+            latency_ms=100,
+            status="failed",
+        )
+
+        r = client.get("/api/user/usage?days=30")
+        summary = r.get_json()["summary"]
+        assert summary["total_count"] >= 3
+        assert summary["success_count"] >= 2
+        assert summary["failed_count"] >= 1
+
+    def test_detail_endpoint_returns_log(self, client, db, monkeypatch):
+        log_id = _log.record(
+            db,
+            user_id=ANONYMOUS_USER_ID,
+            capability="transcription",
+            quality_tier="standard",
+            provider_id="groq",
+            model_id="whisper-large-v3",
+            plan_id="free",
+            credits_reserved=5,
+            credits_charged=5,
+            latency_ms=900,
+            status="success",
+            extra={"video": "demo.mp4"},
+        )
+
+        import app as app_module
+        monkeypatch.setattr(app_module._auth, "get_current_user", lambda _db, _req: {
+            "user_id": ANONYMOUS_USER_ID,
+            "email": "",
+            "name": "",
+            "picture_url": "",
+        })
+
+        r = client.get(f"/api/user/usage/{log_id}")
+        assert r.status_code == 200
+        body = r.get_json()
+        assert body["log_id"] == log_id
+        assert body["extra"]["video"] == "demo.mp4"
+
+    def test_detail_endpoint_missing_returns_404(self, client, monkeypatch):
+        import app as app_module
+        monkeypatch.setattr(app_module._auth, "get_current_user", lambda _db, _req: {
+            "user_id": ANONYMOUS_USER_ID,
+            "email": "",
+            "name": "",
+            "picture_url": "",
+        })
+
+        r = client.get("/api/user/usage/not-found")
+        assert r.status_code == 404
