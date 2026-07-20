@@ -1,4 +1,4 @@
-const APP_REV = "20260721c"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260721d"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 设备 UUID（匿名用户限流指纹） ==========
 function getDeviceId() {
@@ -3352,11 +3352,18 @@ const wordStudyActions = document.querySelector(".word-study-actions");
 let wordStudyQueue = [];
 let wordStudyQueueTotal = 0;
 let wordStudyAudio = null;
-let wordStudyLoop = false;
+let wordStudyActiveButton = null;
 let wordStudyPracticeSeen = new Set();
 
 function mapWordCard(card) {
-    return { ...card, id: card.card_id, audioUrl: wordCardAudioUrl(card.card_id) };
+    return {
+        ...card,
+        id: card.card_id,
+        audioUrl: wordCardAudioUrl(card.card_id),
+        audio_start: Number(card.audio_start || 0),
+        audio_end: Number(card.audio_end || 0),
+        audio_duration: Number(card.audio_duration || 0),
+    };
 }
 
 function stopWordStudyAudio() {
@@ -3364,6 +3371,10 @@ function stopWordStudyAudio() {
         wordStudyAudio.pause();
         wordStudyAudio.currentTime = 0;
         wordStudyAudio = null;
+    }
+    if (wordStudyActiveButton) {
+        wordStudyActiveButton.classList.remove("playing");
+        wordStudyActiveButton = null;
     }
     document.getElementById("btnWordStudyAudio")?.classList.remove("playing");
 }
@@ -3398,7 +3409,7 @@ function renderWordStudyCard() {
     wordStudyRatingActions.style.display = "none";
     document.getElementById("wordStudyLanguage").textContent = getLanguageLabel(card.language) || "单词";
     document.getElementById("wordStudyReviewState").textContent = card.review_count ? `已复习 ${card.review_count} 次` : "新收藏";
-    document.getElementById("wordStudyWord").textContent = card.word || "";
+    document.getElementById("wordStudyPromptWord").textContent = card.word || "";
     const pos = document.getElementById("wordStudyPos");
     pos.textContent = card.part_of_speech || "";
     pos.style.display = card.part_of_speech ? "block" : "none";
@@ -3423,7 +3434,7 @@ function renderWordStudyLibrary() {
             <div class="fav-text"><div class="fav-original">${escapeHtml(card.word)}</div>
             <div class="fav-translation">${escapeHtml([card.part_of_speech, card.meaning].filter(Boolean).join(" · "))}</div></div>
             <button class="fav-delete-btn" title="取消收藏" aria-label="取消收藏"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V4h6v3M8 10v8M12 10v8M16 10v8M7 7l1 14h8l1-14"/></svg></button>`;
-        row.querySelector(".fav-play-btn").addEventListener("click", event => playFavoriteAudio(card, event.currentTarget));
+        row.querySelector(".fav-play-btn").addEventListener("click", event => playWordLibraryAudio(card, event.currentTarget));
         row.querySelector(".fav-text").addEventListener("click", () => openWordStudy(false, card.id));
         row.querySelector(".fav-delete-btn").addEventListener("click", async () => {
             const res = await fetch(`/api/word-cards/${encodeURIComponent(card.id)}`, { method: "DELETE" });
@@ -3496,12 +3507,203 @@ function toggleWordStudyAudio() {
     if (wordStudyAudio && !wordStudyAudio.paused) { stopWordStudyAudio(); return; }
     stopWordStudyAudio();
     wordStudyAudio = new Audio(card.audioUrl);
-    wordStudyAudio.loop = wordStudyLoop;
     document.getElementById("btnWordStudyAudio").classList.add("playing");
-    wordStudyAudio.addEventListener("ended", () => { if (!wordStudyLoop) stopWordStudyAudio(); });
+    const start = Math.max(0, Number(card.audio_start || 0));
+    const playRange = () => {
+        const end = Number(card.audio_end) > start ? Number(card.audio_end) : wordStudyAudio.duration;
+        wordStudyAudio.currentTime = Math.min(start, wordStudyAudio.duration || start);
+        const stopAtEnd = () => {
+            if (wordStudyAudio && wordStudyAudio.currentTime >= end - 0.02) {
+                wordStudyAudio.removeEventListener("timeupdate", stopAtEnd);
+                stopWordStudyAudio();
+            }
+        };
+        wordStudyAudio.addEventListener("timeupdate", stopAtEnd);
+        wordStudyAudio.play().catch(error => { stopWordStudyAudio(); alert("音频播放失败：" + error.message); });
+    };
+    wordStudyAudio.addEventListener("loadedmetadata", playRange, { once: true });
     wordStudyAudio.addEventListener("error", () => { stopWordStudyAudio(); alert("音频播放失败"); });
-    wordStudyAudio.play().catch(error => { stopWordStudyAudio(); alert("音频播放失败：" + error.message); });
 }
+
+function playWordLibraryAudio(card, button) {
+    if (wordStudyAudio && !wordStudyAudio.paused) { stopWordStudyAudio(); return; }
+    toggleWordStudyAudioForCard(card, button);
+}
+
+function toggleWordStudyAudioForCard(card, button) {
+    stopWordStudyAudio();
+    wordStudyAudio = new Audio(card.audioUrl);
+    wordStudyActiveButton = button || null;
+    button?.classList.add("playing");
+    const start = Math.max(0, Number(card.audio_start || 0));
+    wordStudyAudio.addEventListener("loadedmetadata", () => {
+        const end = Number(card.audio_end) > start ? Number(card.audio_end) : wordStudyAudio.duration;
+        wordStudyAudio.currentTime = Math.min(start, wordStudyAudio.duration || start);
+        const stopAtEnd = () => {
+            if (wordStudyAudio && wordStudyAudio.currentTime >= end - 0.02) stopWordStudyAudio();
+        };
+        wordStudyAudio.addEventListener("timeupdate", stopAtEnd);
+        wordStudyAudio.play().catch(error => { stopWordStudyAudio(); alert("音频播放失败：" + error.message); });
+    }, { once: true });
+    wordStudyAudio.addEventListener("error", () => { stopWordStudyAudio(); alert("音频播放失败"); });
+}
+
+let wordTrimCard = null;
+let wordTrimDuration = 0;
+let wordTrimStart = 0;
+let wordTrimEnd = 0;
+let wordTrimPreview = null;
+
+function updateWordTrimSelection() {
+    const selection = document.getElementById("wordWaveSelection");
+    if (!selection || !wordTrimDuration) return;
+    selection.style.left = `${wordTrimStart / wordTrimDuration * 100}%`;
+    selection.style.right = `${(1 - wordTrimEnd / wordTrimDuration) * 100}%`;
+    document.getElementById("wordTrimStart").textContent = `${wordTrimStart.toFixed(2)}s`;
+    document.getElementById("wordTrimEnd").textContent = `${wordTrimEnd.toFixed(2)}s`;
+}
+
+function drawWordWaveform(audioBuffer) {
+    const canvas = document.getElementById("wordWaveCanvas");
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+    canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+    const ctx = canvas.getContext("2d");
+    ctx.scale(ratio, ratio);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    const samples = audioBuffer.getChannelData(0);
+    const mid = rect.height / 2;
+    const step = Math.max(1, Math.floor(samples.length / rect.width));
+    ctx.strokeStyle = "rgba(255,255,255,.38)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < rect.width; x++) {
+        let min = 1, max = -1;
+        const from = x * step;
+        const to = Math.min(samples.length, from + step);
+        for (let index = from; index < to; index++) {
+            const value = samples[index];
+            if (value < min) min = value;
+            if (value > max) max = value;
+        }
+        ctx.moveTo(x + .5, mid + min * mid * .85);
+        ctx.lineTo(x + .5, mid + max * mid * .85);
+    }
+    ctx.stroke();
+}
+
+function stopWordTrimPreview() {
+    if (wordTrimPreview) {
+        wordTrimPreview.pause();
+        wordTrimPreview = null;
+    }
+    document.getElementById("btnPreviewWordTrim")?.classList.remove("playing");
+}
+
+async function openWordTrim() {
+    const card = wordStudyQueue[0];
+    if (!card) return;
+    stopWordStudyAudio();
+    const modal = document.getElementById("wordTrimModal");
+    modal.style.display = "flex";
+    wordTrimCard = card;
+    try {
+        const res = await fetch(card.audioUrl);
+        if (!res.ok) throw new Error("原声读取失败");
+        const bytes = await res.arrayBuffer();
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const context = new AudioCtx();
+        const buffer = await context.decodeAudioData(bytes.slice(0));
+        wordTrimDuration = buffer.duration;
+        wordTrimStart = Math.min(Math.max(0, Number(card.audio_start || 0)), wordTrimDuration);
+        wordTrimEnd = Number(card.audio_end) > wordTrimStart
+            ? Math.min(Number(card.audio_end), wordTrimDuration)
+            : wordTrimDuration;
+        drawWordWaveform(buffer);
+        updateWordTrimSelection();
+        context.close().catch(() => {});
+    } catch (error) {
+        modal.style.display = "none";
+        alert("波形加载失败：" + error.message);
+    }
+}
+
+function closeWordTrim() {
+    stopWordTrimPreview();
+    document.getElementById("wordTrimModal").style.display = "none";
+    wordTrimCard = null;
+}
+
+function previewWordTrim() {
+    if (!wordTrimCard) return;
+    stopWordTrimPreview();
+    const button = document.getElementById("btnPreviewWordTrim");
+    wordTrimPreview = new Audio(wordTrimCard.audioUrl);
+    button.classList.add("playing");
+    wordTrimPreview.addEventListener("loadedmetadata", () => {
+        wordTrimPreview.currentTime = wordTrimStart;
+        const stop = () => {
+            if (wordTrimPreview && wordTrimPreview.currentTime >= wordTrimEnd - .02) stopWordTrimPreview();
+        };
+        wordTrimPreview.addEventListener("timeupdate", stop);
+        wordTrimPreview.play().catch(error => { stopWordTrimPreview(); alert("试听失败：" + error.message); });
+    }, { once: true });
+}
+
+async function saveWordTrim() {
+    if (!wordTrimCard) return;
+    const button = document.getElementById("btnSaveWordTrim");
+    button.disabled = true;
+    try {
+        const res = await fetch(`/api/word-cards/${encodeURIComponent(wordTrimCard.id)}/audio-range`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ start: wordTrimStart, end: wordTrimEnd }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "保存失败");
+        const updated = mapWordCard(data.card);
+        wordStudyQueue = wordStudyQueue.map(card => card.id === updated.id ? updated : card);
+        accountWordFavorites = accountWordFavorites.map(card => card.card_id === updated.id ? data.card : card);
+        closeWordTrim();
+        renderWordStudyCard();
+        showAppToast("原声范围已保存");
+    } catch (error) { alert("保存原声范围失败：" + error.message); }
+    finally { button.disabled = false; }
+}
+
+document.querySelectorAll("#wordWaveSelection [data-edge]").forEach(handle => {
+    handle.addEventListener("pointerdown", event => {
+        if (!wordTrimDuration) return;
+        event.preventDefault();
+        handle.setPointerCapture(event.pointerId);
+        const edge = handle.dataset.edge;
+        const waveform = document.getElementById("wordWaveform");
+        const move = moveEvent => {
+            const rect = waveform.getBoundingClientRect();
+            const time = Math.max(0, Math.min(wordTrimDuration, (moveEvent.clientX - rect.left) / rect.width * wordTrimDuration));
+            if (edge === "start") wordTrimStart = Math.min(time, wordTrimEnd - .08);
+            else wordTrimEnd = Math.max(time, wordTrimStart + .08);
+            updateWordTrimSelection();
+        };
+        const up = () => {
+            handle.removeEventListener("pointermove", move);
+            handle.removeEventListener("pointerup", up);
+            handle.removeEventListener("pointercancel", up);
+        };
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", up);
+        handle.addEventListener("pointercancel", up);
+    });
+});
+
+document.getElementById("btnAdjustWordAudio")?.addEventListener("click", openWordTrim);
+document.getElementById("btnCloseWordTrim")?.addEventListener("click", closeWordTrim);
+document.getElementById("btnPreviewWordTrim")?.addEventListener("click", previewWordTrim);
+document.getElementById("btnSaveWordTrim")?.addEventListener("click", saveWordTrim);
+document.getElementById("wordTrimModal")?.addEventListener("click", event => {
+    if (event.target.id === "wordTrimModal") closeWordTrim();
+});
 
 async function submitWordStudyResult(result) {
     const card = wordStudyQueue[0];
@@ -3528,11 +3730,6 @@ document.getElementById("btnWordStudyDone")?.addEventListener("click", closeWord
 document.getElementById("btnWordStudyToday")?.addEventListener("click", () => showWordStudyView("today"));
 document.getElementById("btnWordStudyLibrary")?.addEventListener("click", () => showWordStudyView("library"));
 document.getElementById("btnWordStudyAudio")?.addEventListener("click", toggleWordStudyAudio);
-document.getElementById("btnWordStudyLoop")?.addEventListener("click", event => {
-    wordStudyLoop = !wordStudyLoop;
-    event.currentTarget.setAttribute("aria-pressed", String(wordStudyLoop));
-    if (wordStudyAudio) wordStudyAudio.loop = wordStudyLoop;
-});
 document.getElementById("btnShowWordStudyAnswer")?.addEventListener("click", () => {
     wordStudyAnswer.style.display = "block";
     document.getElementById("btnShowWordStudyAnswer").style.display = "none";
@@ -4307,7 +4504,13 @@ async function bookmarkPopupWord(button) {
     try {
         let res;
         if (localVideoFile) {
-            const audio = await getLocalAudioSliceWav(start, end);
+            const clipStart = Math.max(0, start - 1.5);
+            const mediaDuration = Number.isFinite(video.duration) ? video.duration : end + 1.5;
+            const clipEnd = Math.min(mediaDuration, end + 1.5);
+            fields.audio_start = start - clipStart;
+            fields.audio_end = end - clipStart;
+            fields.audio_duration = clipEnd - clipStart;
+            const audio = await getLocalAudioSliceWav(clipStart, clipEnd);
             const form = new FormData();
             Object.entries(fields).forEach(([key, value]) => form.append(key, String(value)));
             form.append("audio", audio, "word.wav");

@@ -48,6 +48,9 @@ def init_db(path: str = ":memory:") -> sqlite3.Connection:
     # ── 迁移：为旧版 DB 补充新列/表（schema.sql 用 IF NOT EXISTS，列需手动迁移）
     for _migration in [
         "ALTER TABLE wallets ADD COLUMN gift_expires_at TEXT",
+        "ALTER TABLE word_cards ADD COLUMN audio_start REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE word_cards ADD COLUMN audio_end REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE word_cards ADD COLUMN audio_duration REAL NOT NULL DEFAULT 0",
         # Auth 表（schema.sql 已含 CREATE IF NOT EXISTS，此处确保旧 DB 兼容）
         """CREATE TABLE IF NOT EXISTS user_identities (
             identity_id TEXT PRIMARY KEY, user_id TEXT NOT NULL,

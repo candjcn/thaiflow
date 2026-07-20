@@ -32,7 +32,8 @@ def find_existing(db, user_id: str, key: str) -> dict | None:
 
 def create(db, user_id: str, *, key: str, word: str, meaning: str,
            part_of_speech: str = "", language: str = "", context: str = "",
-           audio_url: str = "", audio_key: str = "", source_video: str = "") -> dict:
+           audio_url: str = "", audio_key: str = "", source_video: str = "",
+           audio_start: float = 0, audio_end: float = 0, audio_duration: float = 0) -> dict:
     existing = find_existing(db, user_id, key)
     if existing:
         return existing
@@ -41,11 +42,13 @@ def create(db, user_id: str, *, key: str, word: str, meaning: str,
         """
         INSERT INTO word_cards (
             card_id, user_id, source_key, word, meaning, part_of_speech,
-            language, context, audio_url, audio_key, source_video
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            language, context, audio_url, audio_key, source_video,
+            audio_start, audio_end, audio_duration
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (card_id, user_id, key, word.strip(), meaning.strip(), part_of_speech.strip(),
-         language.strip(), context.strip(), audio_url, audio_key, source_video.strip()),
+         language.strip(), context.strip(), audio_url, audio_key, source_video.strip(),
+         max(0, float(audio_start)), max(0, float(audio_end)), max(0, float(audio_duration))),
     )
     db.commit()
     return get(db, user_id, card_id)
@@ -105,3 +108,19 @@ def delete(db, user_id: str, card_id: str) -> dict | None:
     db.execute("DELETE FROM word_cards WHERE user_id = ? AND card_id = ?", (user_id, card_id))
     db.commit()
     return card
+
+
+def update_audio_range(db, user_id: str, card_id: str, start: float, end: float) -> dict | None:
+    card = get(db, user_id, card_id)
+    if not card:
+        return None
+    duration = float(card.get("audio_duration") or 0)
+    if start < 0 or end <= start or (duration > 0 and end > duration + 0.05):
+        raise ValueError("原声范围无效")
+    db.execute(
+        """UPDATE word_cards SET audio_start = ?, audio_end = ?,
+           updated_at = datetime('now') WHERE user_id = ? AND card_id = ?""",
+        (round(start, 3), round(end, 3), user_id, card_id),
+    )
+    db.commit()
+    return get(db, user_id, card_id)

@@ -61,6 +61,7 @@ def test_bookmark_word_audio_review_and_delete(client, db, monkeypatch, tmp_path
         "audio": (io.BytesIO(b"fake wav"), "word.wav"),
         "word": "competitive", "meaning": "竞争激烈的", "part_of_speech": "adj.",
         "language": "en", "context": "It is so competitive.", "source_video": "lesson.mp4",
+        "audio_start": "1.5", "audio_end": "2.2", "audio_duration": "3.7",
     }
     created = client.post("/api/bookmark-word-audio", data=form, content_type="multipart/form-data")
     assert created.status_code == 200
@@ -75,6 +76,19 @@ def test_bookmark_word_audio_review_and_delete(client, db, monkeypatch, tmp_path
     assert audio.status_code == 200
     assert audio.data == b"word-mp3"
     assert audio.headers["Content-Type"] == "audio/mpeg"
+
+    trimmed = client.patch(
+        f"/api/word-cards/{card['card_id']}/audio-range",
+        json={"start": 1.35, "end": 2.45},
+    )
+    assert trimmed.status_code == 200
+    assert trimmed.get_json()["card"]["audio_start"] == 1.35
+    assert trimmed.get_json()["card"]["audio_end"] == 2.45
+    invalid_trim = client.patch(
+        f"/api/word-cards/{card['card_id']}/audio-range",
+        json={"start": 2.0, "end": 4.0},
+    )
+    assert invalid_trim.status_code == 400
 
     reviewed = client.post(f"/api/word-cards/{card['card_id']}/review", json={"result": "mastered"})
     assert reviewed.status_code == 200

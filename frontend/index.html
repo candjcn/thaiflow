@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="style.css?v=20260721a">
+    <link rel="stylesheet" href="style.css?v=20260721d">
 </head>
 <body>
     <!-- PWA 安装引导横幅（iOS 显示步骤说明，安卓显示一键安装按钮） -->
@@ -273,17 +273,22 @@
                 </div>
                 <article class="study-card word-study-card" id="wordStudyCard">
                     <div class="study-card-meta"><span id="wordStudyLanguage">单词</span><span id="wordStudyReviewState">新收藏</span></div>
-                    <button type="button" id="btnWordStudyAudio" class="study-audio-button" aria-label="播放单词原声">
-                        <span class="study-audio-icon"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M18.5 5.5a9 9 0 010 13"/></svg></span>
-                        <strong>听单词</strong><span>先听声音，试着回想它的意思</span>
-                    </button>
-                    <button type="button" id="btnWordStudyLoop" class="study-loop-button" aria-pressed="false">
-                        <svg viewBox="0 0 24 24"><path d="M17 2l3 3-3 3"/><path d="M3 11V9a4 4 0 014-4h13"/><path d="M7 22l-3-3 3-3"/><path d="M21 13v2a4 4 0 01-4 4H4"/></svg><span>循环播放</span>
-                    </button>
+                    <div class="word-study-prompt">
+                        <span>看到这个单词，你还记得它的意思吗？</span>
+                        <strong id="wordStudyPromptWord"></strong>
+                    </div>
+                    <div class="word-audio-tools">
+                        <button type="button" id="btnWordStudyAudio" aria-label="播放视频原声片段">
+                            <svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg><span>原声片段</span>
+                        </button>
+                        <button type="button" id="btnAdjustWordAudio">
+                            <svg viewBox="0 0 24 24"><path d="M4 12h16M8 7v10M16 5v14"/></svg><span>调整原声</span>
+                        </button>
+                    </div>
                     <div class="study-answer" id="wordStudyAnswer" style="display:none;">
-                        <div class="study-answer-label">单词</div><div class="study-original" id="wordStudyWord"></div>
-                        <div class="study-romanization" id="wordStudyPos"></div><div class="study-answer-divider"></div>
-                        <div class="study-answer-label">释义</div><div class="study-translation" id="wordStudyMeaning"></div>
+                        <div class="study-answer-label">词性与释义</div>
+                        <div class="study-romanization" id="wordStudyPos"></div>
+                        <div class="study-translation" id="wordStudyMeaning"></div>
                         <div class="word-study-context" id="wordStudyContext"></div>
                     </div>
                 </article>
@@ -303,6 +308,19 @@
                 </div>
             </footer>
         </section>
+
+        <div class="word-trim-modal" id="wordTrimModal" style="display:none;" role="dialog" aria-modal="true" aria-label="调整单词原声">
+            <div class="word-trim-sheet">
+                <div class="word-trim-header"><strong>调整原声</strong><button type="button" id="btnCloseWordTrim" aria-label="关闭">×</button></div>
+                <p>拖动左右边界，只保留这个单词的声音。</p>
+                <div class="word-waveform" id="wordWaveform">
+                    <canvas id="wordWaveCanvas"></canvas>
+                    <div class="word-wave-selection" id="wordWaveSelection"><button type="button" data-edge="start" aria-label="起点"></button><button type="button" data-edge="end" aria-label="终点"></button></div>
+                </div>
+                <div class="word-trim-time"><span id="wordTrimStart">0.00s</span><span id="wordTrimEnd">0.00s</span></div>
+                <div class="word-trim-actions"><button type="button" id="btnPreviewWordTrim">试听</button><button type="button" id="btnSaveWordTrim">保存范围</button></div>
+            </div>
+        </div>
 
         <!-- ====== 阶段二：加载 + 播放（共用视频画面） ====== -->
         <div class="phase-play" id="phasePlay" style="display:none;">
@@ -668,6 +686,6 @@
     </div>
 
     <script src="i18n.js?v=20260719a"></script>
-    <script src="player.js?v=20260721c"></script>
+    <script src="player.js?v=20260721d"></script>
 </body>
 </html>

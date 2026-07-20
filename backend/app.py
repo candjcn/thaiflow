@@ -2150,7 +2150,29 @@ def _create_word_card(db, user_id, data, audio_url="", audio_key=""):
         language=language_name, context=str(data.get("context") or "")[:2000],
         audio_url=audio_url, audio_key=audio_key,
         source_video=str(data.get("source_video") or "")[:200],
+        audio_start=float(data.get("audio_start") or 0),
+        audio_end=float(data.get("audio_end") or 0),
+        audio_duration=float(data.get("audio_duration") or 0),
     )
+
+
+@app.route("/api/word-cards/<card_id>/audio-range", methods=["PATCH"])
+def api_update_word_audio_range(card_id):
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        card = _word_cards.update_audio_range(
+            db, user["user_id"], card_id,
+            float(data.get("start", -1)), float(data.get("end", -1)),
+        )
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not card:
+        return jsonify({"error": "收藏不存在"}), 404
+    return jsonify({"card": card})
 
 
 @app.route("/api/bookmark-word", methods=["POST"])
@@ -2180,8 +2202,16 @@ def api_bookmark_word():
         tmp_mp3 = os.path.join(VIDEOS_DIR, f".word_{os.getpid()}_{uuid.uuid4().hex}.mp3")
         uploaded_key = ""
         try:
+            clip_start = max(0, start - 1.5)
+            clip_end = end + 1.5
+            data = dict(data)
+            data.update({
+                "audio_start": start - clip_start,
+                "audio_end": end - clip_start,
+                "audio_duration": clip_end - clip_start,
+            })
             result = subprocess.run([
-                "ffmpeg", "-y", "-i", video_path, "-ss", str(start), "-to", str(end),
+                "ffmpeg", "-y", "-i", video_path, "-ss", str(clip_start), "-to", str(clip_end),
                 "-vn", "-ar", "22050", "-ac", "1", "-b:a", "64k", tmp_mp3,
             ], capture_output=True, text=True)
             if result.returncode != 0:
