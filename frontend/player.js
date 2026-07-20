@@ -1,4 +1,4 @@
-const APP_REV = "20260721a"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260721b"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 设备 UUID（匿名用户限流指纹） ==========
 function getDeviceId() {
@@ -4109,7 +4109,7 @@ function createWordPopup() {
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
             </button>
             <button class="word-popup-save" title="收藏单词" aria-label="收藏单词">
-                <svg viewBox="0 0 24 24"><path d="M6 4.5h12v16l-6-3.7-6 3.7z"/></svg>
+                <svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
             </button>
         </div>
         <div class="word-popup-row2">
@@ -6019,7 +6019,6 @@ I18N.init();
 initRecognitionModes();
 renderFavorites();
 loadLocalVideoList();
-loadVideoList();
 
 // pageshow 兜底：无论是 bfcache 还原还是普通前进/后退，都重新同步登录状态和界面语言
 // e.persisted=true  → bfcache 还原（OAuth 回调 / profile 返回等场景）

@@ -1416,7 +1416,7 @@ video {
 .word-popup-save:hover {
     color: #3c3c43;
 }
-.word-popup-save.saved { color: #e94560; }
+.word-popup-save.saved { color: #f0a800; }
 .word-popup-save.saved svg { fill: currentColor; }
 .word-popup-save:disabled { opacity: .45; cursor: wait; }
 /* 第二行：词性 + 释义 */
