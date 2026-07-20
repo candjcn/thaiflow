@@ -33,6 +33,7 @@ from commerce.middleware import CommerceContext
 from commerce.plan import get_default_quality
 import commerce.auth as _auth
 from commerce import sentence_cards as _sentence_cards
+from commerce import word_cards as _word_cards
 from commerce.wallet import (
     add_credits as _wallet_add, refund as _wallet_refund,
     get_balance as _wallet_balance, get_history as _wallet_history,
@@ -2036,6 +2037,166 @@ def api_sentence_cards():
         "cards": _sentence_cards.list_for_user(db, user["user_id"], limit, due_only),
         "due_count": _sentence_cards.due_count(db, user["user_id"]),
     })
+
+
+@app.route("/api/word-cards", methods=["GET"])
+def api_word_cards():
+    """返回当前登录用户的单词学习卡片。"""
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    try:
+        limit = int(request.args.get("limit", 100))
+    except (TypeError, ValueError):
+        limit = 100
+    due_only = request.args.get("due", "").lower() in ("1", "true", "yes")
+    return jsonify({
+        "cards": _word_cards.list_for_user(db, user["user_id"], limit, due_only),
+        "due_count": _word_cards.due_count(db, user["user_id"]),
+    })
+
+
+@app.route("/api/word-cards/<card_id>/review", methods=["POST"])
+def api_review_word_card(card_id):
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        card = _word_cards.review(db, user["user_id"], card_id, str(data.get("result") or ""))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not card:
+        return jsonify({"error": "收藏不存在"}), 404
+    return jsonify({"card": card, "due_count": _word_cards.due_count(db, user["user_id"])})
+
+
+@app.route("/api/word-cards/<card_id>", methods=["DELETE"])
+def api_delete_word_card(card_id):
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    card = _word_cards.delete(db, user["user_id"], card_id)
+    if not card:
+        return jsonify({"error": "收藏不存在"}), 404
+    if card.get("audio_key"):
+        try:
+            delete_audio(card["audio_key"])
+        except Exception as exc:
+            logger.warning(f"[word-card] R2 cleanup failed: {exc}")
+    return jsonify({"ok": True})
+
+
+def _create_word_card(db, user_id, data, audio_url="", audio_key=""):
+    word = str(data.get("word") or "").strip()
+    meaning = str(data.get("meaning") or "").strip()
+    language_name = str(data.get("language") or "")[:20]
+    if not word or not meaning:
+        raise ValueError("单词和释义不能为空")
+    key = _word_cards.source_key(word, language_name, meaning)
+    return _word_cards.create(
+        db, user_id, key=key, word=word[:200], meaning=meaning[:1000],
+        part_of_speech=str(data.get("part_of_speech") or "")[:80],
+        language=language_name, context=str(data.get("context") or "")[:2000],
+        audio_url=audio_url, audio_key=audio_key,
+        source_video=str(data.get("source_video") or "")[:200],
+    )
+
+
+@app.route("/api/bookmark-word", methods=["POST"])
+def api_bookmark_word():
+    """收藏服务器视频中的单词，并截取原声。"""
+    import uuid
+    data = request.get_json(silent=True) or {}
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    try:
+        start, end = float(data.get("start", -1)), float(data.get("end", -1))
+        word = str(data.get("word") or "").strip()
+        meaning = str(data.get("meaning") or "").strip()
+        key = _word_cards.source_key(word, str(data.get("language") or ""), meaning)
+        existing = _word_cards.find_existing(db, user["user_id"], key)
+        if existing:
+            return jsonify({"card": existing, "already_saved": True})
+        if not (0 <= start < end) or end - start > 15:
+            return jsonify({"error": "单词时间范围无效"}), 400
+        video_name = str(data.get("source_video") or "")
+        root = os.path.realpath(VIDEOS_DIR)
+        video_path = os.path.realpath(os.path.join(VIDEOS_DIR, video_name))
+        if not video_path.startswith(root + os.sep) or not os.path.exists(video_path):
+            return jsonify({"error": "视频文件不存在"}), 404
+        tmp_mp3 = os.path.join(VIDEOS_DIR, f".word_{os.getpid()}_{uuid.uuid4().hex}.mp3")
+        uploaded_key = ""
+        try:
+            result = subprocess.run([
+                "ffmpeg", "-y", "-i", video_path, "-ss", str(start), "-to", str(end),
+                "-vn", "-ar", "22050", "-ac", "1", "-b:a", "64k", tmp_mp3,
+            ], capture_output=True, text=True)
+            if result.returncode != 0:
+                return jsonify({"error": "单词音频截取失败"}), 500
+            uploaded_key = f"words/{uuid.uuid4().hex}.mp3"
+            audio_url = upload_audio(tmp_mp3, uploaded_key)
+            card = _create_word_card(db, user["user_id"], data, audio_url, uploaded_key)
+            uploaded_key = ""
+            return jsonify({"card": card})
+        finally:
+            if uploaded_key:
+                try: delete_audio(uploaded_key)
+                except Exception: pass
+            if os.path.exists(tmp_mp3): os.remove(tmp_mp3)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/api/bookmark-word-audio", methods=["POST"])
+def api_bookmark_word_audio():
+    """收藏本地视频中的单词和前端截取的原声。"""
+    import uuid
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    data = request.form
+    try:
+        word, meaning = str(data.get("word") or "").strip(), str(data.get("meaning") or "").strip()
+        key = _word_cards.source_key(word, str(data.get("language") or ""), meaning)
+        existing = _word_cards.find_existing(db, user["user_id"], key)
+        if existing:
+            return jsonify({"card": existing, "already_saved": True})
+        if "audio" not in request.files:
+            return jsonify({"error": "缺少单词音频"}), 400
+        tmp_in = os.path.join(VIDEOS_DIR, f".word_in_{os.getpid()}_{uuid.uuid4().hex}.wav")
+        tmp_mp3 = os.path.join(VIDEOS_DIR, f".word_out_{os.getpid()}_{uuid.uuid4().hex}.mp3")
+        uploaded_key = ""
+        try:
+            request.files["audio"].save(tmp_in)
+            result = subprocess.run([
+                "ffmpeg", "-y", "-i", tmp_in, "-ar", "22050", "-ac", "1", "-b:a", "64k", tmp_mp3,
+            ], capture_output=True, text=True)
+            if result.returncode != 0:
+                return jsonify({"error": "单词音频转换失败"}), 500
+            uploaded_key = f"words/{uuid.uuid4().hex}.mp3"
+            audio_url = upload_audio(tmp_mp3, uploaded_key)
+            card = _create_word_card(db, user["user_id"], data, audio_url, uploaded_key)
+            uploaded_key = ""
+            return jsonify({"card": card})
+        finally:
+            if uploaded_key:
+                try: delete_audio(uploaded_key)
+                except Exception: pass
+            for path in (tmp_in, tmp_mp3):
+                if os.path.exists(path): os.remove(path)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
 
 
 @app.route("/api/sentence-cards/<card_id>/review", methods=["POST"])

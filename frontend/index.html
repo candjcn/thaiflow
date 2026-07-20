@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="style.css?v=20260720e">
+    <link rel="stylesheet" href="style.css?v=20260721a">
 </head>
 <body>
     <!-- PWA 安装引导横幅（iOS 显示步骤说明，安卓显示一键安装按钮） -->
@@ -248,6 +248,60 @@
                 <span id="studyUndoMessage">已安排下次复习</span>
                 <button type="button" id="btnUndoStudyResult">撤销</button>
             </div>
+        </section>
+
+        <!-- ====== 单词卡片学习 ====== -->
+        <section class="sentence-study-page" id="wordStudyPage" style="display:none;" aria-label="单词学习">
+            <header class="study-header">
+                <button type="button" id="btnCloseWordStudy" class="study-back-button" aria-label="返回首页">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <div class="study-header-title">
+                    <strong>单词学习</strong><span id="wordStudyProgressText">剩余 0 个</span>
+                </div>
+                <div class="study-progress-track" aria-hidden="true"><span id="wordStudyProgressBar"></span></div>
+                <nav class="study-view-tabs" aria-label="单词学习内容">
+                    <button type="button" id="btnWordStudyToday" class="active">今日复习</button>
+                    <button type="button" id="btnWordStudyLibrary">全部单词</button>
+                </nav>
+            </header>
+            <main class="study-main">
+                <div class="study-empty" id="wordStudyEmpty" style="display:none;">
+                    <div class="study-empty-icon">✓</div><h2>今天复习完成</h2>
+                    <p>做得不错。新的复习会按计划自动出现。</p>
+                    <button type="button" id="btnWordStudyDone">返回首页</button>
+                </div>
+                <article class="study-card word-study-card" id="wordStudyCard">
+                    <div class="study-card-meta"><span id="wordStudyLanguage">单词</span><span id="wordStudyReviewState">新收藏</span></div>
+                    <button type="button" id="btnWordStudyAudio" class="study-audio-button" aria-label="播放单词原声">
+                        <span class="study-audio-icon"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M18.5 5.5a9 9 0 010 13"/></svg></span>
+                        <strong>听单词</strong><span>先听声音，试着回想它的意思</span>
+                    </button>
+                    <button type="button" id="btnWordStudyLoop" class="study-loop-button" aria-pressed="false">
+                        <svg viewBox="0 0 24 24"><path d="M17 2l3 3-3 3"/><path d="M3 11V9a4 4 0 014-4h13"/><path d="M7 22l-3-3 3-3"/><path d="M21 13v2a4 4 0 01-4 4H4"/></svg><span>循环播放</span>
+                    </button>
+                    <div class="study-answer" id="wordStudyAnswer" style="display:none;">
+                        <div class="study-answer-label">单词</div><div class="study-original" id="wordStudyWord"></div>
+                        <div class="study-romanization" id="wordStudyPos"></div><div class="study-answer-divider"></div>
+                        <div class="study-answer-label">释义</div><div class="study-translation" id="wordStudyMeaning"></div>
+                        <div class="word-study-context" id="wordStudyContext"></div>
+                    </div>
+                </article>
+                <section class="study-library" id="wordStudyLibrary" style="display:none;">
+                    <div class="study-library-summary" id="wordStudyLibrarySummary"></div>
+                    <div class="study-library-list" id="wordStudyLibraryList"></div>
+                    <div class="study-library-empty" id="wordStudyLibraryEmpty" style="display:none;">
+                        <p>还没有收藏单词</p><span>在字幕中点击单词，再点击收藏按钮。</span>
+                    </div>
+                </section>
+            </main>
+            <footer class="study-actions word-study-actions">
+                <button type="button" id="btnShowWordStudyAnswer" class="study-show-answer">显示答案</button>
+                <div class="study-rating-actions" id="wordStudyRatingActions" style="display:none;">
+                    <button type="button" id="btnWordStudyPractice" class="study-practice-button"><strong>还要练习</strong><span>稍后再次出现</span></button>
+                    <button type="button" id="btnWordStudyMastered" class="study-mastered-button"><strong>已经掌握</strong><span id="wordStudyMasteredHint">明天复习</span></button>
+                </div>
+            </footer>
         </section>
 
         <!-- ====== 阶段二：加载 + 播放（共用视频画面） ====== -->
@@ -614,6 +668,6 @@
     </div>
 
     <script src="i18n.js?v=20260719a"></script>
-    <script src="player.js?v=20260720g"></script>
+    <script src="player.js?v=20260721a"></script>
 </body>
 </html>

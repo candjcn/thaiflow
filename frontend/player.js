@@ -1,4 +1,4 @@
-const APP_REV = "20260720g"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260721a"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 设备 UUID（匿名用户限流指纹） ==========
 function getDeviceId() {
@@ -2683,8 +2683,10 @@ function toggleDrawer() {
 // ========== 渲染句子列表 ==========
 // ========== 收藏句子 ==========
 let accountFavorites = [];
+let accountWordFavorites = [];
 let authState = { loaded: false, loggedIn: false };
 let sentenceDueCount = 0;
+let wordDueCount = 0;
 let appToastTimer = null;
 let appToastActionHandler = null;
 
@@ -2766,6 +2768,31 @@ async function loadSentenceCards() {
     }
     renderFavorites();
     syncFavoriteStars();
+}
+
+async function loadWordCards() {
+    if (!authState.loggedIn) {
+        accountWordFavorites = [];
+        wordDueCount = 0;
+        renderFavorites();
+        return;
+    }
+    try {
+        const res = await fetch("/api/word-cards?limit=100");
+        if (res.status === 401) {
+            authState.loggedIn = false;
+            accountWordFavorites = [];
+            wordDueCount = 0;
+        } else if (res.ok) {
+            const data = await res.json();
+            accountWordFavorites = data.cards || [];
+            wordDueCount = Number(data.due_count || 0);
+        }
+    } catch (error) {
+        console.error("[WordCards] load failed:", error);
+    }
+    renderFavorites();
+    syncWordPopupSaveState();
 }
 
 function promptFavoriteLogin() {
@@ -2911,7 +2938,7 @@ function renderFavorites() {
     const wordBtn = document.getElementById("btnStartWordStudy");
     if (!section || !grid || !sentenceBtn || !wordBtn) return;
     const allFavs = getFavorites();
-    const wordFavoriteCount = 0; // 单词收藏接入后改为账号级真实数量。
+    const wordFavoriteCount = accountWordFavorites.length;
     const hasSentences = allFavs.length > 0;
     const hasWords = wordFavoriteCount > 0;
     if (!hasSentences && !hasWords) {
@@ -2928,7 +2955,12 @@ function renderFavorites() {
     if (sentenceSummary) sentenceSummary.textContent = sentenceDueCount > 0
         ? `${sentenceDueCount} 句待复习`
         : `已收藏 ${allFavs.length} 句`;
+    const wordSummary = document.getElementById("wordModuleSummary");
+    if (wordSummary) wordSummary.textContent = wordDueCount > 0
+        ? `${wordDueCount} 个待复习`
+        : `已收藏 ${wordFavoriteCount} 个`;
     renderStudyLibrary();
+    renderWordStudyLibrary();
 }
 
 function playFavoriteAudio(fav, playBtn) {
@@ -3300,6 +3332,206 @@ document.getElementById("btnUndoStudyResult")?.addEventListener("click", () => {
     hideStudyUndoToast();
     renderStudyCard();
 });
+
+// ========== 单词卡片学习 ==========
+const wordStudyPage = document.getElementById("wordStudyPage");
+const wordStudyCard = document.getElementById("wordStudyCard");
+const wordStudyEmpty = document.getElementById("wordStudyEmpty");
+const wordStudyAnswer = document.getElementById("wordStudyAnswer");
+const wordStudyRatingActions = document.getElementById("wordStudyRatingActions");
+const wordStudyLibrary = document.getElementById("wordStudyLibrary");
+const wordStudyActions = document.querySelector(".word-study-actions");
+let wordStudyQueue = [];
+let wordStudyQueueTotal = 0;
+let wordStudyAudio = null;
+let wordStudyLoop = false;
+let wordStudyPracticeSeen = new Set();
+
+function mapWordCard(card) {
+    return { ...card, id: card.card_id, audioUrl: card.audio_url };
+}
+
+function stopWordStudyAudio() {
+    if (wordStudyAudio) {
+        wordStudyAudio.pause();
+        wordStudyAudio.currentTime = 0;
+        wordStudyAudio = null;
+    }
+    document.getElementById("btnWordStudyAudio")?.classList.remove("playing");
+}
+
+function wordMasteredHint(card) {
+    const intervals = ["明天复习", "3 天后复习", "7 天后复习", "14 天后复习", "30 天后复习"];
+    return intervals[Math.min(Number(card.review_count || 0), intervals.length - 1)];
+}
+
+function updateWordStudyProgress() {
+    const remaining = wordStudyQueue.length;
+    document.getElementById("wordStudyProgressText").textContent = `剩余 ${remaining} 个`;
+    document.getElementById("wordStudyProgressBar").style.width = `${wordStudyQueueTotal ? ((wordStudyQueueTotal - Math.min(remaining, wordStudyQueueTotal)) / wordStudyQueueTotal) * 100 : 0}%`;
+}
+
+function renderWordStudyCard() {
+    stopWordStudyAudio();
+    const card = wordStudyQueue[0];
+    updateWordStudyProgress();
+    if (!card) {
+        wordStudyCard.style.display = "none";
+        wordStudyEmpty.style.display = "block";
+        document.getElementById("btnShowWordStudyAnswer").style.display = "none";
+        wordStudyRatingActions.style.display = "none";
+        document.getElementById("wordStudyProgressBar").style.width = "100%";
+        return;
+    }
+    wordStudyCard.style.display = "block";
+    wordStudyEmpty.style.display = "none";
+    wordStudyAnswer.style.display = "none";
+    document.getElementById("btnShowWordStudyAnswer").style.display = "block";
+    wordStudyRatingActions.style.display = "none";
+    document.getElementById("wordStudyLanguage").textContent = getLanguageLabel(card.language) || "单词";
+    document.getElementById("wordStudyReviewState").textContent = card.review_count ? `已复习 ${card.review_count} 次` : "新收藏";
+    document.getElementById("wordStudyWord").textContent = card.word || "";
+    const pos = document.getElementById("wordStudyPos");
+    pos.textContent = card.part_of_speech || "";
+    pos.style.display = card.part_of_speech ? "block" : "none";
+    document.getElementById("wordStudyMeaning").textContent = card.meaning || "暂无释义";
+    document.getElementById("wordStudyContext").textContent = card.context || "";
+    document.getElementById("wordStudyMasteredHint").textContent = wordMasteredHint(card);
+}
+
+function renderWordStudyLibrary() {
+    const list = document.getElementById("wordStudyLibraryList");
+    const summary = document.getElementById("wordStudyLibrarySummary");
+    const empty = document.getElementById("wordStudyLibraryEmpty");
+    if (!list || !summary || !empty) return;
+    summary.textContent = `${accountWordFavorites.length} 个收藏${wordDueCount ? ` · ${wordDueCount} 个待复习` : ""}`;
+    empty.style.display = accountWordFavorites.length ? "none" : "block";
+    list.innerHTML = "";
+    accountWordFavorites.forEach(raw => {
+        const card = mapWordCard(raw);
+        const row = document.createElement("div");
+        row.className = "study-library-item";
+        row.innerHTML = `<button class="fav-play-btn" title="播放">${_favIconPlay}</button>
+            <div class="fav-text"><div class="fav-original">${escapeHtml(card.word)}</div>
+            <div class="fav-translation">${escapeHtml([card.part_of_speech, card.meaning].filter(Boolean).join(" · "))}</div></div>
+            <button class="fav-delete-btn" title="取消收藏" aria-label="取消收藏"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V4h6v3M8 10v8M12 10v8M16 10v8M7 7l1 14h8l1-14"/></svg></button>`;
+        row.querySelector(".fav-play-btn").addEventListener("click", event => playFavoriteAudio(card, event.currentTarget));
+        row.querySelector(".fav-text").addEventListener("click", () => openWordStudy(false, card.id));
+        row.querySelector(".fav-delete-btn").addEventListener("click", async () => {
+            const res = await fetch(`/api/word-cards/${encodeURIComponent(card.id)}`, { method: "DELETE" });
+            const data = await res.json();
+            if (!res.ok) { alert("取消收藏失败：" + (data.error || "删除失败")); return; }
+            accountWordFavorites = accountWordFavorites.filter(item => item.card_id !== card.id);
+            wordDueCount = Math.min(wordDueCount, accountWordFavorites.length);
+            renderFavorites();
+            syncWordPopupSaveState();
+            showAppToast("已取消收藏");
+        });
+        list.appendChild(row);
+    });
+}
+
+function showWordStudyView(view) {
+    const library = view === "library";
+    document.getElementById("btnWordStudyToday").classList.toggle("active", !library);
+    document.getElementById("btnWordStudyLibrary").classList.toggle("active", library);
+    wordStudyPage.querySelector(".study-progress-track").classList.toggle("hidden", library);
+    wordStudyLibrary.style.display = library ? "block" : "none";
+    wordStudyActions.style.display = library ? "none" : "";
+    if (library) {
+        stopWordStudyAudio();
+        wordStudyCard.style.display = "none";
+        wordStudyEmpty.style.display = "none";
+        document.getElementById("wordStudyProgressText").textContent = `共 ${accountWordFavorites.length} 个`;
+        renderWordStudyLibrary();
+    } else renderWordStudyCard();
+}
+
+async function openWordStudy(dueOnly = true, preferredId = "") {
+    if (!authState.loggedIn) {
+        if (confirm("单词学习需要先登录，是否现在登录？")) location.href = "/api/auth/google/login";
+        return;
+    }
+    try {
+        const query = dueOnly && wordDueCount > 0 ? "?due=1&limit=100" : "?limit=100";
+        const res = await fetch(`/api/word-cards${query}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "加载失败");
+        wordStudyQueue = (data.cards || []).map(mapWordCard);
+        if (preferredId) {
+            const index = wordStudyQueue.findIndex(card => card.id === preferredId);
+            if (index > 0) wordStudyQueue.unshift(...wordStudyQueue.splice(index, 1));
+        }
+        wordStudyQueueTotal = wordStudyQueue.length;
+        wordStudyPracticeSeen = new Set();
+        wordDueCount = Number(data.due_count || 0);
+        phaseSelect.style.display = "none";
+        phasePlay.style.display = "none";
+        wordStudyPage.style.display = "flex";
+        document.body.style.overflow = "hidden";
+        showWordStudyView("today");
+    } catch (error) { alert("单词学习加载失败：" + error.message); }
+}
+
+function closeWordStudy() {
+    stopWordStudyAudio();
+    _favStopCurrent();
+    wordStudyPage.style.display = "none";
+    phaseSelect.style.display = "";
+    document.body.style.overflow = "";
+    loadWordCards();
+}
+
+function toggleWordStudyAudio() {
+    const card = wordStudyQueue[0];
+    if (!card?.audioUrl) { alert("这张卡片没有可播放的原声"); return; }
+    if (wordStudyAudio && !wordStudyAudio.paused) { stopWordStudyAudio(); return; }
+    stopWordStudyAudio();
+    wordStudyAudio = new Audio(card.audioUrl);
+    wordStudyAudio.loop = wordStudyLoop;
+    document.getElementById("btnWordStudyAudio").classList.add("playing");
+    wordStudyAudio.addEventListener("ended", () => { if (!wordStudyLoop) stopWordStudyAudio(); });
+    wordStudyAudio.addEventListener("error", () => { stopWordStudyAudio(); alert("音频播放失败"); });
+    wordStudyAudio.play().catch(error => { stopWordStudyAudio(); alert("音频播放失败：" + error.message); });
+}
+
+async function submitWordStudyResult(result) {
+    const card = wordStudyQueue[0];
+    if (!card) return;
+    const res = await fetch(`/api/word-cards/${encodeURIComponent(card.id)}/review`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ result }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert("复习结果保存失败：" + (data.error || "保存失败")); return; }
+    accountWordFavorites = accountWordFavorites.map(item => item.card_id === card.id ? data.card : item);
+    wordDueCount = Number(data.due_count || 0);
+    stopWordStudyAudio();
+    wordStudyQueue.shift();
+    if (result === "practice" && !wordStudyPracticeSeen.has(card.id)) {
+        wordStudyPracticeSeen.add(card.id);
+        wordStudyQueue.push(mapWordCard(data.card));
+    }
+    renderWordStudyCard();
+}
+
+document.getElementById("btnStartWordStudy")?.addEventListener("click", () => openWordStudy(wordDueCount > 0));
+document.getElementById("btnCloseWordStudy")?.addEventListener("click", closeWordStudy);
+document.getElementById("btnWordStudyDone")?.addEventListener("click", closeWordStudy);
+document.getElementById("btnWordStudyToday")?.addEventListener("click", () => showWordStudyView("today"));
+document.getElementById("btnWordStudyLibrary")?.addEventListener("click", () => showWordStudyView("library"));
+document.getElementById("btnWordStudyAudio")?.addEventListener("click", toggleWordStudyAudio);
+document.getElementById("btnWordStudyLoop")?.addEventListener("click", event => {
+    wordStudyLoop = !wordStudyLoop;
+    event.currentTarget.setAttribute("aria-pressed", String(wordStudyLoop));
+    if (wordStudyAudio) wordStudyAudio.loop = wordStudyLoop;
+});
+document.getElementById("btnShowWordStudyAnswer")?.addEventListener("click", () => {
+    wordStudyAnswer.style.display = "block";
+    document.getElementById("btnShowWordStudyAnswer").style.display = "none";
+    wordStudyRatingActions.style.display = "grid";
+});
+document.getElementById("btnWordStudyPractice")?.addEventListener("click", () => submitWordStudyResult("practice"));
+document.getElementById("btnWordStudyMastered")?.addEventListener("click", () => submitWordStudyResult("mastered"));
 
 function renderSentenceList() {
     sentenceList.innerHTML = "";
@@ -3876,16 +4108,18 @@ function createWordPopup() {
             <button class="word-popup-play" title="播放原声">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
             </button>
-            <button class="word-popup-close" title="关闭">×</button>
+            <button class="word-popup-save" title="收藏单词" aria-label="收藏单词">
+                <svg viewBox="0 0 24 24"><path d="M6 4.5h12v16l-6-3.7-6 3.7z"/></svg>
+            </button>
         </div>
         <div class="word-popup-row2">
             <span class="word-popup-pos"></span>
             <span class="word-popup-meaning"></span>
         </div>`;
     document.body.appendChild(el);
-    el.querySelector(".word-popup-close").addEventListener("click", (e) => {
+    el.querySelector(".word-popup-save").addEventListener("click", async (e) => {
         e.stopPropagation();
-        hideWordPopup();
+        await bookmarkPopupWord(el.querySelector(".word-popup-save"));
     });
     el.querySelector(".word-popup-play").addEventListener("click", (e) => {
         e.stopPropagation();
@@ -3919,6 +4153,15 @@ function showWordPopup(span, wordIdx) {
     popup.querySelector(".word-popup-word").textContent = word;
     popup.querySelector(".word-popup-pos").textContent = "";
     popup.querySelector(".word-popup-meaning").textContent = "...";
+    popup.dataset.word = word;
+    popup.dataset.meaning = "";
+    popup.dataset.partOfSpeech = "";
+    popup.dataset.context = seg.text || "";
+    popup.dataset.language = language || "";
+    popup.dataset.sourceVideo = currentVideoName || "";
+    delete popup.dataset.wordStart;
+    delete popup.dataset.wordEnd;
+    syncWordPopupSaveState();
 
     // 词级时间戳：用于播放原声
     let hasAudio = false;
@@ -3958,12 +4201,16 @@ function showWordPopup(span, wordIdx) {
     const sourceLang = langMap[language] || "外语";
     const targetLang = getTargetLang();
     const cacheKey = `${word}|${sourceLang}|${targetLang}`;
+    popup.dataset.cacheKey = cacheKey;
 
     if (wordDefineCache[cacheKey]) {
         const c = wordDefineCache[cacheKey];
         popup.querySelector(".word-popup-pos").textContent = c.pos || "";
         popup.querySelector(".word-popup-pos").style.display = c.pos ? "" : "none";
         popup.querySelector(".word-popup-meaning").textContent = c.meaning || "";
+        popup.dataset.meaning = c.meaning || "";
+        popup.dataset.partOfSpeech = c.pos || "";
+        syncWordPopupSaveState();
         return;
     }
 
@@ -3979,6 +4226,7 @@ function showWordPopup(span, wordIdx) {
     })
     .then(r => r.json())
     .then(data => {
+        if (popup.dataset.cacheKey !== cacheKey) return;
         if (data.error) {
             popup.querySelector(".word-popup-meaning").textContent = "查询失败";
             return;
@@ -3988,10 +4236,99 @@ function showWordPopup(span, wordIdx) {
         posEl.textContent = data.pos || "";
         posEl.style.display = data.pos ? "" : "none";
         popup.querySelector(".word-popup-meaning").textContent = data.meaning || "";
+        popup.dataset.meaning = data.meaning || "";
+        popup.dataset.partOfSpeech = data.pos || "";
+        syncWordPopupSaveState();
     })
     .catch(() => {
         popup.querySelector(".word-popup-meaning").textContent = "网络错误";
     });
+}
+
+function isWordSaved(word, languageCode) {
+    const normalized = String(word || "").trim().toLocaleLowerCase();
+    return accountWordFavorites.some(card =>
+        String(card.word || "").trim().toLocaleLowerCase() === normalized
+        && String(card.language || "") === String(languageCode || "")
+    );
+}
+
+function syncWordPopupSaveState() {
+    if (!wordPopup) return;
+    const button = wordPopup.querySelector(".word-popup-save");
+    if (!button) return;
+    const saved = isWordSaved(wordPopup.dataset.word, wordPopup.dataset.language);
+    button.classList.toggle("saved", saved);
+    button.title = saved ? "已收藏" : "收藏单词";
+    button.setAttribute("aria-label", button.title);
+}
+
+async function bookmarkPopupWord(button) {
+    if (!wordPopup) return;
+    if (!authState.loggedIn) {
+        if (confirm("收藏单词需要先登录，是否现在登录？")) location.href = "/api/auth/google/login";
+        return;
+    }
+    const word = wordPopup.dataset.word || "";
+    const meaning = wordPopup.dataset.meaning || "";
+    if (!meaning) {
+        showAppToast("释义仍在加载，请稍后再试");
+        return;
+    }
+    if (isWordSaved(word, wordPopup.dataset.language)) {
+        showAppToast("这个单词已经收藏");
+        return;
+    }
+    const start = Number(wordPopup.dataset.wordStart);
+    const end = Number(wordPopup.dataset.wordEnd);
+    if (!(start >= 0 && end > start)) {
+        showAppToast("当前单词没有可用的原声音频");
+        return;
+    }
+    button.disabled = true;
+    const fields = {
+        word,
+        meaning,
+        part_of_speech: wordPopup.dataset.partOfSpeech || "",
+        language: wordPopup.dataset.language || "",
+        context: wordPopup.dataset.context || "",
+        source_video: wordPopup.dataset.sourceVideo || "",
+        start,
+        end,
+    };
+    try {
+        let res;
+        if (localVideoFile) {
+            const audio = await getLocalAudioSliceWav(start, end);
+            const form = new FormData();
+            Object.entries(fields).forEach(([key, value]) => form.append(key, String(value)));
+            form.append("audio", audio, "word.wav");
+            res = await fetch("/api/bookmark-word-audio", { method: "POST", body: form });
+        } else {
+            res = await fetch("/api/bookmark-word", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(fields),
+            });
+        }
+        const data = await res.json();
+        if (res.status === 401) {
+            authState.loggedIn = false;
+            if (confirm("收藏单词需要先登录，是否现在登录？")) location.href = "/api/auth/google/login";
+            return;
+        }
+        if (!res.ok) throw new Error(data.error || "收藏失败");
+        if (data.card && !accountWordFavorites.some(card => card.card_id === data.card.card_id)) {
+            accountWordFavorites.unshift(data.card);
+            wordDueCount += 1;
+        }
+        syncWordPopupSaveState();
+        renderFavorites();
+        showAppToast(data.already_saved ? "这个单词已经收藏" : "已收藏到单词学习");
+    } catch (error) {
+        alert("收藏单词失败：" + error.message);
+    } finally {
+        button.disabled = false;
+    }
 }
 
 function hideWordPopup() {
@@ -5618,10 +5955,13 @@ async function initAuth() {
             if (loginBtn)  loginBtn.style.display  = "";
             if (userEl)    userEl.style.display     = "none";
         }
-        await loadSentenceCards();
+        await Promise.all([loadSentenceCards(), loadWordCards()]);
     } catch (_) {
         authState = { loaded: true, loggedIn: false };
         accountFavorites = [];
+        accountWordFavorites = [];
+        sentenceDueCount = 0;
+        wordDueCount = 0;
         renderFavorites();
     }
 
