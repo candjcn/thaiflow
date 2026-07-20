@@ -37,3 +37,13 @@ def delete_audio(key: str) -> None:
     if not key:
         return
     _client().delete_object(Bucket=providers.R2.BUCKET_NAME, Key=key)
+
+
+def get_audio(key: str, byte_range: str | None = None):
+    """读取 R2 音频对象；byte_range 用于移动端媒体播放器的分段请求。"""
+    if not key:
+        raise ValueError("Audio key is empty")
+    kwargs = {"Bucket": providers.R2.BUCKET_NAME, "Key": key}
+    if byte_range:
+        kwargs["Range"] = byte_range
+    return _client().get_object(**kwargs)

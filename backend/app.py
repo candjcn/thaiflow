@@ -23,7 +23,7 @@ from ai.tts import generate_audio_lesson, generate_cover_image, ocr_image, detec
 from ai.pronunciation import assess_pronunciation
 from ai.romanize import generate_romanization
 from export import export_video_with_subtitles, export_srt
-from r2 import upload_audio, delete_audio
+from r2 import upload_audio, delete_audio, get_audio
 from domain import Segment, SubtitleFile
 
 from commerce.db import init_db, get_db
@@ -2055,6 +2055,53 @@ def api_word_cards():
         "cards": _word_cards.list_for_user(db, user["user_id"], limit, due_only),
         "due_count": _word_cards.due_count(db, user["user_id"]),
     })
+
+
+def _card_audio_response(card):
+    """通过同源接口代理 R2 音频，并支持移动端媒体 Range 请求。"""
+    key = str(card.get("audio_key") or "")
+    if not key:
+        return jsonify({"error": "音频不存在"}), 404
+    requested_range = request.headers.get("Range")
+    try:
+        obj = get_audio(key, requested_range)
+        payload = obj["Body"].read()
+    except Exception as exc:
+        logger.warning(f"[card-audio] R2 read failed key={key}: {exc}")
+        return jsonify({"error": "音频读取失败"}), 502
+    headers = {
+        "Content-Type": obj.get("ContentType") or "audio/mpeg",
+        "Content-Length": str(len(payload)),
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=3600",
+    }
+    if obj.get("ContentRange"):
+        headers["Content-Range"] = obj["ContentRange"]
+    return Response(payload, status=206 if requested_range else 200, headers=headers)
+
+
+@app.route("/api/sentence-cards/<card_id>/audio", methods=["GET"])
+def api_sentence_card_audio(card_id):
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    card = _sentence_cards.get(db, user["user_id"], card_id)
+    if not card:
+        return jsonify({"error": "收藏不存在"}), 404
+    return _card_audio_response(card)
+
+
+@app.route("/api/word-cards/<card_id>/audio", methods=["GET"])
+def api_word_card_audio(card_id):
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    card = _word_cards.get(db, user["user_id"], card_id)
+    if not card:
+        return jsonify({"error": "收藏不存在"}), 404
+    return _card_audio_response(card)
 
 
 @app.route("/api/word-cards/<card_id>/review", methods=["POST"])

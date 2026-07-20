@@ -1,4 +1,4 @@
-const APP_REV = "20260721b"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260721c"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 设备 UUID（匿名用户限流指纹） ==========
 function getDeviceId() {
@@ -2722,6 +2722,14 @@ function getFavorites() {
     return accountFavorites;
 }
 
+function sentenceCardAudioUrl(cardId) {
+    return `/api/sentence-cards/${encodeURIComponent(cardId)}/audio`;
+}
+
+function wordCardAudioUrl(cardId) {
+    return `/api/word-cards/${encodeURIComponent(cardId)}/audio`;
+}
+
 function isSentenceFavorited(seg) {
     return accountFavorites.some(fav =>
         fav.source === currentVideoName && Math.abs(Number(fav.start) - Number(seg.start)) < 0.1
@@ -2756,7 +2764,7 @@ async function loadSentenceCards() {
                 ...card,
                 id: card.card_id,
                 text: card.original_text,
-                audioUrl: card.audio_url,
+                audioUrl: sentenceCardAudioUrl(card.card_id),
                 source: card.source_video,
                 start: Number(card.start_time || 0),
                 end: Number(card.end_time || 0),
@@ -2851,10 +2859,10 @@ async function bookmarkSentence(idx, btn) {
                 return;
             }
             if (data.error) throw new Error(data.error);
-            audioUrl = data.card && data.card.audio_url;
+            audioUrl = data.card && sentenceCardAudioUrl(data.card.card_id);
             if (data.card) accountFavorites.unshift({
                 ...data.card, id: data.card.card_id, text: data.card.original_text,
-                audioUrl: data.card.audio_url, source: data.card.source_video,
+                audioUrl: sentenceCardAudioUrl(data.card.card_id), source: data.card.source_video,
                 start: Number(data.card.start_time || 0), end: Number(data.card.end_time || 0),
             });
         } else {
@@ -2879,10 +2887,10 @@ async function bookmarkSentence(idx, btn) {
                 return;
             }
             if (data.error) throw new Error(data.error);
-            audioUrl = data.card && data.card.audio_url;
+            audioUrl = data.card && sentenceCardAudioUrl(data.card.card_id);
             if (data.card) accountFavorites.unshift({
                 ...data.card, id: data.card.card_id, text: data.card.original_text,
-                audioUrl: data.card.audio_url, source: data.card.source_video,
+                audioUrl: sentenceCardAudioUrl(data.card.card_id), source: data.card.source_video,
                 start: Number(data.card.start_time || 0), end: Number(data.card.end_time || 0),
             });
         }
@@ -3082,7 +3090,7 @@ function mapSentenceCard(card) {
         ...card,
         id: card.card_id,
         text: card.original_text,
-        audioUrl: card.audio_url,
+        audioUrl: sentenceCardAudioUrl(card.card_id),
         source: card.source_video,
         start: Number(card.start_time || 0),
         end: Number(card.end_time || 0),
@@ -3348,7 +3356,7 @@ let wordStudyLoop = false;
 let wordStudyPracticeSeen = new Set();
 
 function mapWordCard(card) {
-    return { ...card, id: card.card_id, audioUrl: card.audio_url };
+    return { ...card, id: card.card_id, audioUrl: wordCardAudioUrl(card.card_id) };
 }
 
 function stopWordStudyAudio() {

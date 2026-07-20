@@ -68,6 +68,14 @@ def test_bookmark_word_audio_review_and_delete(client, db, monkeypatch, tmp_path
     assert card["word"] == "competitive"
     assert client.get("/api/word-cards").get_json()["due_count"] == 1
 
+    monkeypatch.setattr(app_module, "get_audio", lambda key, byte_range=None: {
+        "Body": io.BytesIO(b"word-mp3"), "ContentType": "audio/mpeg",
+    })
+    audio = client.get(f"/api/word-cards/{card['card_id']}/audio")
+    assert audio.status_code == 200
+    assert audio.data == b"word-mp3"
+    assert audio.headers["Content-Type"] == "audio/mpeg"
+
     reviewed = client.post(f"/api/word-cards/{card['card_id']}/review", json={"result": "mastered"})
     assert reviewed.status_code == 200
     assert reviewed.get_json()["card"]["status"] == "mastered"

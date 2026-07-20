@@ -89,6 +89,19 @@ def test_bookmark_list_deduplicate_and_delete(client, db, monkeypatch, tmp_path)
     assert card["original_text"] == "สวัสดีครับ"
     assert len(uploads) == 1
 
+    monkeypatch.setattr(app_module, "get_audio", lambda key, byte_range=None: {
+        "Body": io.BytesIO(b"mp3-data"), "ContentType": "audio/mpeg",
+        **({"ContentRange": "bytes 0-7/8"} if byte_range else {}),
+    })
+    audio = client.get(
+        f"/api/sentence-cards/{card['card_id']}/audio",
+        headers={"Range": "bytes=0-7"},
+    )
+    assert audio.status_code == 206
+    assert audio.data == b"mp3-data"
+    assert audio.headers["Content-Type"] == "audio/mpeg"
+    assert audio.headers["Accept-Ranges"] == "bytes"
+
     duplicate_form = dict(form)
     duplicate_form["audio"] = (io.BytesIO(b"fake wav 2"), "slice.wav")
     duplicate = client.post(
