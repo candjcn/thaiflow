@@ -1,4 +1,4 @@
-const APP_REV = "20260720f"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260720g"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 设备 UUID（匿名用户限流指纹） ==========
 function getDeviceId() {
@@ -1779,7 +1779,8 @@ function lessonsDelete(name) {
 }
 
 // 申请持久化存储：阻止浏览器在存储压力下清除课程库
-if (isMobile() && navigator.storage && navigator.storage.persist) {
+// 手机和桌面统一使用浏览器课程库。
+if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().then(granted => {
         console.log("[Library] 持久化存储:", granted ? "已授予" : "尽力而为模式");
     });
@@ -1803,10 +1804,10 @@ function captureVideoThumb() {
     });
 }
 
-// 课程完成/打开后存入浏览器课程库（手机端专用；桌面用文件夹列表）
+// 课程完成/打开后存入浏览器课程库（手机和桌面统一）
 // localVideoBlob/localCoverBlob：本地播放场景直接用手里的文件，不走服务器
 async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
-    if (!isMobile() || !currentVideoName || segments.length === 0) return;
+    if (!currentVideoName || segments.length === 0) return;
     try {
         // 已存在的记录可复用封面；视频则优先获取本次服务器文件。
         const existingMeta = await metaGet(currentVideoName);
@@ -1882,7 +1883,7 @@ async function saveLessonToLibrary(localVideoBlob, localCoverBlob) {
     }
 }
 
-// 手机端：从课程库渲染本地列表（只读轻量 meta，点击时才取大文件）
+// 从浏览器课程库渲染本地列表（只读轻量 meta，点击时才取大文件）
 async function loadLessonLibraryList(section, listEl) {
     let all;
     try {
@@ -1895,18 +1896,21 @@ async function loadLessonLibraryList(section, listEl) {
         err.className = "local-play-hint";
         err.textContent = "本地列表读取失败: " + (e && e.message || e);
         listEl.appendChild(err);
-        return;
+        return new Set();
     }
+    listEl.innerHTML = "";
     if (all.length === 0) {
         section.style.display = "none";
         updateEmptyState();
-        return;
+        return new Set();
     }
     all.sort((a, b) => b.savedAt - a.savedAt);
-    listEl.innerHTML = "";
     section.style.display = "block";
 
+    const renderedBases = new Set();
+
     for (const rec of all) {
+        renderedBases.add(rec.name.replace(/\.[^.]+$/, "").toLowerCase());
         const item = document.createElement("div");
         item.className = "video-item ready";
         item.style.cursor = "pointer";
@@ -1965,17 +1969,18 @@ async function loadLessonLibraryList(section, listEl) {
         listEl.appendChild(item);
     }
     updateEmptyState();
+    return renderedBases;
 }
 
 // ========== 本地视频列表 ==========
-// 桌面：枚举记忆的保存目录；手机：读取浏览器课程库
+// 所有设备先读取浏览器课程库；桌面再合并已授权保存目录中的课程。
 async function loadLocalVideoList() {
     const section = document.getElementById("localVideosSection");
     const listEl = document.getElementById("localVideoList");
+    const renderedBases = await loadLessonLibraryList(section, listEl);
 
-    // 手机端（或不支持目录 API 的浏览器）：用浏览器课程库
+    // 手机端（或不支持目录 API 的浏览器）没有可追加的文件夹来源。
     if (isMobile() || !window.showDirectoryPicker) {
-        loadLessonLibraryList(section, listEl);
         return;
     }
 
@@ -1989,7 +1994,6 @@ async function loadLocalVideoList() {
         return; // handle 失效
     }
 
-    listEl.innerHTML = "";
     section.style.display = "block";
 
     if (perm !== "granted") {
@@ -2029,9 +2033,13 @@ async function loadLocalVideoList() {
         return;
     }
 
-    const bases = Object.keys(media).filter(b => jsons[b]);
+    // 浏览器课程库已有的同名课程不再从文件夹重复追加。
+    const bases = Object.keys(media).filter(
+        b => jsons[b] && !renderedBases.has(b.toLowerCase())
+    );
     if (bases.length === 0) {
-        section.style.display = "none";
+        section.style.display = listEl.children.length ? "block" : "none";
+        updateEmptyState();
         return;
     }
 
@@ -5671,6 +5679,7 @@ I18N.init();
 initRecognitionModes();
 renderFavorites();
 loadLocalVideoList();
+loadVideoList();
 
 // pageshow 兜底：无论是 bfcache 还原还是普通前进/后退，都重新同步登录状态和界面语言
 // e.persisted=true  → bfcache 还原（OAuth 回调 / profile 返回等场景）
