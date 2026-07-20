@@ -5009,7 +5009,7 @@ weBtnRetrans.addEventListener("click", async () => {
         we.retransAttempt = 0;
     }
     const attempt = Math.min(we.retransAttempt, 3);
-    const attemptLabels = ["Groq", "OpenAI", "Gemini", "多引擎综合校正"];
+    const attemptLabels = ["Gemini", "OpenAI", "Groq", "多引擎综合校正"];
     weStatus.textContent = `${attemptLabels[attempt]} · ${t("we.recognizing")}`;
 
     const langNameMap = { th: "泰语", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语", pt: "葡萄牙语", ru: "俄语", it: "意大利语" };

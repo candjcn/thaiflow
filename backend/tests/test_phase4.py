@@ -271,6 +271,14 @@ class TestRecognitionModes:
         assert recognition_mode.get_accuracy_provider_candidates("zh") == ("qwen", "groq", "openai", "gemini")
         assert recognition_mode.get_accuracy_provider_candidates("ja") == ("openai", "qwen", "groq", "gemini")
 
+    def test_retranscription_provider_order_prefers_gemini(self):
+        import ai.recognition_mode as recognition_mode
+
+        expected = ("gemini", "openai", "groq", "qwen")
+        assert recognition_mode.get_retranscription_provider_candidates("th") == expected
+        assert recognition_mode.get_retranscription_provider_candidates("en") == expected
+        assert recognition_mode.get_retranscription_provider_candidates(None) == expected
+
     def test_recognition_modes_api(self, client):
         r = client.get("/api/recognition-modes")
         assert r.status_code == 200
@@ -560,10 +568,10 @@ class TestTranscribeErrorHandling:
         )
 
         assert result["text"] == "สวัสดี"
-        assert handle.provider_id == "groq"
+        assert handle.provider_id == "gemini"
         assert fallback_used is False
-        assert fallback_from == "groq"
-        assert calls == [("groq", "th")]
+        assert fallback_from == "gemini"
+        assert calls == [("gemini", "th")]
 
     def test_retranscribe_attempt_starts_from_next_provider(self, monkeypatch):
         import app as app_module
@@ -618,8 +626,8 @@ class TestTranscribeErrorHandling:
         )
 
         assert result["text"] == "new result"
-        assert handle.provider_id == "gemini"
-        assert calls == ["openai", "gemini"]
+        assert handle.provider_id == "groq"
+        assert calls == ["openai", "groq"]
 
     def test_transcribe_video_falls_back_to_chunked_when_groq_is_too_large(self, monkeypatch):
         import ai.speech as speech

@@ -54,6 +54,10 @@ _ACCURACY_LANGUAGE_PROVIDER_ORDER = {
 
 _ACCURACY_DEFAULT_ORDER = ("groq", "gemini", "openai", "qwen")
 
+# 单句二次识别是纠错场景，与整段首次识别的速度/断句诉求不同。
+# 基于泰语回归集和人工复核，Gemini 固定为首选；其余 provider 仅用于失败或重复结果回退。
+_RETRANSCRIPTION_PROVIDER_ORDER = ("gemini", "openai", "groq", "qwen")
+
 
 def register_mode(mode: RecognitionMode) -> RecognitionMode:
     _MODE_REGISTRY[mode.key] = mode
@@ -79,6 +83,12 @@ def get_accuracy_provider_candidates(language: str | None = None) -> tuple[str, 
             seen.add(provider)
             result.append(provider)
     return tuple(result)
+
+
+def get_retranscription_provider_candidates(language: str | None = None) -> tuple[str, ...]:
+    """返回单句二次识别候选顺序；保留 language 参数供后续按语言调优。"""
+    del language
+    return _RETRANSCRIPTION_PROVIDER_ORDER
 
 
 def _legacy_provider_mode(provider: str) -> RecognitionMode:

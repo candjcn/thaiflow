@@ -86,6 +86,8 @@ PROVIDER_COSTS = [
     ("azure",      "azure-speech",              "pronunciation",   "per_minute",     0.0004),
     ("azure",      "azure-tts-neural",          "tts_synthesis",   "per_1k_chars",   0.016),
     # Gemini（flash-lite 文本；flash-tts 语音）
+    # 音频输入约 25 tokens/秒；$0.50/1M audio tokens ≈ $0.00075/分钟。
+    ("gemini",     "gemini-3.1-flash-lite",     "transcription",   "per_minute",     0.00075),
     ("gemini",     "gemini-3.1-flash-lite",     "translation",     "per_1k_tokens",  0.00015),
     ("gemini",     "gemini-3.1-flash-lite",     "content_gen",     "per_1k_tokens",  0.00015),
     ("gemini",     "gemini-3.1-flash-lite",     "romanize",        "per_1k_tokens",  0.00015),

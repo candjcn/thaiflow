@@ -16,7 +16,7 @@ from ai.speech import transcribe_video, transcribe_slice, add_word_spacing, alig
 from ai.recognition_mode import (
     resolve_recognition_mode,
     list_visible_modes,
-    get_accuracy_provider_candidates,
+    get_retranscription_provider_candidates,
 )
 from ai.translation import translate_segments, word_define as _word_define, choose_transcription
 from ai.tts import generate_audio_lesson, generate_cover_image, ocr_image, detect_input_mode, generate_tts_content
@@ -108,17 +108,18 @@ def _attempt_transcription_with_mode(
     last_error = None
     candidates = list(mode.provider_candidates or ("groq",))
     expected_lang = _lang_prefix(language)
-    if audio_path is not None and expected_lang != "unknown":
+    if audio_path is not None:
         if getattr(mode, "key", "") == "accuracy":
-            candidates = list(get_accuracy_provider_candidates(expected_lang))
-        language_aware = []
-        language_unaware = []
-        for candidate in candidates:
-            if candidate in ("groq", "openai", "azure", "gemini"):
-                language_aware.append(candidate)
-            else:
-                language_unaware.append(candidate)
-        candidates = language_aware + language_unaware
+            candidates = list(get_retranscription_provider_candidates(expected_lang))
+        if expected_lang != "unknown":
+            language_aware = []
+            language_unaware = []
+            for candidate in candidates:
+                if candidate in ("groq", "openai", "azure", "gemini"):
+                    language_aware.append(candidate)
+                else:
+                    language_unaware.append(candidate)
+            candidates = language_aware + language_unaware
 
     if audio_path is not None and candidate_offset:
         offset = min(max(0, int(candidate_offset)), len(candidates) - 1)
