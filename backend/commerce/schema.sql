@@ -163,6 +163,30 @@ CREATE TABLE IF NOT EXISTS referrals (
     FOREIGN KEY (referred_id) REFERENCES users(user_id)
 );
 
+-- ── 账号级句子学习卡片 ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS sentence_cards (
+    card_id         TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    source_key      TEXT NOT NULL,
+    original_text   TEXT NOT NULL,
+    translation     TEXT NOT NULL DEFAULT '',
+    romanization    TEXT NOT NULL DEFAULT '',
+    language        TEXT NOT NULL DEFAULT '',
+    audio_url       TEXT NOT NULL,
+    audio_key       TEXT NOT NULL,
+    source_video    TEXT NOT NULL DEFAULT '',
+    start_time      REAL NOT NULL DEFAULT 0,
+    end_time        REAL NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'new',
+    review_count    INTEGER NOT NULL DEFAULT 0,
+    last_reviewed_at TEXT,
+    next_review_at  TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, source_key),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
 -- ── 索引 ──────────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user     ON usage_logs (user_id, requested_at);
 CREATE INDEX IF NOT EXISTS idx_wallet_tx_wallet    ON wallet_transactions (wallet_id, created_at);
@@ -172,3 +196,4 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user       ON user_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_identities_user     ON user_identities (user_id);
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer  ON referrals (referrer_id);
 CREATE INDEX IF NOT EXISTS idx_referrals_ref_code  ON referrals (ref_code);
+CREATE INDEX IF NOT EXISTS idx_sentence_cards_user ON sentence_cards (user_id, created_at DESC);

@@ -30,3 +30,10 @@ def upload_audio(local_path: str, key: str, content_type: str | None = None) -> 
         ExtraArgs={"ContentType": content_type},
     )
     return f"{r2.PUBLIC_URL.rstrip('/')}/{key}"
+
+
+def delete_audio(key: str) -> None:
+    """删除 R2 中的收藏音频。"""
+    if not key:
+        return
+    _client().delete_object(Bucket=providers.R2.BUCKET_NAME, Key=key)

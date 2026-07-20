@@ -1,4 +1,4 @@
-const APP_REV = "20260719a"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260720f"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 设备 UUID（匿名用户限流指纹） ==========
 function getDeviceId() {
@@ -2674,33 +2674,115 @@ function toggleDrawer() {
 
 // ========== 渲染句子列表 ==========
 // ========== 收藏句子 ==========
-const FAVORITES_KEY = "reelspeak_favorites";
+let accountFavorites = [];
+let authState = { loaded: false, loggedIn: false };
+let sentenceDueCount = 0;
+let appToastTimer = null;
+let appToastActionHandler = null;
 
-const R2_PUBLIC_BASE = "https://pub-c00d464d3bb5416d952be95db7a51106.r2.dev";
-
-function getFavorites() {
-    try {
-        const list = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
-        // 修复旧数据：audioUrl 为相对路径时补全 R2 前缀
-        let fixed = false;
-        list.forEach(f => {
-            if (f.audioUrl && f.audioUrl.startsWith("/sentences/")) {
-                f.audioUrl = R2_PUBLIC_BASE + f.audioUrl;
-                fixed = true;
-            }
-        });
-        if (fixed) localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
-        return list;
-    } catch { return []; }
+function hideAppToast() {
+    clearTimeout(appToastTimer);
+    appToastTimer = null;
+    appToastActionHandler = null;
+    const toast = document.getElementById("appToast");
+    if (toast) toast.style.display = "none";
 }
 
-function saveFavorites(list) {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
+function showAppToast(message, actionLabel = "", actionHandler = null, duration = 4000) {
+    hideAppToast();
+    const toast = document.getElementById("appToast");
+    const messageEl = document.getElementById("appToastMessage");
+    const actionBtn = document.getElementById("appToastAction");
+    if (!toast || !messageEl || !actionBtn) return;
+    messageEl.textContent = message;
+    actionBtn.textContent = actionLabel;
+    actionBtn.style.display = actionHandler ? "" : "none";
+    appToastActionHandler = actionHandler;
+    toast.style.display = "flex";
+    appToastTimer = setTimeout(hideAppToast, duration);
+}
+
+document.getElementById("appToastAction")?.addEventListener("click", () => {
+    const handler = appToastActionHandler;
+    hideAppToast();
+    if (handler) handler();
+});
+
+function getFavorites() {
+    return accountFavorites;
+}
+
+function isSentenceFavorited(seg) {
+    return accountFavorites.some(fav =>
+        fav.source === currentVideoName && Math.abs(Number(fav.start) - Number(seg.start)) < 0.1
+    );
+}
+
+function syncFavoriteStars() {
+    sentenceList.querySelectorAll(".sentence-item").forEach(div => {
+        const seg = segments[Number(div.dataset.index)];
+        const svg = div.querySelector(".sentence-star-btn svg");
+        if (svg) svg.setAttribute("fill", seg && isSentenceFavorited(seg) ? "currentColor" : "none");
+    });
+}
+
+async function loadSentenceCards() {
+    if (!authState.loggedIn) {
+        accountFavorites = [];
+        sentenceDueCount = 0;
+        renderFavorites();
+        return;
+    }
+    try {
+        const res = await fetch("/api/sentence-cards?limit=100");
+        if (res.status === 401) {
+            authState.loggedIn = false;
+            accountFavorites = [];
+            sentenceDueCount = 0;
+        } else if (res.ok) {
+            const data = await res.json();
+            sentenceDueCount = Number(data.due_count || 0);
+            accountFavorites = (data.cards || []).map(card => ({
+                ...card,
+                id: card.card_id,
+                text: card.original_text,
+                audioUrl: card.audio_url,
+                source: card.source_video,
+                start: Number(card.start_time || 0),
+                end: Number(card.end_time || 0),
+                savedAt: card.created_at,
+            }));
+        }
+    } catch (e) {
+        console.error("[SentenceCards] load failed:", e);
+    }
+    renderFavorites();
+    syncFavoriteStars();
+}
+
+function promptFavoriteLogin() {
+    if (confirm("收藏句子需要先登录，是否现在登录？")) {
+        location.href = "/api/auth/google/login";
+    }
 }
 
 async function bookmarkSentence(idx, btn) {
     const seg = segments[idx];
     if (!seg) return;
+
+    if (!authState.loaded) {
+        try {
+            const res = await fetch("/api/auth/me");
+            const me = await res.json();
+            authState = { loaded: true, loggedIn: !!me.logged_in };
+        } catch (_) {
+            authState = { loaded: true, loggedIn: false };
+        }
+    }
+    if (!authState.loggedIn) {
+        promptFavoriteLogin();
+        return;
+    }
 
     // 检查是否已收藏（同一段视频同一句）
     const favs = getFavorites();
@@ -2719,10 +2801,27 @@ async function bookmarkSentence(idx, btn) {
             const wavBlob = await getLocalAudioSliceWav(seg.start, seg.end);
             const fd = new FormData();
             fd.append("audio", wavBlob, "slice.wav");
+            fd.append("text", seg.text || "");
+            fd.append("translation", seg.translation || "");
+            fd.append("romanization", seg.romanization || "");
+            fd.append("language", language || "");
+            fd.append("source", currentVideoName || "");
+            fd.append("start", String(seg.start));
+            fd.append("end", String(seg.end));
             const res = await fetch("/api/bookmark-audio", { method: "POST", body: fd });
             const data = await res.json();
+            if (res.status === 401) {
+                authState.loggedIn = false;
+                promptFavoriteLogin();
+                return;
+            }
             if (data.error) throw new Error(data.error);
-            audioUrl = data.audio_url;
+            audioUrl = data.card && data.card.audio_url;
+            if (data.card) accountFavorites.unshift({
+                ...data.card, id: data.card.card_id, text: data.card.original_text,
+                audioUrl: data.card.audio_url, source: data.card.source_video,
+                start: Number(data.card.start_time || 0), end: Number(data.card.end_time || 0),
+            });
         } else {
             // 服务器视频：后端截取上传
             const res = await fetch("/api/bookmark-sentence", {
@@ -2732,26 +2831,34 @@ async function bookmarkSentence(idx, btn) {
                     video: currentVideoName,
                     start: seg.start,
                     end: seg.end,
+                    text: seg.text || "",
+                    translation: seg.translation || "",
+                    romanization: seg.romanization || "",
+                    language: language || "",
                 }),
             });
             const data = await res.json();
+            if (res.status === 401) {
+                authState.loggedIn = false;
+                promptFavoriteLogin();
+                return;
+            }
             if (data.error) throw new Error(data.error);
-            audioUrl = data.audio_url;
+            audioUrl = data.card && data.card.audio_url;
+            if (data.card) accountFavorites.unshift({
+                ...data.card, id: data.card.card_id, text: data.card.original_text,
+                audioUrl: data.card.audio_url, source: data.card.source_video,
+                start: Number(data.card.start_time || 0), end: Number(data.card.end_time || 0),
+            });
         }
-
-        const fav = {
-            id: Date.now() + "_" + Math.random().toString(36).slice(2),
-            text: seg.text,
-            translation: seg.translation || "",
-            audioUrl,
-            source: currentVideoName || "",
-            start: seg.start,
-            savedAt: Date.now(),
-        };
-        favs.unshift(fav);
-        saveFavorites(favs);
+        if (!audioUrl) throw new Error("收藏音频生成失败");
+        // 接口幂等返回时以服务端列表为准，避免本地重复。
+        accountFavorites = accountFavorites.filter((fav, index, list) =>
+            list.findIndex(item => item.id === fav.id) === index
+        );
         btn && animateStar(btn, false);
         renderFavorites();
+        syncFavoriteStars();
     } catch (e) {
         console.error("[Bookmark]", e);
         alert("收藏失败：" + e.message);
@@ -2790,83 +2897,401 @@ function _favStopCurrent() {
 }
 
 function renderFavorites() {
-    const section = document.getElementById("favoritesSection");
-    const list = document.getElementById("favoritesList");
-    if (!section || !list) return;
+    const section = document.getElementById("learningModulesSection");
+    const grid = document.getElementById("learningModulesGrid");
+    const sentenceBtn = document.getElementById("btnStartSentenceStudy");
+    const wordBtn = document.getElementById("btnStartWordStudy");
+    if (!section || !grid || !sentenceBtn || !wordBtn) return;
     const allFavs = getFavorites();
-    if (allFavs.length === 0) {
+    const wordFavoriteCount = 0; // 单词收藏接入后改为账号级真实数量。
+    const hasSentences = allFavs.length > 0;
+    const hasWords = wordFavoriteCount > 0;
+    if (!hasSentences && !hasWords) {
         section.style.display = "none";
+        _favStopCurrent();
+        renderStudyLibrary();
+        return;
+    }
+    section.style.display = "";
+    sentenceBtn.style.display = hasSentences ? "flex" : "none";
+    wordBtn.style.display = hasWords ? "flex" : "none";
+    grid.classList.toggle("two-columns", hasSentences && hasWords);
+    const sentenceSummary = document.getElementById("sentenceModuleSummary");
+    if (sentenceSummary) sentenceSummary.textContent = sentenceDueCount > 0
+        ? `${sentenceDueCount} 句待复习`
+        : `已收藏 ${allFavs.length} 句`;
+    renderStudyLibrary();
+}
+
+function playFavoriteAudio(fav, playBtn) {
+    if (_favActiveId === fav.id && _favActiveAudio) {
         _favStopCurrent();
         return;
     }
-    // 只显示最新 3 句
-    const favs = allFavs.slice(0, 3);
-    section.style.display = "";
+    _favStopCurrent();
+    if (!fav.audioUrl) {
+        alert("音频地址为空，请重新收藏该句子");
+        return;
+    }
+    const audio = new Audio(fav.audioUrl);
+    _favActiveAudio = audio;
+    _favActiveId = fav.id;
+    _favActiveBtn = playBtn;
+    playBtn.classList.add("playing");
+    playBtn.innerHTML = _favIconStop;
+    audio.addEventListener("ended", () => {
+        if (_favActiveAudio === audio) _favStopCurrent();
+    });
+    audio.addEventListener("error", () => {
+        if (_favActiveAudio === audio) _favStopCurrent();
+        alert("播放失败，请稍后重试");
+    });
+    audio.play().catch(error => {
+        if (_favActiveAudio === audio) _favStopCurrent();
+        alert("播放失败：" + error.message);
+    });
+}
+
+function deleteFavoriteWithUndo(fav, row) {
+    if (_favActiveId === fav.id) _favStopCurrent();
+    const originalIndex = accountFavorites.findIndex(item => item.id === fav.id);
+    row?.classList.add("removing");
+    setTimeout(() => {
+        accountFavorites = accountFavorites.filter(item => item.id !== fav.id);
+        renderFavorites();
+        syncFavoriteStars();
+        let cancelled = false;
+        const deleteTimer = setTimeout(async () => {
+            if (cancelled) return;
+            try {
+                const res = await fetch(`/api/sentence-cards/${encodeURIComponent(fav.id)}`, { method: "DELETE" });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "删除失败");
+                await loadSentenceCards();
+            } catch (error) {
+                accountFavorites.splice(Math.max(0, originalIndex), 0, fav);
+                renderFavorites();
+                syncFavoriteStars();
+                alert("取消收藏失败：" + error.message);
+            }
+        }, 4000);
+        showAppToast("已取消收藏", "撤销", () => {
+            cancelled = true;
+            clearTimeout(deleteTimer);
+            accountFavorites.splice(Math.max(0, originalIndex), 0, fav);
+            renderFavorites();
+            syncFavoriteStars();
+        });
+    }, row ? 180 : 0);
+}
+
+function renderStudyLibrary() {
+    const list = document.getElementById("studyLibraryList");
+    const summary = document.getElementById("studyLibrarySummary");
+    const empty = document.getElementById("studyLibraryEmpty");
+    if (!list || !summary || !empty) return;
+    const allFavs = getFavorites();
+    summary.textContent = `${allFavs.length} 句收藏${sentenceDueCount ? ` · ${sentenceDueCount} 句待复习` : ""}`;
+    empty.style.display = allFavs.length ? "none" : "block";
     list.innerHTML = "";
-    favs.forEach(fav => {
+    allFavs.forEach(fav => {
         const div = document.createElement("div");
-        div.className = "favorite-item";
+        div.className = "study-library-item";
         div.innerHTML = `
-            <button class="fav-play-btn" title="播放">
-                ${_favIconPlay}
-            </button>
+            <button class="fav-play-btn" title="播放">${_favIconPlay}</button>
             <div class="fav-text">
                 <div class="fav-original">${escapeHtml(fav.text)}</div>
                 <div class="fav-translation">${escapeHtml(fav.translation)}</div>
             </div>
-            <button class="fav-delete-btn" title="删除收藏">×</button>
+            <button class="fav-delete-btn" title="取消收藏" aria-label="取消收藏"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V4h6v3M8 10v8M12 10v8M16 10v8M7 7l1 14h8l1-14"/></svg></button>
         `;
         const playBtn = div.querySelector(".fav-play-btn");
-
-        // 重建 DOM 后恢复当前正在播放的按钮状态
         if (_favActiveId === fav.id && _favActiveAudio) {
             _favActiveBtn = playBtn;
             playBtn.classList.add("playing");
             playBtn.innerHTML = _favIconStop;
         }
-
-        playBtn.addEventListener("click", () => {
-            // 点的是当前正在播的 → 停止
-            if (_favActiveId === fav.id && _favActiveAudio) {
-                _favStopCurrent();
-                return;
-            }
-            // 停掉上一个（如有）
-            _favStopCurrent();
-            if (!fav.audioUrl) {
-                alert("音频地址为空，请重新收藏该句子");
-                return;
-            }
-            const audio = new Audio(fav.audioUrl);
-            _favActiveAudio = audio;
-            _favActiveId    = fav.id;
-            _favActiveBtn   = playBtn;
-            playBtn.classList.add("playing");
-            playBtn.innerHTML = _favIconStop;
-            // 播完自动重置按钮（不循环）
-            audio.addEventListener("ended", () => {
-                if (_favActiveAudio === audio) _favStopCurrent();
-            });
-            audio.addEventListener("error", () => {
-                if (_favActiveAudio === audio) _favStopCurrent();
-                alert("播放失败\nURL: " + fav.audioUrl);
-            });
-            audio.play().catch(err => {
-                if (_favActiveAudio === audio) _favStopCurrent();
-                alert("播放失败: " + err.message);
-            });
-        });
-
-        div.querySelector(".fav-delete-btn").addEventListener("click", () => {
-            // 如果删的是当前在播的，先停
-            if (_favActiveBtn === playBtn) _favStopCurrent();
-            const updated = getFavorites().filter(f => f.id !== fav.id);
-            saveFavorites(updated);
-            renderFavorites();
-        });
+        playBtn.addEventListener("click", () => playFavoriteAudio(fav, playBtn));
+        div.querySelector(".fav-text").addEventListener("click", () => openSentenceStudy(false, fav.id));
+        div.querySelector(".fav-delete-btn").addEventListener("click", () => deleteFavoriteWithUndo(fav, div));
         list.appendChild(div);
     });
 }
+
+// ========== 句子卡片学习 ==========
+const sentenceStudyPage = document.getElementById("sentenceStudyPage");
+const studyCard = document.getElementById("studyCard");
+const studyEmpty = document.getElementById("studyEmpty");
+const studyAnswer = document.getElementById("studyAnswer");
+const btnShowStudyAnswer = document.getElementById("btnShowStudyAnswer");
+const studyRatingActions = document.getElementById("studyRatingActions");
+const studyLibrary = document.getElementById("studyLibrary");
+const studyActions = document.querySelector(".study-actions");
+let studyQueue = [];
+let studyQueueTotal = 0;
+let studyCompleted = 0;
+let studyAudio = null;
+let studyLoopEnabled = false;
+let pendingStudyReview = null;
+let studyReviewTimer = null;
+let studyPracticeSeen = new Set();
+let currentStudyView = "today";
+
+function mapSentenceCard(card) {
+    return {
+        ...card,
+        id: card.card_id,
+        text: card.original_text,
+        audioUrl: card.audio_url,
+        source: card.source_video,
+        start: Number(card.start_time || 0),
+        end: Number(card.end_time || 0),
+    };
+}
+
+function stopStudyAudio() {
+    if (studyAudio) {
+        studyAudio.pause();
+        studyAudio.currentTime = 0;
+        studyAudio = null;
+    }
+    document.getElementById("btnStudyAudio")?.classList.remove("playing");
+}
+
+function updateStudyProgress() {
+    const remaining = studyQueue.length;
+    const progressText = document.getElementById("studyProgressText");
+    const progressBar = document.getElementById("studyProgressBar");
+    if (progressText) progressText.textContent = `剩余 ${remaining} 句`;
+    if (progressBar) progressBar.style.width = `${studyQueueTotal ? ((studyQueueTotal - Math.min(remaining, studyQueueTotal)) / studyQueueTotal) * 100 : 0}%`;
+}
+
+function nextMasteredHint(card) {
+    const intervals = ["明天复习", "3 天后复习", "7 天后复习", "14 天后复习", "30 天后复习"];
+    return intervals[Math.min(Number(card.review_count || 0), intervals.length - 1)];
+}
+
+function showStudyView(view) {
+    currentStudyView = view === "library" ? "library" : "today";
+    const isLibrary = currentStudyView === "library";
+    document.getElementById("btnStudyToday")?.classList.toggle("active", !isLibrary);
+    document.getElementById("btnStudyLibrary")?.classList.toggle("active", isLibrary);
+    document.querySelector(".study-progress-track")?.classList.toggle("hidden", isLibrary);
+    if (studyLibrary) studyLibrary.style.display = isLibrary ? "block" : "none";
+    if (studyActions) studyActions.style.display = isLibrary ? "none" : "";
+    if (isLibrary) {
+        stopStudyAudio();
+        studyCard.style.display = "none";
+        studyEmpty.style.display = "none";
+        const progressText = document.getElementById("studyProgressText");
+        if (progressText) progressText.textContent = `共 ${accountFavorites.length} 句`;
+        renderStudyLibrary();
+    } else {
+        _favStopCurrent();
+        renderStudyCard();
+    }
+}
+
+function renderStudyCard() {
+    stopStudyAudio();
+    const card = studyQueue[0];
+    updateStudyProgress();
+    if (!card) {
+        studyCard.style.display = "none";
+        studyEmpty.style.display = "block";
+        btnShowStudyAnswer.style.display = "none";
+        studyRatingActions.style.display = "none";
+        document.getElementById("studyProgressBar").style.width = "100%";
+        return;
+    }
+
+    studyCard.style.display = "block";
+    studyEmpty.style.display = "none";
+    studyAnswer.style.display = "none";
+    btnShowStudyAnswer.style.display = "block";
+    studyRatingActions.style.display = "none";
+    document.getElementById("studyLanguage").textContent = getLanguageLabel(card.language) || "句子";
+    document.getElementById("studyReviewState").textContent = card.review_count
+        ? `已复习 ${card.review_count} 次`
+        : "新收藏";
+    document.getElementById("studyOriginal").textContent = card.text || "";
+    const romanizationEl = document.getElementById("studyRomanization");
+    romanizationEl.textContent = card.romanization || "";
+    romanizationEl.style.display = card.romanization ? "block" : "none";
+    document.getElementById("studyTranslation").textContent = card.translation || "暂无翻译";
+    document.getElementById("studyMasteredHint").textContent = nextMasteredHint(card);
+}
+
+async function openSentenceStudy(dueOnly = true, preferredCardId = "") {
+    if (!authState.loggedIn) {
+        promptFavoriteLogin();
+        return;
+    }
+    _favStopCurrent();
+    try {
+        const query = dueOnly && sentenceDueCount > 0 ? "?due=1&limit=100" : "?limit=100";
+        const res = await fetch(`/api/sentence-cards${query}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "加载失败");
+        studyQueue = (data.cards || []).map(mapSentenceCard);
+        if (preferredCardId) {
+            const preferredIndex = studyQueue.findIndex(card => card.id === preferredCardId);
+            if (preferredIndex > 0) studyQueue.unshift(...studyQueue.splice(preferredIndex, 1));
+        }
+        studyQueueTotal = studyQueue.length;
+        studyCompleted = 0;
+        studyPracticeSeen = new Set();
+        sentenceDueCount = Number(data.due_count || 0);
+        phaseSelect.style.display = "none";
+        phasePlay.style.display = "none";
+        sentenceStudyPage.style.display = "flex";
+        document.body.style.overflow = "hidden";
+        showStudyView("today");
+    } catch (error) {
+        alert("句子学习加载失败：" + error.message);
+    }
+}
+
+async function closeSentenceStudy() {
+    await commitPendingStudyReview();
+    stopStudyAudio();
+    _favStopCurrent();
+    sentenceStudyPage.style.display = "none";
+    phaseSelect.style.display = "";
+    document.body.style.overflow = "";
+    loadSentenceCards();
+}
+
+function toggleStudyAudio() {
+    const card = studyQueue[0];
+    if (!card || !card.audioUrl) {
+        alert("这张卡片没有可播放的音频，请重新收藏");
+        return;
+    }
+    if (studyAudio && !studyAudio.paused) {
+        stopStudyAudio();
+        return;
+    }
+    stopStudyAudio();
+    studyAudio = new Audio(card.audioUrl);
+    studyAudio.loop = studyLoopEnabled;
+    document.getElementById("btnStudyAudio").classList.add("playing");
+    studyAudio.addEventListener("ended", () => {
+        if (!studyLoopEnabled) stopStudyAudio();
+    });
+    studyAudio.addEventListener("error", () => {
+        stopStudyAudio();
+        alert("音频播放失败，请稍后重试");
+    });
+    studyAudio.play().catch(error => {
+        stopStudyAudio();
+        alert("音频播放失败：" + error.message);
+    });
+}
+
+function hideStudyUndoToast() {
+    const toast = document.getElementById("studyUndoToast");
+    if (toast) toast.style.display = "none";
+}
+
+async function commitPendingStudyReview() {
+    if (!pendingStudyReview) return;
+    clearTimeout(studyReviewTimer);
+    studyReviewTimer = null;
+    const pending = pendingStudyReview;
+    pendingStudyReview = null;
+    hideStudyUndoToast();
+    try {
+        const res = await fetch(`/api/sentence-cards/${encodeURIComponent(pending.card.id)}/review`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ result: pending.result }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "保存失败");
+        sentenceDueCount = Number(data.due_count || 0);
+        const updated = mapSentenceCard(data.card);
+        accountFavorites = accountFavorites.map(item => item.id === updated.id ? updated : item);
+        studyQueue = studyQueue.map(item => item.id === updated.id ? updated : item);
+    } catch (error) {
+        if (!studyQueue.some(item => item.id === pending.card.id)) studyQueue.unshift(pending.card);
+        renderStudyCard();
+        alert("复习结果保存失败：" + error.message);
+    }
+}
+
+function showStudyUndo(pending) {
+    const toast = document.getElementById("studyUndoToast");
+    const message = document.getElementById("studyUndoMessage");
+    if (message) message.textContent = pending.result === "practice"
+        ? "已放到本轮后面"
+        : `已掌握，${nextMasteredHint(pending.card)}`;
+    if (toast) toast.style.display = "flex";
+    studyReviewTimer = setTimeout(commitPendingStudyReview, 4000);
+}
+
+async function submitStudyResult(result, button) {
+    const card = studyQueue[0];
+    if (!card) return;
+    await commitPendingStudyReview();
+    stopStudyAudio();
+    const actionButtons = studyRatingActions.querySelectorAll("button");
+    actionButtons.forEach(btn => { btn.disabled = true; });
+    studyCard.classList.add("study-card-leaving");
+    setTimeout(() => {
+        studyCard.classList.remove("study-card-leaving");
+        studyQueue.shift();
+        let requeued = false;
+        if (result === "practice" && !studyPracticeSeen.has(card.id)) {
+            studyPracticeSeen.add(card.id);
+            studyQueue.push(card);
+            requeued = true;
+        } else {
+            studyCompleted += 1;
+        }
+        pendingStudyReview = { card, result, requeued };
+        renderStudyCard();
+        actionButtons.forEach(btn => { btn.disabled = false; });
+        showStudyUndo(pendingStudyReview);
+    }, 180);
+}
+
+document.getElementById("btnStartSentenceStudy")?.addEventListener("click", () => openSentenceStudy(sentenceDueCount > 0));
+document.getElementById("btnViewAllSentenceCards")?.addEventListener("click", () => openSentenceStudy(false));
+document.getElementById("btnStudyToday")?.addEventListener("click", () => showStudyView("today"));
+document.getElementById("btnStudyLibrary")?.addEventListener("click", () => showStudyView("library"));
+document.getElementById("btnCloseSentenceStudy")?.addEventListener("click", closeSentenceStudy);
+document.getElementById("btnStudyDone")?.addEventListener("click", closeSentenceStudy);
+document.getElementById("btnStudyAudio")?.addEventListener("click", toggleStudyAudio);
+document.getElementById("btnStudyLoop")?.addEventListener("click", event => {
+    studyLoopEnabled = !studyLoopEnabled;
+    event.currentTarget.setAttribute("aria-pressed", String(studyLoopEnabled));
+    if (studyAudio) studyAudio.loop = studyLoopEnabled;
+});
+btnShowStudyAnswer?.addEventListener("click", () => {
+    studyAnswer.style.display = "block";
+    btnShowStudyAnswer.style.display = "none";
+    studyRatingActions.style.display = "grid";
+});
+document.getElementById("btnStudyPractice")?.addEventListener("click", event => submitStudyResult("practice", event.currentTarget));
+document.getElementById("btnStudyMastered")?.addEventListener("click", event => submitStudyResult("mastered", event.currentTarget));
+document.getElementById("btnUndoStudyResult")?.addEventListener("click", () => {
+    if (!pendingStudyReview) return;
+    clearTimeout(studyReviewTimer);
+    studyReviewTimer = null;
+    const pending = pendingStudyReview;
+    pendingStudyReview = null;
+    if (pending.requeued) {
+        const duplicateIndex = studyQueue.findLastIndex(item => item.id === pending.card.id);
+        if (duplicateIndex >= 0) studyQueue.splice(duplicateIndex, 1);
+        studyPracticeSeen.delete(pending.card.id);
+    } else {
+        studyCompleted = Math.max(0, studyCompleted - 1);
+    }
+    studyQueue.unshift(pending.card);
+    hideStudyUndoToast();
+    renderStudyCard();
+});
 
 function renderSentenceList() {
     sentenceList.innerHTML = "";
@@ -2885,6 +3310,7 @@ function renderSentenceList() {
             : "";
         const lowConf = typeof seg.confidence === "number" && seg.confidence < 0.6;
         if (lowConf) div.classList.add("low-conf");
+        const favoriteFill = isSentenceFavorited(seg) ? "currentColor" : "none";
         div.innerHTML = `
             <div class="sentence-content">
                 <span class="seq">${lowConf ? '<span class="conf-dot" title="置信度低">●</span> ' : ''}${i + 1}</span>
@@ -2895,7 +3321,7 @@ function renderSentenceList() {
                 </div>
                 <div class="sentence-actions">
                     <button class="sentence-star-btn" title="收藏句子">
-                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="${favoriteFill}" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
                     </button>
                     <button class="sentence-edit-btn" title="编辑">✎</button>
                     ${mergeBtn}
@@ -3600,7 +4026,7 @@ function loadSubtitleDragPos() {
 }
 
 function initSubtitleDrag(el, key) {
-    let sy = 0, so = 0, moved = false, lastDown = 0;
+    let sy = 0, so = 0, moved = false, lastDown = 0, activePointerId = null;
 
     el.addEventListener("pointerdown", (e) => {
         // 鼠标右键忽略
@@ -3619,22 +4045,26 @@ function initSubtitleDrag(el, key) {
         sy = e.clientY;
         so = subtitleDragY[key] || 0;
         moved = false;
-        el.setPointerCapture(e.pointerId);
+        activePointerId = e.pointerId;
     });
 
     el.addEventListener("pointermove", (e) => {
-        if (!el.hasPointerCapture(e.pointerId)) return;
+        if (activePointerId !== e.pointerId) return;
         const dy = e.clientY - sy;
         if (!moved && Math.abs(dy) > 5) {
             moved = true;
             el.classList.add("sub-grabbing");
+            // 只有确认是拖动后才捕获指针。按下时立即捕获会让桌面
+            // 浏览器把子元素 .kw 的 click 重定向到父元素，导致查词失效。
+            el.setPointerCapture(e.pointerId);
         }
         if (!moved) return;
         subtitleDragY[key] = so + dy;
         el.style.transform = `translateY(${subtitleDragY[key]}px)`;
     });
 
-    el.addEventListener("pointerup", () => {
+    el.addEventListener("pointerup", (e) => {
+        if (activePointerId !== e.pointerId) return;
         el.classList.remove("sub-grabbing");
         if (moved) {
             subDragActive = true;
@@ -3642,11 +4072,14 @@ function initSubtitleDrag(el, key) {
             setTimeout(() => { subDragActive = false; }, 100);
         }
         moved = false;
+        activePointerId = null;
     });
 
-    el.addEventListener("pointercancel", () => {
+    el.addEventListener("pointercancel", (e) => {
+        if (activePointerId !== e.pointerId) return;
         el.classList.remove("sub-grabbing");
         moved = false;
+        activePointerId = null;
     });
 }
 
@@ -5155,6 +5588,7 @@ async function initAuth() {
         const emailEl  = document.getElementById("authDropdownEmail");
 
         if (data.logged_in) {
+            authState = { loaded: true, loggedIn: true };
             if (loginBtn)  loginBtn.style.display  = "none";
             if (userEl)    userEl.style.display     = "flex";
             if (avatarEl)  avatarEl.src             = data.picture_url || "";
@@ -5172,10 +5606,16 @@ async function initAuth() {
                 localStorage.removeItem("pending-ref");
             }
         } else {
+            authState = { loaded: true, loggedIn: false };
             if (loginBtn)  loginBtn.style.display  = "";
             if (userEl)    userEl.style.display     = "none";
         }
-    } catch (_) {}
+        await loadSentenceCards();
+    } catch (_) {
+        authState = { loaded: true, loggedIn: false };
+        accountFavorites = [];
+        renderFavorites();
+    }
 
     try {
         const cfgRes = await fetch("/api/auth/google/status");

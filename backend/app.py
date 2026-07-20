@@ -23,7 +23,7 @@ from ai.tts import generate_audio_lesson, generate_cover_image, ocr_image, detec
 from ai.pronunciation import assess_pronunciation
 from ai.romanize import generate_romanization
 from export import export_video_with_subtitles, export_srt
-from r2 import upload_audio
+from r2 import upload_audio, delete_audio
 from domain import Segment, SubtitleFile
 
 from commerce.db import init_db, get_db
@@ -32,6 +32,7 @@ from commerce.identity import get_or_create_anonymous, get_user_plan, ANONYMOUS_
 from commerce.middleware import CommerceContext
 from commerce.plan import get_default_quality
 import commerce.auth as _auth
+from commerce import sentence_cards as _sentence_cards
 from commerce.wallet import (
     add_credits as _wallet_add, refund as _wallet_refund,
     get_balance as _wallet_balance, get_history as _wallet_history,
@@ -1075,7 +1076,7 @@ def api_transcribe():
                 total_chunks = -(-int(duration) // 180)  # ceil(duration/180)
                 progress_queue.put(("progress", f"视频较长，将分 {total_chunks} 段识别..."))
             else:
-                progress_queue.put(("progress", f"正在识别（{mode.label}）..."))
+                progress_queue.put(("progress", "正在识别..."))
 
             result, handle, fallback_used, fallback_from = _attempt_transcription_with_mode(
                 ctx,
@@ -2019,11 +2020,92 @@ def api_pronounce():
             os.remove(audio_path)
 
 
+@app.route("/api/sentence-cards", methods=["GET"])
+def api_sentence_cards():
+    """返回当前登录用户的句子学习卡片。"""
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    try:
+        limit = int(request.args.get("limit", 100))
+    except (TypeError, ValueError):
+        limit = 100
+    due_only = request.args.get("due", "").lower() in ("1", "true", "yes")
+    return jsonify({
+        "cards": _sentence_cards.list_for_user(db, user["user_id"], limit, due_only),
+        "due_count": _sentence_cards.due_count(db, user["user_id"]),
+    })
+
+
+@app.route("/api/sentence-cards/<card_id>/review", methods=["POST"])
+def api_review_sentence_card(card_id):
+    """记录一次句子卡片复习，并安排下一次复习。"""
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        card = _sentence_cards.review(db, user["user_id"], card_id, str(data.get("result") or ""))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not card:
+        return jsonify({"error": "收藏不存在"}), 404
+    return jsonify({
+        "card": card,
+        "due_count": _sentence_cards.due_count(db, user["user_id"]),
+    })
+
+
+@app.route("/api/sentence-cards/<card_id>", methods=["DELETE"])
+def api_delete_sentence_card(card_id):
+    """删除当前用户的一张句子卡片及其专属音频。"""
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
+    card = _sentence_cards.delete(db, user["user_id"], card_id)
+    if not card:
+        return jsonify({"error": "收藏不存在"}), 404
+    try:
+        delete_audio(card.get("audio_key", ""))
+    except Exception as exc:
+        logger.warning(f"[sentence-card] R2 cleanup failed: {exc}")
+    return jsonify({"ok": True})
+
+
+def _create_sentence_card(db, user_id, data, audio_url, audio_key, start, end):
+    original_text = str(data.get("text") or "").strip()
+    if not original_text:
+        raise ValueError("句子内容不能为空")
+    source_video = str(data.get("source") or data.get("video") or "")[:200]
+    key = _sentence_cards.source_key(source_video, start, end, original_text)
+    return _sentence_cards.create(
+        db,
+        user_id,
+        key=key,
+        original_text=original_text[:2000],
+        translation=str(data.get("translation") or "")[:2000],
+        romanization=str(data.get("romanization") or "")[:2000],
+        language=str(data.get("language") or "")[:20],
+        audio_url=audio_url,
+        audio_key=audio_key,
+        source_video=source_video,
+        start_time=start,
+        end_time=end,
+    )
+
+
 @app.route("/api/bookmark-sentence", methods=["POST"])
 def api_bookmark_sentence():
-    """收藏句子：从服务器视频截取音频片段并上传到 R2"""
+    """收藏服务器视频中的句子，并保存为账号级学习卡片。"""
     import uuid
     data = request.get_json()
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
     video_name = data.get("video", "")
     try:
         start = float(data.get("start", -1))
@@ -2033,6 +2115,13 @@ def api_bookmark_sentence():
 
     if not (0 <= start < end) or end - start > 60:
         return jsonify({"error": "时间范围无效"}), 400
+    if not str(data.get("text") or "").strip():
+        return jsonify({"error": "句子内容不能为空"}), 400
+
+    key = _sentence_cards.source_key(video_name, start, end, str(data.get("text") or ""))
+    existing = _sentence_cards.find_existing(db, user["user_id"], key)
+    if existing:
+        return jsonify({"card": existing, "already_saved": True})
 
     videos_root = os.path.realpath(VIDEOS_DIR)
     video_path = os.path.realpath(os.path.join(VIDEOS_DIR, video_name))
@@ -2040,6 +2129,7 @@ def api_bookmark_sentence():
         return jsonify({"error": "视频文件不存在"}), 404
 
     tmp_mp3 = os.path.join(VIDEOS_DIR, f".bookmark_{os.getpid()}_{uuid.uuid4().hex}.mp3")
+    uploaded_key = ""
     try:
         cmd = [
             "ffmpeg", "-y",
@@ -2054,9 +2144,17 @@ def api_bookmark_sentence():
 
         key = f"sentences/{uuid.uuid4().hex}.mp3"
         audio_url = upload_audio(tmp_mp3, key)
+        uploaded_key = key
+        card = _create_sentence_card(db, user["user_id"], data, audio_url, key, start, end)
+        uploaded_key = ""
         log_event("bookmark", video=video_name, range=f"{start:.1f}-{end:.1f}")
-        return jsonify({"audio_url": audio_url})
+        return jsonify({"card": card})
     except Exception as e:
+        if uploaded_key:
+            try:
+                delete_audio(uploaded_key)
+            except Exception:
+                pass
         return jsonify({"error": str(e)}), 502
     finally:
         if os.path.exists(tmp_mp3):
@@ -2065,14 +2163,35 @@ def api_bookmark_sentence():
 
 @app.route("/api/bookmark-audio", methods=["POST"])
 def api_bookmark_audio():
-    """收藏句子：接收前端上传的音频片段（本地视频场景）并上传到 R2"""
+    """收藏本地视频中的句子，并保存为账号级学习卡片。"""
     import uuid
+    db = get_db()
+    user = _auth.get_current_user(db, request)
+    if not user:
+        return jsonify({"error": "需要登录才能进行此操作"}), 401
     if "audio" not in request.files:
         return jsonify({"error": "缺少音频文件"}), 400
+
+    data = request.form
+    try:
+        start = float(data.get("start", 0))
+        end = float(data.get("end", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "时间参数无效"}), 400
+    if not (0 <= start < end) or end - start > 60:
+        return jsonify({"error": "时间范围无效"}), 400
+    if not str(data.get("text") or "").strip():
+        return jsonify({"error": "句子内容不能为空"}), 400
+    source_video = str(data.get("source") or "")
+    key = _sentence_cards.source_key(source_video, start, end, str(data.get("text") or ""))
+    existing = _sentence_cards.find_existing(db, user["user_id"], key)
+    if existing:
+        return jsonify({"card": existing, "already_saved": True})
 
     audio_file = request.files["audio"]
     tmp_in = os.path.join(VIDEOS_DIR, f".bm_in_{os.getpid()}.wav")
     tmp_mp3 = os.path.join(VIDEOS_DIR, f".bm_out_{os.getpid()}.mp3")
+    uploaded_key = ""
     try:
         audio_file.save(tmp_in)
         if os.path.getsize(tmp_in) > 10 * 1024 * 1024:
@@ -2089,9 +2208,17 @@ def api_bookmark_audio():
 
         key = f"sentences/{uuid.uuid4().hex}.mp3"
         audio_url = upload_audio(tmp_mp3, key)
+        uploaded_key = key
+        card = _create_sentence_card(db, user["user_id"], data, audio_url, key, start, end)
+        uploaded_key = ""
         log_event("bookmark_audio")
-        return jsonify({"audio_url": audio_url})
+        return jsonify({"card": card})
     except Exception as e:
+        if uploaded_key:
+            try:
+                delete_audio(uploaded_key)
+            except Exception:
+                pass
         return jsonify({"error": str(e)}), 502
     finally:
         for p in (tmp_in, tmp_mp3):
