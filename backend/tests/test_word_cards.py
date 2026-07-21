@@ -98,3 +98,40 @@ def test_bookmark_word_audio_review_and_delete(client, db, monkeypatch, tmp_path
     deleted = client.delete(f"/api/word-cards/{card['card_id']}")
     assert deleted.status_code == 200
     assert deleted_keys == [card["audio_key"]]
+
+
+def test_existing_word_audio_can_be_rebuilt_with_context(client, db, monkeypatch, tmp_path):
+    import app as app_module
+
+    login(client, db)
+    monkeypatch.setattr(app_module, "VIDEOS_DIR", str(tmp_path))
+    monkeypatch.setattr(app_module.subprocess, "run", lambda *_a, **_k: SimpleNamespace(returncode=0, stderr=""))
+    uploaded = []
+    deleted = []
+    monkeypatch.setattr(app_module, "upload_audio", lambda _path, key: uploaded.append(key) or f"https://audio.example/{key}")
+    monkeypatch.setattr(app_module, "delete_audio", lambda key: deleted.append(key))
+    base = {
+        "word": "แข่งขัน", "meaning": "竞争", "language": "th",
+        "context": "เราต้องแข่งขันกัน", "source_video": "lesson.mp4",
+    }
+    first = client.post(
+        "/api/bookmark-word-audio",
+        data={**base, "audio": (io.BytesIO(b"short"), "word.wav")},
+        content_type="multipart/form-data",
+    ).get_json()["card"]
+    rebuilt = client.post(
+        "/api/bookmark-word-audio",
+        data={
+            **base, "audio": (io.BytesIO(b"wide"), "context.wav"),
+            "replace_card_id": first["card_id"], "audio_start": "3.0",
+            "audio_end": "3.8", "audio_duration": "6.8",
+        },
+        content_type="multipart/form-data",
+    )
+    assert rebuilt.status_code == 200
+    payload = rebuilt.get_json()
+    assert payload["audio_rebuilt"] is True
+    assert payload["card"]["card_id"] == first["card_id"]
+    assert payload["card"]["audio_duration"] == 6.8
+    assert payload["card"]["audio_key"] != first["audio_key"]
+    assert deleted == [first["audio_key"]]

@@ -1,4 +1,4 @@
-const APP_REV = "20260721d"; // 与 index.html 的 ?v= 同步更新
+const APP_REV = "20260721e"; // 与 index.html 的 ?v= 同步更新
 
 // ========== 设备 UUID（匿名用户限流指纹） ==========
 function getDeviceId() {
@@ -3570,27 +3570,22 @@ function drawWordWaveform(audioBuffer) {
     canvas.width = Math.max(1, Math.floor(rect.width * ratio));
     canvas.height = Math.max(1, Math.floor(rect.height * ratio));
     const ctx = canvas.getContext("2d");
-    ctx.scale(ratio, ratio);
-    ctx.clearRect(0, 0, rect.width, rect.height);
     const samples = audioBuffer.getChannelData(0);
-    const mid = rect.height / 2;
-    const step = Math.max(1, Math.floor(samples.length / rect.width));
-    ctx.strokeStyle = "rgba(255,255,255,.38)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = 0; x < rect.width; x++) {
-        let min = 1, max = -1;
-        const from = x * step;
-        const to = Math.min(samples.length, from + step);
+    const barCount = Math.max(1, Math.floor(canvas.width / (3 * ratio)));
+    const sampleStep = Math.max(1, Math.floor(samples.length / barCount));
+    const amps = new Float32Array(barCount);
+    for (let bar = 0; bar < barCount; bar++) {
+        let max = 0;
+        const from = bar * sampleStep;
+        const to = Math.min(samples.length, from + sampleStep);
         for (let index = from; index < to; index++) {
-            const value = samples[index];
-            if (value < min) min = value;
-            if (value > max) max = value;
+            max = Math.max(max, Math.abs(samples[index]));
         }
-        ctx.moveTo(x + .5, mid + min * mid * .85);
-        ctx.lineTo(x + .5, mid + max * mid * .85);
+        amps[bar] = Math.min(1, max * 1.5);
     }
-    ctx.stroke();
+    drawBars(ctx, canvas.width, canvas.height, amps, {
+        color: "rgba(255,255,255,.28)", barW: 2, gap: 1,
+    });
 }
 
 function stopWordTrimPreview() {
@@ -3601,14 +3596,64 @@ function stopWordTrimPreview() {
     document.getElementById("btnPreviewWordTrim")?.classList.remove("playing");
 }
 
+async function rebuildLegacyWordAudio(card) {
+    if (Number(card.audio_duration || 0) > 0 || !card.source_video || !card.context) return card;
+    const [media, meta] = await Promise.all([mediaGet(card.source_video), metaGet(card.source_video)]);
+    const lessonSegments = meta?.subtitle?.segments || [];
+    if (!media?.videoBlob || !lessonSegments.length) return card;
+    const normalize = value => String(value || "").trim().toLocaleLowerCase();
+    const segment = lessonSegments.find(item => normalize(item.text) === normalize(card.context));
+    if (!segment || !(Number(segment.end) > Number(segment.start))) return card;
+    const text = String(segment.text || "");
+    const tokens = text.includes(" ") ? text.split(/\s+/).filter(Boolean) : Array.from(text);
+    const clean = value => normalize(value).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+    const wordIndex = tokens.findIndex(token => clean(token) === clean(card.word));
+    if (wordIndex < 0) return card;
+    const weights = tokens.map(token => Math.max(1, Array.from(token).length));
+    const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+    const beforeWeight = weights.slice(0, wordIndex).reduce((sum, value) => sum + value, 0);
+    const segmentDuration = Number(segment.end) - Number(segment.start);
+    const estimatedStart = Number(segment.start) + beforeWeight / totalWeight * segmentDuration;
+    const estimatedEnd = Number(segment.start) + (beforeWeight + weights[wordIndex]) / totalWeight * segmentDuration;
+    const clipStart = Math.max(0, estimatedStart - 3);
+    const clipEnd = estimatedEnd + 3;
+    const audio = await getAudioSliceWavFromBlob(media.videoBlob, clipStart, clipEnd);
+    const form = new FormData();
+    const fields = {
+        word: card.word, meaning: card.meaning, part_of_speech: card.part_of_speech || "",
+        language: card.language || "", context: card.context || "",
+        source_video: card.source_video, replace_card_id: card.id,
+        audio_start: estimatedStart - clipStart, audio_end: estimatedEnd - clipStart,
+        audio_duration: clipEnd - clipStart,
+    };
+    Object.entries(fields).forEach(([key, value]) => form.append(key, String(value)));
+    form.append("audio", audio, "word-context.wav");
+    const res = await fetch("/api/bookmark-word-audio", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "旧原声扩展失败");
+    const updated = mapWordCard(data.card);
+    wordStudyQueue = wordStudyQueue.map(item => item.id === updated.id ? updated : item);
+    accountWordFavorites = accountWordFavorites.map(item => item.card_id === updated.id ? data.card : item);
+    return updated;
+}
+
 async function openWordTrim() {
-    const card = wordStudyQueue[0];
+    let card = wordStudyQueue[0];
     if (!card) return;
     stopWordStudyAudio();
     const modal = document.getElementById("wordTrimModal");
     modal.style.display = "flex";
     wordTrimCard = card;
     try {
+        const hint = document.getElementById("wordTrimHint");
+        if (!Number(card.audio_duration || 0)) {
+            hint.textContent = "正在从本地课程恢复前后音频…";
+            card = await rebuildLegacyWordAudio(card);
+            wordTrimCard = card;
+        }
+        hint.textContent = Number(card.audio_duration || 0)
+            ? "拖动黄色把手调整时间 · 红色区域是播放范围"
+            : "旧收藏没有前后音频；重新在视频中收藏可扩展范围";
         const res = await fetch(card.audioUrl);
         if (!res.ok) throw new Error("原声读取失败");
         const bytes = await res.arrayBuffer();
@@ -4504,9 +4549,9 @@ async function bookmarkPopupWord(button) {
     try {
         let res;
         if (localVideoFile) {
-            const clipStart = Math.max(0, start - 1.5);
-            const mediaDuration = Number.isFinite(video.duration) ? video.duration : end + 1.5;
-            const clipEnd = Math.min(mediaDuration, end + 1.5);
+            const clipStart = Math.max(0, start - 3);
+            const mediaDuration = Number.isFinite(video.duration) ? video.duration : end + 3;
+            const clipEnd = Math.min(mediaDuration, end + 3);
             fields.audio_start = start - clipStart;
             fields.audio_end = end - clipStart;
             fields.audio_duration = clipEnd - clipStart;
@@ -6071,8 +6116,8 @@ weBtnRetrans.addEventListener("click", async () => {
 });
 
 // ---- 本地视频：客户端切音频并编码 WAV（供二次识别上传） ----
-async function getLocalAudioSliceWav(startSec, endSec) {
-    const buf = await localVideoFile.arrayBuffer();
+async function getAudioSliceWavFromBlob(mediaBlob, startSec, endSec) {
+    const buf = await mediaBlob.arrayBuffer();
     const AC = window.AudioContext || window.webkitAudioContext;
     const actx = new AC();
     try {
@@ -6113,6 +6158,10 @@ async function getLocalAudioSliceWav(startSec, endSec) {
     } finally {
         actx.close().catch(() => {});
     }
+}
+
+async function getLocalAudioSliceWav(startSec, endSec) {
+    return getAudioSliceWavFromBlob(localVideoFile, startSec, endSec);
 }
 
 // ========== Auth（登录/登出/状态同步）==========

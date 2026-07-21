@@ -124,3 +124,19 @@ def update_audio_range(db, user_id: str, card_id: str, start: float, end: float)
     )
     db.commit()
     return get(db, user_id, card_id)
+
+
+def replace_audio(db, user_id: str, card_id: str, *, audio_url: str, audio_key: str,
+                  audio_start: float, audio_end: float, audio_duration: float) -> dict | None:
+    card = get(db, user_id, card_id)
+    if not card:
+        return None
+    db.execute(
+        """UPDATE word_cards SET audio_url = ?, audio_key = ?, audio_start = ?,
+           audio_end = ?, audio_duration = ?, updated_at = datetime('now')
+           WHERE user_id = ? AND card_id = ?""",
+        (audio_url, audio_key, round(audio_start, 3), round(audio_end, 3),
+         round(audio_duration, 3), user_id, card_id),
+    )
+    db.commit()
+    return get(db, user_id, card_id)

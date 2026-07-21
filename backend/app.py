@@ -2202,8 +2202,8 @@ def api_bookmark_word():
         tmp_mp3 = os.path.join(VIDEOS_DIR, f".word_{os.getpid()}_{uuid.uuid4().hex}.mp3")
         uploaded_key = ""
         try:
-            clip_start = max(0, start - 1.5)
-            clip_end = end + 1.5
+            clip_start = max(0, start - 3)
+            clip_end = end + 3
             data = dict(data)
             data.update({
                 "audio_start": start - clip_start,
@@ -2245,7 +2245,8 @@ def api_bookmark_word_audio():
         word, meaning = str(data.get("word") or "").strip(), str(data.get("meaning") or "").strip()
         key = _word_cards.source_key(word, str(data.get("language") or ""), meaning)
         existing = _word_cards.find_existing(db, user["user_id"], key)
-        if existing:
+        replace_card_id = str(data.get("replace_card_id") or "")
+        if existing and replace_card_id != existing["card_id"]:
             return jsonify({"card": existing, "already_saved": True})
         if "audio" not in request.files:
             return jsonify({"error": "缺少单词音频"}), 400
@@ -2261,9 +2262,22 @@ def api_bookmark_word_audio():
                 return jsonify({"error": "单词音频转换失败"}), 500
             uploaded_key = f"words/{uuid.uuid4().hex}.mp3"
             audio_url = upload_audio(tmp_mp3, uploaded_key)
-            card = _create_word_card(db, user["user_id"], data, audio_url, uploaded_key)
+            if existing:
+                old_key = existing.get("audio_key", "")
+                card = _word_cards.replace_audio(
+                    db, user["user_id"], existing["card_id"],
+                    audio_url=audio_url, audio_key=uploaded_key,
+                    audio_start=float(data.get("audio_start") or 0),
+                    audio_end=float(data.get("audio_end") or 0),
+                    audio_duration=float(data.get("audio_duration") or 0),
+                )
+                if old_key and old_key != uploaded_key:
+                    try: delete_audio(old_key)
+                    except Exception: pass
+            else:
+                card = _create_word_card(db, user["user_id"], data, audio_url, uploaded_key)
             uploaded_key = ""
-            return jsonify({"card": card})
+            return jsonify({"card": card, "audio_rebuilt": bool(existing)})
         finally:
             if uploaded_key:
                 try: delete_audio(uploaded_key)
