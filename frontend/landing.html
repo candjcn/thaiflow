@@ -10,8 +10,10 @@
     <meta name="theme-color" content="#000000">
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icon-180.png">
-    <title>ReelSpeak — 用短视频学外语</title>
-    <link rel="stylesheet" href="landing.css?v=20260710a">
+    <link rel="icon" href="/icon-192.png">
+    <title>ReelSpeak - 看懂真实视频，记住里面的外语</title>
+    <meta name="description" content="导入短视频，获得双语字幕。点词查看释义，收藏句子和单词，再用卡片按计划复习。">
+    <link rel="stylesheet" href="landing.css?v=20260721a">
 </head>
 <body>
 
@@ -49,243 +51,79 @@
     </div>
 </nav>
 
-<!-- Hero -->
-<section class="hero">
-    <div class="hero-content">
-        <h1 class="hero-title">
-            <span class="hero-line" data-i18n="hero.line1">刷着短视频</span>
-            <span class="hero-line gradient-text" data-i18n="hero.line2">学会任何外语</span>
-        </h1>
-        <p class="hero-subtitle" data-i18n="hero.subtitle">
-            粘贴一条 TikTok 链接，或一段课文，AI 变出你的专属外语课。<br>
-            逐句复读、影子跟读、发音打分——泰语、英语、日语……统统搞定。
-        </p>
-        <div class="hero-actions">
-            <a href="/app" class="btn-primary" data-i18n="hero.btn.try">免费体验</a>
-            <a href="#how-it-works" class="btn-secondary" data-i18n="hero.btn.more">了解更多</a>
-        </div>
-    </div>
-    <div class="hero-visual">
-        <div class="phone-mockup">
-            <div class="phone-screen">
-                <div class="mock-video"></div>
-                <div class="mock-subtitle">
-                    <div class="mock-thai" data-i18n="hero.mock.subtitle">Nice to meet you!</div>
-                    <div class="mock-cn" data-i18n="hero.mock.cn">很高兴认识你</div>
-                </div>
-                <div class="mock-score">
-                    <span class="mock-score-num" data-i18n="hero.mock.score.num">92</span>
-                    <span class="mock-score-label" data-i18n="hero.mock.score.label">发音评分</span>
-                </div>
+<main>
+    <section class="hero">
+        <div class="hero-content">
+            <p class="hero-kicker" data-i18n="landing.hero.kicker">真实内容，就是最好的外语教材</p>
+            <h1 class="hero-title"><span data-i18n="landing.hero.line1">看懂真实视频</span><span class="hero-accent" data-i18n="landing.hero.line2">记住里面的外语</span></h1>
+            <p class="hero-subtitle" data-i18n="landing.hero.subtitle">导入短视频，获得双语字幕。点词查看释义，收藏句子和单词，再用卡片按计划复习。</p>
+            <div class="hero-actions">
+                <a href="/app" class="btn-primary" data-i18n="landing.hero.primary">免费开始学习</a>
+                <a href="#learning-loop" class="btn-secondary" data-i18n="landing.hero.secondary">查看学习方式</a>
             </div>
         </div>
-    </div>
-</section>
-
-<!-- 核心卖点 -->
-<section class="features" id="features">
-    <div class="section-inner">
-        <h2 class="section-title" data-i18n="features.title">为什么选择 ReelSpeak</h2>
-        <p class="section-desc" data-i18n="features.desc">三个简单步骤，将任何短视频变成你的外语课堂</p>
-
-        <div class="feature-grid">
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2"/><polygon points="20,16 34,24 20,32" fill="currentColor"/></svg>
-                </div>
-                <h3 data-i18n="feature.1.title">粘贴即学</h3>
-                <p data-i18n="feature.1.desc">粘贴 TikTok、YouTube 链接，AI 自动识别语音并翻译成中文，支持英语、日语、泰语、法语等 50+ 种语言。</p>
+        <div class="hero-product" aria-label="ReelSpeak 字幕播放器预览">
+            <div class="product-video">
+                <div class="video-atmosphere"><span class="video-person"></span></div>
+                <div class="sentence-count">6/18 句<br><small>第 1/3 遍</small></div>
+                <div class="video-subtitles"><strong>เรา <mark>เรียน</mark> จาก สิ่ง ที่ เรา ชอบ</strong><span>我们从自己喜欢的内容中学习</span></div>
+                <div class="word-popover"><div><strong>เรียน</strong><button aria-label="收藏单词">★</button></div><p><i>v.</i> 学习</p></div>
             </div>
+            <div class="product-controls"><span>1x</span><span>↻ 3</span><strong>双语</strong><span>影子跟读</span></div>
+        </div>
+    </section>
 
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 48 48" fill="none"><path d="M14 24h20M24 14v20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2"/><path d="M16 18c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                </div>
-                <h3 data-i18n="feature.2.title">逐句精听</h3>
-                <p data-i18n="feature.2.desc">每句自动重复三遍：第一遍盲听、第二遍看原文、第三遍看翻译。渐进式理解，印象更深。</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 48 48" fill="none"><rect x="14" y="22" width="20" height="14" rx="3" stroke="currentColor" stroke-width="2"/><path d="M20 22v-4a4 4 0 018 0v4" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="30" r="2" fill="currentColor"/></svg>
-                </div>
-                <h3 data-i18n="feature.3.title">AI 评分</h3>
-                <p data-i18n="feature.3.desc">跟读后 AI 实时评估你的发音，精确到每个音节。准确度、流利度、完整度一目了然。</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 48 48" fill="none"><path d="M12 14h16M12 22h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="10" y="8" width="28" height="24" rx="4" stroke="currentColor" stroke-width="2"/><path d="M30 30v6l6-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M34 22c2 1 2 5 0 6M37 19c4 2 4 10 0 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                </div>
-                <h3 data-i18n="feature.4.title">文字变有声课</h3>
-                <p data-i18n="feature.4.desc">粘贴任意文章或对话，AI 用真人感声音朗读成课程：对话自动男女双声、按情感演绎，还配上 AI 插画封面。</p>
+    <section class="learning-loop" id="learning-loop">
+        <div class="section-inner">
+            <div class="section-heading"><p data-i18n="landing.loop.kicker">一次导入，持续学习</p><h2 data-i18n="landing.loop.title">从看懂，到真正记住</h2><span data-i18n="landing.loop.desc">ReelSpeak 把短视频里的真实表达，变成可以反复练习的个人学习内容。</span></div>
+            <div class="loop-track">
+                <article><b>01</b><h3 data-i18n="landing.loop.1.title">导入内容</h3><p data-i18n="landing.loop.1.desc">粘贴短视频链接，或打开本地视频和音频。</p></article>
+                <article><b>02</b><h3 data-i18n="landing.loop.2.title">理解字幕</h3><p data-i18n="landing.loop.2.desc">AI 识别、断句和翻译，生成可交互的双语字幕。</p></article>
+                <article><b>03</b><h3 data-i18n="landing.loop.3.title">收藏重点</h3><p data-i18n="landing.loop.3.desc">把值得练习的句子和遇到的生词加入账号。</p></article>
+                <article><b>04</b><h3 data-i18n="landing.loop.4.title">按时复习</h3><p data-i18n="landing.loop.4.desc">每天打开卡片，只练今天该复习的内容。</p></article>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- 使用流程 -->
-<section class="how-it-works" id="how-it-works">
-    <div class="section-inner">
-        <h2 class="section-title" data-i18n="steps.title">三步开始学习</h2>
-
-        <div class="steps">
-            <div class="step-item">
-                <div class="step-num">1</div>
-                <div class="step-content">
-                    <h3 data-i18n="step.1.title">粘贴链接</h3>
-                    <p data-i18n="step.1.desc">将 TikTok 或 YouTube 短视频链接粘贴到输入框，点击下载。</p>
-                </div>
-            </div>
-
-            <div class="step-item">
-                <div class="step-num">2</div>
-                <div class="step-content">
-                    <h3 data-i18n="step.2.title">自动识别</h3>
-                    <p data-i18n="step.2.desc">AI 自动识别语音、断句、翻译，生成精准的双语字幕。全程无需手动操作。</p>
-                </div>
-            </div>
-
-            <div class="step-item">
-                <div class="step-num">3</div>
-                <div class="step-content">
-                    <h3 data-i18n="step.3.title">跟读练习</h3>
-                    <p data-i18n="step.3.desc">逐句播放、重复跟读、AI 打分。每天 15 分钟，外语脱口而出。</p>
-                </div>
-            </div>
+    <section class="feature-story listen-story">
+        <div class="section-inner story-grid">
+            <div class="story-copy"><p class="story-kicker" data-i18n="landing.listen.kicker">逐句精听</p><h2 data-i18n="landing.listen.title">听不懂的句子，可以停下来单独练</h2><p data-i18n="landing.listen.desc">单句循环、三遍复读、双语字幕和影子跟读都围绕当前句工作，不必在整段视频里反复拖动。</p><ul><li data-i18n="landing.listen.1">自由设置 1、3、5 次或无限循环</li><li data-i18n="landing.listen.2">录下跟读，查看准确度、流利度和完整度</li><li data-i18n="landing.listen.3">需要时调整句子的开始和结束时间</li></ul></div>
+            <div class="sentence-preview"><div class="preview-meta"><span>泰语</span><span data-i18n="landing.preview.reviewed">已复习 1 次</span></div><button class="preview-audio" aria-label="播放原句"><span>▶</span></button><strong>คุณ ชอบ เรียน ภาษา ไทย เพราะ อะไร</strong><p>你为什么喜欢学习泰语？</p><div class="preview-toolbar"><span>↻ 3</span><span>双语</span><span>影子跟读</span></div></div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- 功能亮点 -->
-<section class="highlights">
-    <div class="section-inner">
-        <div class="highlight-row">
-            <div class="highlight-text">
-                <h2 data-i18n="highlight.1.title">智能校准<br><span class="gradient-text">双引擎识别</span></h2>
-                <p data-i18n="highlight.1.desc">同时调用 Groq Whisper 和 Azure Speech 两个引擎。Whisper 负责精准断句，Azure 负责准确识别。两者结合，字幕准确率远超单一引擎。</p>
-            </div>
-            <div class="highlight-visual">
-                <div class="glass-card">
-                    <div class="engine-row">
-                        <span class="engine-tag groq">Groq Whisper</span>
-                        <span class="engine-desc" data-i18n="highlight.1.engine1.desc">断句 + 时间戳</span>
-                    </div>
-                    <div class="engine-plus">+</div>
-                    <div class="engine-row">
-                        <span class="engine-tag azure">Azure Speech</span>
-                        <span class="engine-desc" data-i18n="highlight.1.engine2.desc">精准识别文本</span>
-                    </div>
-                    <div class="engine-result">
-                        <span class="engine-arrow">↓</span>
-                        <span class="engine-tag combined">智能校准结果</span>
-                    </div>
-                </div>
-            </div>
+    <section class="feature-story sentence-story">
+        <div class="section-inner story-grid reverse">
+            <div class="story-copy"><p class="story-kicker" data-i18n="landing.sentence.kicker">句子收藏</p><h2 data-i18n="landing.sentence.title">收藏的不只是字幕，而是下一次要练的句子</h2><p data-i18n="landing.sentence.desc">先听声音并回想内容，再显示原文和翻译。根据自己的掌握情况，选择继续练习或已经掌握。</p></div>
+            <div class="study-preview"><div class="study-header"><span data-i18n="landing.study.today">今日复习</span><strong>1 / 4</strong></div><div class="study-card"><small>泰语</small><div class="sound-disc">▶</div><span data-i18n="landing.study.listen">先听原句，试着回想它的意思</span></div><button data-i18n="landing.study.answer">显示答案</button></div>
         </div>
+    </section>
 
-        <div class="highlight-row reverse">
-            <div class="highlight-text">
-                <h2 data-i18n="highlight.2.title">一句听不懂？<br><span class="gradient-text">单句无限循环</span></h2>
-                <p data-i18n="highlight.2.desc">听不懂这一句，就单独盯着它反复听，直到听进去为止。随时切换到任意句，自由设置循环次数——不用在整段视频里倒来倒去，一句话就是你的专属训练场。</p>
-            </div>
-            <div class="highlight-visual">
-                <div class="glass-card">
-                    <div class="pass-item active">
-                        <span class="pass-num">↺</span>
-                        <span class="pass-label" data-i18n="highlight.2.cur">当前句</span>
-                        <span class="pass-desc">สวัสดีครับ<br><small>你好</small></span>
-                    </div>
-                    <div class="engine-result" style="margin-top:12px;">
-                        <span class="engine-arrow"></span>
-                        <span style="font-size:13px;color:#aaa;" data-i18n="highlight.2.loop.label">循环次数</span>
-                    </div>
-                    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-                        <span class="engine-tag groq" data-i18n="highlight.2.loop.1">× 1</span>
-                        <span class="engine-tag azure" data-i18n="highlight.2.loop.3">× 3</span>
-                        <span class="engine-tag" data-i18n="highlight.2.loop.5">× 5</span>
-                        <span class="engine-tag combined" data-i18n="highlight.2.loop.inf">× ∞</span>
-                    </div>
-                </div>
-            </div>
+    <section class="feature-story word-story">
+        <div class="section-inner story-grid">
+            <div class="story-copy"><p class="story-kicker" data-i18n="landing.word.kicker">字幕点词</p><h2 data-i18n="landing.word.title">遇到不认识的词，不用离开视频</h2><p data-i18n="landing.word.desc">点击字幕中的单词，立即查看词性和释义。点亮星星后，它会进入你的账号词库，并保留原句上下文。</p></div>
+            <div class="word-preview"><div class="word-source"><span>competitive.</span><b>★</b></div><p><i>adj.</i> 竞争激烈的</p><div class="word-divider"></div><small data-i18n="landing.word.context">来自原句</small><blockquote>You know, in China, it is so <mark>competitive</mark>.</blockquote><button data-i18n="landing.word.saved">已收藏到单词学习</button></div>
         </div>
+    </section>
 
-        <div class="highlight-row">
-            <div class="highlight-text">
-                <h2 data-i18n="highlight.3.title">粘贴课文<br><span class="gradient-text">秒变有声课程</span></h2>
-                <p data-i18n="highlight.3.desc">没有合适的视频？把课文或对话直接粘贴进来。AI 分析角色和情感，用逼真人声逐句朗读——对话自动分配男声女声，支持情感演绎和声音克隆，每课还配一张 AI 手绘封面。</p>
-            </div>
-            <div class="highlight-visual">
-                <div class="glass-card">
-                    <div class="engine-row">
-                        <span class="engine-tag groq" data-i18n="highlight.3.va">A · 女声</span>
-                        <span class="engine-desc">สวัสดีค่ะ</span>
-                    </div>
-                    <div class="engine-plus">+</div>
-                    <div class="engine-row">
-                        <span class="engine-tag azure" data-i18n="highlight.3.vb">B · 男声</span>
-                        <span class="engine-desc">สวัสดีครับ</span>
-                    </div>
-                    <div class="engine-result">
-                        <span class="engine-arrow">↓</span>
-                        <span class="engine-tag combined" data-i18n="highlight.3.result">情感朗读 + AI 插画封面</span>
-                    </div>
-                </div>
-            </div>
+    <section class="review-plan">
+        <div class="section-inner plan-grid">
+            <div class="plan-copy"><p class="story-kicker" data-i18n="landing.plan.kicker">简单复习计划</p><h2 data-i18n="landing.plan.title">ReelSpeak 会记住，你下一次该复习什么</h2><p data-i18n="landing.plan.desc">首页直接显示今天待复习的句子和单词。完成后可以离开，也可以继续学习全部收藏。</p><p class="account-note" data-i18n="landing.plan.account">登录后，收藏和学习进度会保存到你的账号。</p></div>
+            <div class="plan-cards"><article><span class="plan-icon">▤</span><div><small data-i18n="landing.plan.sentence">句子学习</small><strong data-i18n="landing.plan.sentence.count">4 句待复习</strong></div><span>›</span></article><article><span class="plan-icon">A</span><div><small data-i18n="landing.plan.word">单词学习</small><strong data-i18n="landing.plan.word.count">7 个待复习</strong></div><span>›</span></article></div>
         </div>
+    </section>
 
-        <div class="highlight-row reverse">
-            <div class="highlight-text">
-                <h2 data-i18n="highlight.5.title">AI 帮你备课<br><span class="gradient-text">三种方式随心选</span></h2>
-                <p data-i18n="highlight.5.desc">想学什么就学什么：粘贴双语对照文本（原文和译文用空格隔开，自动跳过翻译）；用 A/B 标注角色，AI 自动分配男女声；或者描述一个场景，让 AI 一键生成对话内容，立刻转成课程。</p>
-            </div>
-            <div class="highlight-visual">
-                <div class="glass-card">
-                    <div class="engine-row">
-                        <span class="engine-tag groq" data-i18n="highlight.5.way1">双语粘贴</span>
-                        <span class="engine-desc" data-i18n="highlight.5.way1.desc">สวัสดี  你好</span>
-                    </div>
-                    <div class="engine-row" style="margin-top:10px;">
-                        <span class="engine-tag azure" data-i18n="highlight.5.way2">对话格式</span>
-                        <span class="engine-desc" data-i18n="highlight.5.way2.desc">A: ... / B: ...</span>
-                    </div>
-                    <div class="engine-row" style="margin-top:10px;">
-                        <span class="engine-tag combined" data-i18n="highlight.5.way3">✨ AI 生成</span>
-                        <span class="engine-desc" data-i18n="highlight.5.way3.desc">描述场景，AI 写稿</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="highlight-row">
-            <div class="highlight-text">
-                <h2 data-i18n="highlight.4.title">泰语按词分空格<br><span class="gradient-text">初学者友好</span></h2>
-                <p data-i18n="highlight.4.desc">泰语原文单词之间没有空格，新手根本不知道在哪里断词。ReelSpeak 自动在词与词之间加上空格，字幕结构一眼看懂，跟读定位更轻松。</p>
-            </div>
-            <div class="highlight-visual">
-                <div class="glass-card">
-                    <div class="pass-item">
-                        <span class="pass-num">✕</span>
-                        <span class="pass-label" data-i18n="highlight.4.before">原始</span>
-                        <span class="pass-desc">สวัสดีครับผมชื่อสมชาย</span>
-                    </div>
-                    <div class="pass-item active">
-                        <span class="pass-num">✓</span>
-                        <span class="pass-label" data-i18n="highlight.4.after">分词后</span>
-                        <span class="pass-desc">สวัสดี ครับ ผม ชื่อ สมชาย</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
+    <section class="more-capabilities">
+        <div class="section-inner"><div class="section-heading compact"><p data-i18n="landing.more.kicker">不只一种学习入口</p><h2 data-i18n="landing.more.title">用你真正感兴趣的内容学习</h2></div><div class="capability-grid"><article><h3 data-i18n="landing.more.1.title">更准确的字幕</h3><p data-i18n="landing.more.1.desc">智能选择识别方案，并支持单句重新识别和字幕校正。</p></article><article><h3 data-i18n="landing.more.2.title">泰语智能分词</h3><p data-i18n="landing.more.2.desc">自动在泰语词语之间增加空格，让初学者看清句子结构。</p></article><article><h3 data-i18n="landing.more.3.title">文字变有声课程</h3><p data-i18n="landing.more.3.desc">粘贴文章或对话，生成多角色朗读课程，也可以让 AI 帮你写对话。</p></article></div></div>
+    </section>
+</main>
 
 <!-- CTA -->
 <section class="cta">
     <div class="section-inner">
-        <h2 class="cta-title" data-i18n="cta.title">开始你的外语学习之旅</h2>
-        <p class="cta-desc" data-i18n="cta.desc">完全免费，无需注册，打开即用。</p>
-        <a href="/app" class="btn-primary btn-large" data-i18n="cta.btn">立即体验</a>
+        <h2 class="cta-title" data-i18n="landing.cta.title">用你真正感兴趣的内容学习</h2>
+        <p class="cta-desc" data-i18n="landing.cta.desc">从第一条视频开始。浏览和播放无需注册，收藏与学习记录需要登录。</p>
+        <a href="/app" class="btn-primary btn-large" data-i18n="landing.cta.button">免费开始学习</a>
         <div id="ctaPwaInstall" class="cta-pwa-install" style="display:none;">
             <button id="ctaInstallBtn" class="btn-pwa-install">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13M7 10l5 5 5-5"/><path d="M3 18h18v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z"/></svg>
@@ -305,7 +143,7 @@
 </footer>
 
 <!-- i18n + 滚动动画 -->
-<script src="i18n.js?v=20260717d"></script>
+<script src="i18n.js?v=20260721a"></script>
 <script>
 I18N.init();
 
@@ -416,7 +254,7 @@ const observer = new IntersectionObserver((entries) => {
     });
 }, { threshold: 0.1 });
 
-document.querySelectorAll('.feature-card, .step-item, .highlight-row, .cta').forEach(el => {
+document.querySelectorAll('.learning-loop, .feature-story, .review-plan, .more-capabilities, .cta').forEach(el => {
     observer.observe(el);
 });
 </script>
